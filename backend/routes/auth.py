@@ -55,18 +55,3 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-#wyświtlanie zarejestrowanych kont
-@router.get("/users", response_model=list[schemas.UserResponse])
-def get_all_users(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    # dostęp tylko dla admina
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
-
-    users = db.query(models.User).all()
-    return users
