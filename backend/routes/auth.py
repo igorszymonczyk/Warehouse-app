@@ -35,9 +35,9 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
 
     # dodaj do tabeli Customer
-    db_role = models.Customer(user_id=new_user.id, imie=user.imie, nazwisko=user.nazwisko)
-    db.add(db_role)
-    db.commit()
+    # db_role = models.Customer(user_id=new_user.id, imie=user.imie, nazwisko=user.nazwisko)
+    # db.add(db_role)
+    # db.commit()
 
     return new_user
 

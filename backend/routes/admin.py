@@ -7,10 +7,7 @@ from schemas.user import RoleUpdate
 from models import users as models
 from schemas import user as schemas
 
-router = APIRouter(
-    prefix="/admin",
-    tags=["Admin"]
-)
+router = APIRouter(tags=["Admin"])
 
 
 #wyświtlanie zarejestrowanych kont

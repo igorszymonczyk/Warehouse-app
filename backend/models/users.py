@@ -9,6 +9,8 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
     role = Column(String, nullable=False)
+
+
 #nie wiem czy potrzebne rozdzielanie
 # class Admin(Base):
 #     __tablename__ = "admins"
