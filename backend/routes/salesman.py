@@ -74,3 +74,47 @@ def add_product(
     db.refresh(new_product)
 
     return new_product
+
+
+# Edytowanie produktu
+@router.put("/products/{product_id}", response_model=product_schemas.ProductResponse)
+def update_product(
+    product_id: int,
+    updated_data: product_schemas.ProductCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in ["salesman", "admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized to edit products")
+
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    # aktualizacja pól
+    for key, value in updated_data.model_dump().items():
+        setattr(product, key, value)
+
+    db.commit()
+    db.refresh(product)
+    return product
+
+# Usuwanie produktu
+@router.delete("/products/{product_id}")
+def delete_product(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    
+    if current_user.role not in ["salesman", "admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized to delete products")
+
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    db.delete(product)
+    db.commit()
+
+    return {"detail": f"Product '{product.name}' (ID: {product.id}) has been deleted successfully"}
