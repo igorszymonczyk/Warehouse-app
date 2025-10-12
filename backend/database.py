@@ -1,3 +1,4 @@
+# database.py
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -11,10 +12,20 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
-# Funkcja pomocnicza do FastAPI
+# FastAPI dependency
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+# --- NEW: create tables on startup ---
+def init_db():
+    # Importuj WSZYSTKIE modele, żeby SQLAlchemy je znało
+    import models.users           # noqa: F401
+    import models.product         # noqa: F401
+    import models.cart            # noqa: F401  # <-- dodałeś/aś przed chwilą
+    # tu później dorzucimy: models.order, models.invoice, models.wz, itd.
+
+    Base.metadata.create_all(bind=engine)

@@ -10,15 +10,15 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import users as models
 
-# Wczytanie zmiennych z .env
+# Wczytanie zmiennych z .env (bezpieczne domyślne wartości)
 load_dotenv()
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 
-# FastAPI - do wyciągania tokenu z nagłówka Authorization
+# Schematy autoryzacji
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
-
+bearer_scheme = HTTPBearer()
 
 # Tworzenie tokenu JWT
 def create_access_token(data: dict, expires_delta: timedelta = None):
@@ -27,10 +27,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-
 # Pobieranie zalogowanego użytkownika na podstawie tokenu
-bearer_scheme = HTTPBearer()
-
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db)
@@ -44,8 +41,9 @@ def get_current_user(
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
-        role: str = payload.get("role")  # <-- wyciągamy rolę z tokena
-        if email is None or role is None:
+        # role z tokena może się przydać do szybkiej weryfikacji,
+        # ale i tak ostatecznie korzystamy z roli z bazy
+        if email is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
@@ -53,8 +51,15 @@ def get_current_user(
     user = db.query(models.User).filter(models.User.email == email).first()
     if user is None:
         raise credentials_exception
-
-    # Możesz przypisać role z tokena do obiektu user
-    user.role = role
     return user
 
+# Zależność do kontroli ról (używaj w routerach)
+def role_required(*allowed_roles):
+    def _checker(current_user = Depends(get_current_user)):
+        if allowed_roles and current_user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden"
+            )
+        return current_user
+    return _checker
