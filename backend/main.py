@@ -9,6 +9,7 @@ from routes.admin import router as admin_router
 from routes.salesman import router as salesman_router
 from routes.cart import router as cart_router
 from routes.invoice import router as invoice_router
+from routes.warehouse import router as warehouse_router
 
 # Utworzenie instancji FastAPI
 app = FastAPI(
@@ -27,6 +28,7 @@ app.include_router(salesman_router)
 app.include_router(logs_router)
 app.include_router(cart_router)
 app.include_router(invoice_router)
+app.include_router(warehouse_router)
 
 # Opcjonalny root endpoint
 @app.get("/")

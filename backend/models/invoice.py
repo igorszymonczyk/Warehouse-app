@@ -24,7 +24,7 @@ class Invoice(Base):
 
     created_by = Column(Integer, ForeignKey("users.id"))
     items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
-
+    warehouse_doc = relationship("WarehouseDocument", back_populates="invoice", uselist=False)
 
 class InvoiceItem(Base):
     __tablename__ = "invoice_items"
@@ -41,3 +41,6 @@ class InvoiceItem(Base):
 
     invoice = relationship("Invoice", back_populates="items")
     product = relationship("Product")
+
+
+

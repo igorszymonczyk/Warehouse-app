@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session, joinedload
 from models.invoice import Invoice, InvoiceItem
 from models.product import Product
+from models.WarehouseDoc import WarehouseDocument
 from database import get_db
 from utils.tokenJWT import get_current_user
 from models.users import User
@@ -9,6 +10,7 @@ from schemas import invoice as invoice_schemas
 from utils.audit import write_log
 from typing import Optional, Literal
 from sqlalchemy import or_
+import json
 router = APIRouter(tags=["Invoices"])
 
 @router.post("/invoices", response_model=invoice_schemas.InvoiceResponse)
@@ -33,6 +35,13 @@ def create_invoice(
         if not product:
             raise HTTPException(status_code=404, detail=f"Product ID {item_data.product_id} not found")
 
+        # Sprawdzenie dostępności towaru
+        if product.stock_quantity < item_data.quantity:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Not enough stock for product '{product.name}' (ID: {product.id})"
+            )
+
         # można nadpisać cenę netto ręcznie
         price_net = item_data.price_net or product.sell_price_net
         tax_rate = item_data.tax_rate or product.tax_rate
@@ -46,6 +55,7 @@ def create_invoice(
         total_vat += vat_value
         total_gross += total_item_gross
 
+        # tworzymy pozycję faktury
         items.append(
             InvoiceItem(
                 product_id=product.id,
@@ -56,6 +66,9 @@ def create_invoice(
                 total_gross=total_item_gross,
             )
         )
+
+        # 🔹 aktualizacja stanu magazynowego
+        product.stock_quantity -= quantity
 
     # --- zapis faktury ---
     invoice = Invoice(
@@ -73,6 +86,29 @@ def create_invoice(
     db.commit()
     db.refresh(invoice)
 
+    # ---UTWORZENIE FORMATKI MAGAZYNOWEJ
+    warehouse_items = []
+    for item in items:
+        product = db.query(Product).filter(Product.id == item.product_id).first()
+        warehouse_items.append({
+            "product_name": product.name,
+            "product_code": product.code,
+            "quantity": item.quantity,
+            "location": product.location,
+        })
+
+    warehouse_doc = WarehouseDocument(
+        invoice_id=invoice.id,
+        buyer_name=invoice.buyer_name,
+        invoice_date=invoice.created_at if hasattr(invoice, "created_at") else None,
+        items_json=json.dumps(warehouse_items),
+        status="NEW"
+    )
+
+    db.add(warehouse_doc)
+    db.commit()
+    db.refresh(warehouse_doc)
+
     # --- AUDYT ---
     write_log(
         db,
@@ -81,10 +117,18 @@ def create_invoice(
         resource="invoices",
         status="SUCCESS",
         ip=request.client.host if request.client else None,
-        meta={"invoice_id": invoice.id, "total_gross": total_gross, "buyer": invoice_data.buyer_name},
+        meta={
+            "invoice_id": invoice.id,
+            "total_gross": total_gross,
+            "buyer": invoice_data.buyer_name,
+            "warehouse_doc_id": warehouse_doc.id,
+            "items": warehouse_items,
+        },
     )
 
     return invoice
+
+
 
 @router.get("/invoices/{invoice_id}", response_model=invoice_schemas.InvoiceDetail)
 def get_invoice(
