@@ -8,11 +8,11 @@ class InvoiceItemCreate(BaseModel):
     quantity: int = Field(gt=0)
     price_net: float  # aktualna cena netto (można zmienić jednorazowo)
     tax_rate: float   # stawka VAT w %
-    
+
 class InvoiceCreate(BaseModel):
     buyer_name: str
-    buyer_nip: str | None = None
-    buyer_address: str | None = None
+    buyer_nip: Optional[str] = None
+    buyer_address: Optional[str] = None
     items: List[InvoiceItemCreate]
 
 class InvoiceItemResponse(InvoiceItemCreate):
@@ -22,15 +22,15 @@ class InvoiceItemResponse(InvoiceItemCreate):
 class InvoiceResponse(BaseModel):
     id: int
     buyer_name: str
-    buyer_nip: str | None
-    buyer_address: str | None
+    buyer_nip: Optional[str]
+    buyer_address: Optional[str]
     total_net: float
     total_vat: float
     total_gross: float
     items: List[InvoiceItemResponse]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class InvoiceItemDetail(BaseModel):
     product_id: int
@@ -42,7 +42,7 @@ class InvoiceItemDetail(BaseModel):
     total_gross: float
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class InvoiceDetail(BaseModel):
     id: int
@@ -56,7 +56,7 @@ class InvoiceDetail(BaseModel):
     items: List[InvoiceItemDetail]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class InvoiceListItem(BaseModel):
     id: int
@@ -68,10 +68,10 @@ class InvoiceListItem(BaseModel):
     total_gross: float
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class InvoiceListPage(BaseModel):
-    items: list[InvoiceListItem]
+    items: List[InvoiceListItem]
     total: int
     page: int
     page_size: int
