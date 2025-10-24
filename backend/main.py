@@ -14,6 +14,7 @@ from routes.documents import router as documents_router
 from routes.orders import router as orders_router
 from routes.stock import router as stock_router
 from routes.reports import router as reports_router
+from routes.products import router as products_router
 
 # Utworzenie instancji FastAPI
 app = FastAPI(
@@ -37,6 +38,7 @@ app.include_router(documents_router)
 app.include_router(orders_router)
 app.include_router(stock_router)
 app.include_router(reports_router)
+app.include_router(products_router)
 
 # Opcjonalny root endpoint
 @app.get("/")
