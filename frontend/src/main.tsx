@@ -11,6 +11,7 @@ import WZPage from "./pages/WZ";
 import Layout from "./components/Layout";
 import Protected from "./components/Protected";
 import { AuthProvider } from "./store/auth";
+import UsersPage from "./pages/users";
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -25,6 +26,7 @@ const router = createBrowserRouter([
       { index: true, element: <Dashboard /> },
       { path: "invoices", element: <InvoicesPage /> },
       { path: "wz", element: <WZPage /> },
+      {path: "users", element: <UsersPage />},
     ],
   },
 ]);

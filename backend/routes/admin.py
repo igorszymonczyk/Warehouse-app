@@ -1,31 +1,31 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from typing import List
 from sqlalchemy.orm import Session
 from database import get_db
 from models.users import User
 from utils.tokenJWT import get_current_user
-from schemas.user import RoleUpdate
-from models import users as models
-from schemas import user as schemas
+from schemas.user import RoleUpdate, UserResponse
 
-router = APIRouter(tags=["Admin"])
+router = APIRouter(tags=["Admin"])  # <- bez prefixu
 
-
-#wyświtlanie zarejestrowanych kont
-@router.get("/users", response_model=list[schemas.UserResponse])
+# Wyświetlanie wszystkich użytkowników
+@router.get("/users", response_model=List[UserResponse])
 def get_all_users(
+    page: int = Query(1, ge=1, description="Numer strony"),
+    page_size: int = Query(10, ge=1, le=100, description="Liczba użytkowników na stronie"),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    # dostęp tylko dla admina
     if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
-    users = db.query(models.User).all()
+    query = db.query(User)
+    total = query.count()
+    users = query.offset((page - 1) * page_size).limit(page_size).all()
+
     return users
 
+# Zmiana roli użytkownika
 @router.put("/users/{user_id}/role")
 def update_user_role(
     user_id: int,
@@ -33,54 +33,35 @@ def update_user_role(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # dostęp tylko dla admina
     if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     user.role = new_role.role
     db.commit()
     db.refresh(user)
 
-    return {"message": f"User {user.email} role updated to {user.role}"}
+    return {"message": f"User {user.email} role updated to {user.role}", "id": user.id, "role": user.role}
 
-
+# Usuwanie użytkownika
 @router.delete("/users/{user_id}")
 def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # tylko admin może usuwać konta
     if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
-    # znajdź użytkownika
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    #  zabezpieczenie — admin nie może usunąć samego siebie
     if user.id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You cannot delete your own account"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account")
 
     db.delete(user)
     db.commit()
