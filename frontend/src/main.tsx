@@ -12,9 +12,11 @@ import Layout from "./components/Layout";
 import Protected from "./components/Protected";
 import { AuthProvider } from "./store/auth";
 import UsersPage from "./pages/Users";
+import RegisterPage from "./pages/Register";
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
+  { path: "/register", element: <RegisterPage /> },
   {
     path: "/",
     element: (

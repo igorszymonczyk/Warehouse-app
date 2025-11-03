@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { toMessage } from "../lib/error";
 import { useAuth } from "../store/auth";
+import { Link } from "react-router-dom";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("admin2@example.com");
@@ -59,7 +60,14 @@ export default function LoginPage() {
         >
           {loading ? "Logowanie..." : "Zaloguj"}
         </button>
+        <p className="text-center mt-4 text-sm">
+          Nie masz konta?{" "}
+           <Link to="/register" className="text-blue-600 hover:underline">
+          Zarejestruj się
+           </Link>
+        </p>
       </form>
     </div>
+    
   );
 }
