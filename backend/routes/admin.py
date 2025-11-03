@@ -5,14 +5,21 @@ from database import get_db
 from models.users import User
 from utils.tokenJWT import get_current_user
 from schemas.user import RoleUpdate, UserResponse
+from pydantic import BaseModel
 
-router = APIRouter(tags=["Admin"])  # <- bez prefixu
+router = APIRouter(tags=["Admin"]) 
 
 # Wyświetlanie wszystkich użytkowników
-@router.get("/users", response_model=List[UserResponse])
+class PaginatedUsersResponse(BaseModel):
+    items: List[UserResponse]
+    total: int
+    page: int
+    page_size: int
+
+@router.get("/users", response_model=PaginatedUsersResponse)
 def get_all_users(
-    page: int = Query(1, ge=1, description="Numer strony"),
-    page_size: int = Query(10, ge=1, le=100, description="Liczba użytkowników na stronie"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -23,8 +30,12 @@ def get_all_users(
     total = query.count()
     users = query.offset((page - 1) * page_size).limit(page_size).all()
 
-    return users
-
+    return {
+        "items": users,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }
 # Zmiana roli użytkownika
 @router.put("/users/{user_id}/role")
 def update_user_role(

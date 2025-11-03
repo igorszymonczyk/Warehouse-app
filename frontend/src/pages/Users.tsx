@@ -27,7 +27,7 @@ export default function UsersPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get<PaginatedUsers>("/admin/users", {
+      const res = await api.get<PaginatedUsers>("/users", {
         params: { page, page_size: pageSize },
       });
       setUsers(res.data.items);
@@ -47,7 +47,7 @@ export default function UsersPage() {
   const changeRole = async (id: number, newRole: string) => {
     if (!window.confirm(`Czy na pewno zmienić rolę użytkownika na "${newRole}"?`)) return;
     try {
-      await api.put(`/admin/users/${id}/role`, { role: newRole });
+      await api.put(`/users/${id}/role`, { role: newRole });
       load();
     } catch (err) {
       console.error(err);
@@ -58,7 +58,7 @@ export default function UsersPage() {
   const deleteUser = async (id: number) => {
     if (!window.confirm("Czy na pewno chcesz usunąć to konto?")) return;
     try {
-      await api.delete(`/admin/users/${id}`);
+      await api.delete(`/users/${id}`);
       load();
     } catch (err) {
       console.error(err);

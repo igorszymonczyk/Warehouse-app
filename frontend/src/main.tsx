@@ -11,7 +11,7 @@ import WZPage from "./pages/WZ";
 import Layout from "./components/Layout";
 import Protected from "./components/Protected";
 import { AuthProvider } from "./store/auth";
-import UsersPage from "./pages/users";
+import UsersPage from "./pages/Users";
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },

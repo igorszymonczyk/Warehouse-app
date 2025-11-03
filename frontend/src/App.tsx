@@ -4,7 +4,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Protected from "./components/Protected";
 import Dashboard from "./pages/Dashboard";
 import LoginPage from "./pages/Login";
-import UsersPage from "./pages/users";
+
 
 export default function App() {
   return (
