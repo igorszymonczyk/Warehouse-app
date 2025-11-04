@@ -27,10 +27,11 @@ def _role_ok(user: User) -> bool:
 # =============================
 @router.get("/", response_model=WarehouseDocPage)
 def list_warehouse_documents(
+    request: Request,
     status: Optional[WarehouseStatus] = Query(None, description="Filtruj po statusie"),
     buyer: Optional[str] = Query(None, description="Szukaj po nazwie klienta"),
     from_dt: Optional[str] = Query(None, description="ISO datetime, np. 2025-10-23T00:00:00"),
-    to_dt: Optional[str]   = Query(None, description="ISO datetime"),
+    to_dt: Optional[str] = Query(None, description="ISO datetime"),
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
     sort_by: Literal["created_at", "status", "buyer_name"] = "created_at",
@@ -60,11 +61,23 @@ def list_warehouse_documents(
 
     fdt = _parse_iso(from_dt)
     tdt = _parse_iso(to_dt)
-    if fdt:
+
+    # Walidacja dat
+    if fdt and tdt and tdt < fdt:
+        raise HTTPException(
+            status_code=400,
+            detail="Data 'do' nie może być wcześniejsza niż data 'od'."
+        )
+
+    # Filtrowanie po zakresie dat
+    if fdt and tdt:
+        q = q.filter(WarehouseDocument.created_at.between(fdt, tdt))
+    elif fdt:
         q = q.filter(WarehouseDocument.created_at >= fdt)
-    if tdt:
+    elif tdt:
         q = q.filter(WarehouseDocument.created_at <= tdt)
 
+    # Sortowanie
     sort_map = {
         "created_at": WarehouseDocument.created_at,
         "status": WarehouseDocument.status,
@@ -73,6 +86,7 @@ def list_warehouse_documents(
     col = sort_map[sort_by]
     q = q.order_by(col.asc() if order == "asc" else col.desc())
 
+    # Paginacja
     total = q.count()
     items = q.offset((page - 1) * page_size).limit(page_size).all()
 

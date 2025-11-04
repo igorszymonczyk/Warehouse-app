@@ -15,6 +15,7 @@ from utils.tokenJWT import get_current_user
 from models.users import User
 from schemas import invoice as invoice_schemas
 from utils.audit import write_log
+from datetime import datetime
 
 router = APIRouter(tags=["Invoices"])
 
@@ -345,14 +346,19 @@ def list_invoices(
     page_size: int = Query(10, ge=1, le=100),
     sort_by: Literal["created_at", "buyer_name", "total_gross"] = "created_at",
     order: Literal["asc", "desc"] = "desc",
+    date_from: Optional[datetime] = Query(None, description="Filtruj od daty"),
+    date_to: Optional[datetime] = Query(None, description="Filtruj do daty"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Uprawnienia
     if (current_user.role or "").upper() not in {"ADMIN", "SALESMAN"}:
         raise HTTPException(status_code=403, detail="Not authorized to view invoices")
 
+    #  Podstawowe zapytanie
     query = db.query(Invoice)
 
+    # Filtrowanie po nazwie / NIP
     if q:
         like = f"%{q}%"
         query = query.filter(
@@ -362,17 +368,33 @@ def list_invoices(
             )
         )
 
+    # Filtrowanie po dacie wystawienia
+    if date_from and date_to:
+        if date_to < date_from:
+            raise HTTPException(
+                status_code=400,
+                detail="Data 'do' nie może być wcześniejsza niż data 'od'."
+            )
+        query = query.filter(Invoice.created_at.between(date_from, date_to))
+    elif date_from:
+        query = query.filter(Invoice.created_at >= date_from)
+    elif date_to:
+        query = query.filter(Invoice.created_at <= date_to)
+
+    # Sortowanie
     sort_map = {
         "created_at": Invoice.created_at,
         "buyer_name": Invoice.buyer_name,
         "total_gross": Invoice.total_gross,
     }
-    col = sort_map[sort_by]
+    col = sort_map.get(sort_by, Invoice.created_at)
     query = query.order_by(col.asc() if order == "asc" else col.desc())
 
+    # Paginacja
     total = query.count()
     invoices = query.offset((page - 1) * page_size).limit(page_size).all()
 
+    # Logowanie
     write_log(
         db,
         user_id=current_user.id,
@@ -386,10 +408,13 @@ def list_invoices(
             "page_size": page_size,
             "sort_by": sort_by,
             "order": order,
+            "date_from": str(date_from) if date_from else None,
+            "date_to": str(date_to) if date_to else None,
             "returned": len(invoices),
         },
     )
 
+    # Zwracanie wyników
     return {
         "items": invoices,
         "total": total,

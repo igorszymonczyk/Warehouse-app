@@ -6,27 +6,57 @@ from models.users import User
 from utils.tokenJWT import get_current_user
 from schemas.user import RoleUpdate, UserResponse
 from pydantic import BaseModel
+from typing import Optional, Literal
+from fastapi import Request
 
 router = APIRouter(tags=["Admin"]) 
 
-# Wyświetlanie wszystkich użytkowników
+# Model odpowiedzi
 class PaginatedUsersResponse(BaseModel):
     items: List[UserResponse]
     total: int
     page: int
     page_size: int
 
+
 @router.get("/users", response_model=PaginatedUsersResponse)
 def get_all_users(
+    request: Request,
+    q: Optional[str] = Query(None, description="Szukaj po e-mailu"),
+    role: Optional[str] = Query(None, description="Filtruj po roli"),
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
+    sort_by: Literal["id", "email", "role"] = "id",
+    order: Literal["asc", "desc"] = "asc",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != "admin":
+    # Tylko admin ma dostęp
+    if current_user.role.lower() != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
+    # Budujemy zapytanie
     query = db.query(User)
+
+    # Filtrowanie po e-mailu
+    if q:
+        like = f"%{q.lower()}%"
+        query = query.filter(User.email.ilike(like))
+
+    # Filtrowanie po roli
+    if role:
+        query = query.filter(User.role.ilike(role))
+
+    # Sortowanie
+    sort_map = {
+        "id": User.id,
+        "email": User.email,
+        "role": User.role,
+    }
+    col = sort_map.get(sort_by, User.id)
+    query = query.order_by(col.asc() if order == "asc" else col.desc())
+
+    # Paginacja
     total = query.count()
     users = query.offset((page - 1) * page_size).limit(page_size).all()
 
@@ -34,7 +64,7 @@ def get_all_users(
         "items": users,
         "total": total,
         "page": page,
-        "page_size": page_size
+        "page_size": page_size,
     }
 # Zmiana roli użytkownika
 @router.put("/users/{user_id}/role")
