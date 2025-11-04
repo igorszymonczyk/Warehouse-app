@@ -13,6 +13,7 @@ import Protected from "./components/Protected";
 import { AuthProvider } from "./store/auth";
 import UsersPage from "./pages/Users";
 import RegisterPage from "./pages/Register";
+import CreateInvoice from "./pages/CreateInvoice";
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -29,6 +30,8 @@ const router = createBrowserRouter([
       { path: "invoices", element: <InvoicesPage /> },
       { path: "wz", element: <WZPage /> },
       {path: "users", element: <UsersPage />},
+      {path: "invoices/create", element: <CreateInvoice />},
+
     ],
   },
 ]);

@@ -1,21 +1,21 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import type { Invoice, Page } from "../lib/types";
 
 export default function InvoicesPage() {
   const [data, setData] = useState<Page<Invoice> | null>(null);
   const [loading, setLoading] = useState(false);
-
-  // filtr + paginacja
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 10;
+
+  const navigate = useNavigate();
 
   const load = async () => {
     setLoading(true);
     try {
       const res = await api.get<Page<Invoice>>("/invoices", {
-        // backend częściej używa "buyer" – ale zostawiam też q
         params: { buyer: q || undefined, q: q || undefined, page, page_size: pageSize },
       });
       setData(res.data);
@@ -24,18 +24,26 @@ export default function InvoicesPage() {
     }
   };
 
-  useEffect(() => { load(); }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [page]); 
 
   const downloadPdf = async (id: number) => {
     await api.post(`/invoices/${id}/pdf`);
     const base = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-    // Prosto i bez zabawy z blobem:
     window.open(`${base}/invoices/${id}/download`, "_blank");
   };
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Faktury</h1>
+      {/* Górny pasek tytułu + przycisk dodawania */}
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-semibold">Faktury</h1>
+        <button
+          onClick={() => navigate("/invoices/create")}
+          className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
+        >
+           Dodaj fakturę
+        </button>
+      </div>
 
       <form
         onSubmit={(e) => { e.preventDefault(); setPage(1); load(); }}
@@ -73,7 +81,7 @@ export default function InvoicesPage() {
                       {new Date(inv.created_at).toLocaleString()}
                     </td>
                     <td className="p-2 border text-right">
-                      {inv.total_gross.toFixed(2)}
+                      {inv.total_gross.toFixed(2)} zł
                     </td>
                     <td className="p-2 border text-center">
                       <button

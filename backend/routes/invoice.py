@@ -18,9 +18,8 @@ from utils.audit import write_log
 
 router = APIRouter(tags=["Invoices"])
 
-# =========================
+
 # POMOCNICZE: PDF + fonty PL
-# =========================
 STORAGE_DIR = Path("storage/invoices")
 
 FONT_DIR = Path("assets/fonts")
