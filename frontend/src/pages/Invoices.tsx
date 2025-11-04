@@ -20,7 +20,7 @@ export default function InvoicesPage() {
   const pageSize = 10;
   const navigate = useNavigate();
 
-  // 🔹 Główne ładowanie danych
+  // Główne ładowanie danych
   const load = async () => {
     if (dateError) return; // nie wysyłaj zapytania przy błędzie
     setLoading(true);
@@ -44,7 +44,7 @@ export default function InvoicesPage() {
     }
   };
 
-  // 🔹 Walidacja dat
+  // Walidacja dat
   useEffect(() => {
     if (dateFrom && dateTo && new Date(dateTo) < new Date(dateFrom)) {
       setDateError("Data 'do' nie może być wcześniejsza niż 'od'");
@@ -53,7 +53,7 @@ export default function InvoicesPage() {
     }
   }, [dateFrom, dateTo]);
 
-  // 🔹 Debounce wyszukiwania i filtrów
+  // Debounce wyszukiwania i filtrów
   useEffect(() => {
     const timeout = setTimeout(() => {
       setPage(1);
@@ -62,7 +62,7 @@ export default function InvoicesPage() {
     return () => clearTimeout(timeout);
   }, [q, dateFrom, dateTo, sortBy, order]);
 
-  // 🔹 Ładowanie przy zmianie strony
+  // Ładowanie przy zmianie strony
   useEffect(() => {
     if (!dateError) load();
   }, [page]);
@@ -97,7 +97,7 @@ export default function InvoicesPage() {
         </button>
       </div>
 
-      {/* 🔍 Wyszukiwanie + filtry dat */}
+      {/*  Wyszukiwanie + filtry dat */}
       <div className="flex flex-wrap items-end gap-3 mb-4">
         <div>
           <label className="block text-sm text-gray-700 mb-1">Szukaj klienta / NIP</label>
@@ -217,7 +217,7 @@ export default function InvoicesPage() {
               <tbody>
                 {data.items.map((inv) => (
                   <tr key={inv.id} className="border-t">
-                    <td className="p-2 border">#{inv.id}</td>
+                    <td className="p-2 border">{inv.id}</td>
                     <td className="p-2 border">{new Date(inv.created_at).toLocaleString()}</td>
                     <td className="p-2 border">{inv.buyer_name}</td>
                     <td className="p-2 border text-right">
@@ -244,7 +244,7 @@ export default function InvoicesPage() {
             </table>
           </div>
 
-          {/* 📄 Paginacja */}
+          {/* Paginacja */}
           <div className="mt-4 flex items-center gap-3">
             <button
               className="border rounded px-3 py-1 disabled:opacity-50"
