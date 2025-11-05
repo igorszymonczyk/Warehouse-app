@@ -18,6 +18,7 @@ export default function Layout() {
           <Link to="/invoices" className="text-blue-600">Faktury</Link>
           <Link to="/wz" className="text-blue-600">WZ</Link>
           <Link to="/users" className="text-blue-600">Użytkownicy</Link>
+          <Link to="/products" className="text-blue-600">Produkty</Link>
         </nav>
         <button onClick={handleLogout} className="px-3 py-1 rounded bg-black text-white">Wyloguj</button>
       </header>

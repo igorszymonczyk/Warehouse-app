@@ -14,6 +14,7 @@ import { AuthProvider } from "./store/auth";
 import UsersPage from "./pages/Users";
 import RegisterPage from "./pages/Register";
 import CreateInvoice from "./pages/CreateInvoice";
+import ProductsPage from "./pages/Products";
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -31,6 +32,7 @@ const router = createBrowserRouter([
       { path: "wz", element: <WZPage /> },
       {path: "users", element: <UsersPage />},
       {path: "invoices/create", element: <CreateInvoice />},
+      {path: "products", element: <ProductsPage />},
 
     ],
   },
