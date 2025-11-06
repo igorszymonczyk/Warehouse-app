@@ -1,5 +1,5 @@
 import { Link, Outlet, useNavigate } from "react-router-dom";
-import { useAuth } from "../store";
+import { useAuth } from "../store/AuthProvider";
 
 export default function Layout() {
   const auth = useAuth();

@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { toMessage } from "../lib/error";
-import { useAuth } from "../store";
+import { useAuth } from "../store/AuthProvider";
 import { Link } from "react-router-dom";
 
 export default function LoginPage() {
