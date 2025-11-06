@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { ArrowUpDown } from "lucide-react";
@@ -21,7 +21,7 @@ export default function InvoicesPage() {
   const navigate = useNavigate();
 
   // Główne ładowanie danych
-  const load = async () => {
+  const load = useCallback(async () => {
     if (dateError) return; // nie wysyłaj zapytania przy błędzie
     setLoading(true);
     try {
@@ -42,7 +42,7 @@ export default function InvoicesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateError, page, pageSize, q, sortBy, order, dateFrom, dateTo]);
 
   // Walidacja dat
   useEffect(() => {
@@ -60,12 +60,12 @@ export default function InvoicesPage() {
       if (!dateError) load();
     }, 300);
     return () => clearTimeout(timeout);
-  }, [q, dateFrom, dateTo, sortBy, order]);
+  }, [q, dateFrom, dateTo, sortBy, order, dateError, load]);
 
   // Ładowanie przy zmianie strony
   useEffect(() => {
     if (!dateError) load();
-  }, [page]);
+  }, [page, dateError, load]);
 
   const toggleSort = (field: typeof sortBy) => {
     if (sortBy === field) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api } from "../lib/api";
 import { ArrowUpDown } from "lucide-react";
 
@@ -34,7 +34,7 @@ export default function WZPage() {
     }
   };
 
-  async function load() {
+  const load = useCallback(async () => {
     if (fromDt && toDt && new Date(toDt) < new Date(fromDt)) {
       setError("Data 'do' nie może być wcześniejsza niż 'od'");
       return;
@@ -62,7 +62,7 @@ export default function WZPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [buyer, status, fromDt, toDt, page, pageSize, sortBy, order]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -70,9 +70,9 @@ export default function WZPage() {
       load();
     }, 300);
     return () => clearTimeout(timeout);
-  }, [buyer, status, fromDt, toDt, sortBy, order]);
+  }, [buyer, status, fromDt, toDt, sortBy, order, load]);
 
-  useEffect(() => { load(); }, [page]);
+  useEffect(() => { load(); }, [page, load]);
 
   async function genPdf(id: number) {
     await api.post(`/warehouse-documents/${id}/pdf`);

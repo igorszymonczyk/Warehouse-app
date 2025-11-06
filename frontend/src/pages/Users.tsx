@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api } from "../lib/api";
 import { ArrowUpDown } from "lucide-react";
 
@@ -30,7 +30,7 @@ export default function UsersPage() {
   const pageSize = 10;
 
   // Pobieranie danych
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -51,7 +51,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, pageSize, q, role, sortBy, order]);
 
   // Debounce wyszukiwania
   useEffect(() => {
@@ -60,12 +60,12 @@ export default function UsersPage() {
       load();
     }, 300);
     return () => clearTimeout(timeout);
-  }, [q, role, sortBy, order]);
+  }, [q, role, sortBy, order, load]);
 
   // Zmiana strony
   useEffect(() => {
     load();
-  }, [page]);
+  }, [page, load]);
 
   // Sortowanie kolumn
   const toggleSort = (field: typeof sortBy) => {

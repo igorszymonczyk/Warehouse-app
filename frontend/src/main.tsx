@@ -10,7 +10,7 @@ import InvoicesPage from "./pages/Invoices";
 import WZPage from "./pages/WZ";
 import Layout from "./components/Layout";
 import Protected from "./components/Protected";
-import { AuthProvider } from "./store/auth";
+import { AuthProvider } from "./store";
 import UsersPage from "./pages/Users";
 import RegisterPage from "./pages/Register";
 import CreateInvoice from "./pages/CreateInvoice";

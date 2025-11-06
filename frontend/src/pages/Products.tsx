@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api } from "../lib/api";
 import { ArrowUp, ArrowDown, Trash2, Edit, X } from "lucide-react";
 
@@ -50,8 +50,10 @@ export default function ProductsPage() {
   const [selected, setSelected] = useState<Product | null>(null);
   const [editData, setEditData] = useState<Partial<Product>>({});
   const [editing, setEditing] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newData, setNewData] = useState<Partial<Product>>({});
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -72,11 +74,11 @@ export default function ProductsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, pageSize, debouncedSearch, sortKey, sortOrder]);
 
   useEffect(() => {
     load();
-  }, [page, debouncedSearch, sortKey, sortOrder]);
+  }, [page, debouncedSearch, sortKey, sortOrder, load]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -132,6 +134,18 @@ export default function ProductsPage() {
     }
   };
 
+  const addProduct = async () => {
+    try {
+      await api.post("/products", newData);
+      await load();
+      setAdding(false);
+      setNewData({});
+    } catch (err) {
+      console.error(err);
+      alert("Nie udało się dodać produktu");
+    }
+  };
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-4">Zarządzanie produktami</h1>
@@ -144,6 +158,12 @@ export default function ProductsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        <button
+          onClick={() => setAdding(true)}
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+        >
+          Dodaj produkt
+        </button>
       </div>
 
       {loading && <p>Ładowanie danych...</p>}
@@ -231,6 +251,63 @@ export default function ProductsPage() {
             </button>
           </div>
         </>
+      )}
+
+      {adding && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-[500px] max-h-[80vh] overflow-y-auto shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Dodaj nowy produkt</h2>
+              <button onClick={() => setAdding(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <label className="block mb-2">
+              Nazwa:
+              <input
+                className="border w-full p-2 rounded mt-1"
+                value={newData.name || ""}
+                onChange={(e) => setNewData({ ...newData, name: e.target.value })}
+              />
+            </label>
+            <label className="block mb-2">
+              Kod:
+              <input
+                className="border w-full p-2 rounded mt-1"
+                value={newData.code || ""}
+                onChange={(e) => setNewData({ ...newData, code: e.target.value })}
+              />
+            </label>
+            <label className="block mb-2">
+              Cena netto:
+              <input
+                type="number"
+                className="border w-full p-2 rounded mt-1"
+                value={newData.sell_price_net ?? ""}
+                onChange={(e) =>
+                  setNewData({ ...newData, sell_price_net: parseFloat(e.target.value) })
+                }
+              />
+            </label>
+            <label className="block mb-2">
+              Stan magazynowy:
+              <input
+                type="number"
+                className="border w-full p-2 rounded mt-1"
+                value={newData.stock_quantity ?? ""}
+                onChange={(e) =>
+                  setNewData({ ...newData, stock_quantity: parseInt(e.target.value) })
+                }
+              />
+            </label>
+            <button
+              onClick={addProduct}
+              className="mt-4 w-full bg-green-600 text-white py-2 rounded hover:bg-green-700"
+            >
+              Dodaj produkt
+            </button>
+          </div>
+        </div>
       )}
 
       {selected && (

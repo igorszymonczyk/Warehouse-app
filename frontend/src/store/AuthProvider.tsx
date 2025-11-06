@@ -1,12 +1,12 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+// frontend/src/store/AuthProvider.tsx
+import { useMemo, useState, type ReactNode } from "react";
+import { AuthCtx } from "./authContext";
 
-type AuthState = {
+export type AuthState = {
   token: string | null;
   login: (token: string) => void;
   logout: () => void;
 };
-
-const AuthCtx = createContext<AuthState | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(localStorage.getItem("token"));
@@ -23,10 +23,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({ token, login, logout }), [token]);
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
-}
-
-export function useAuth(): AuthState {
-  const ctx = useContext(AuthCtx);
-  if (!ctx) throw new Error("useAuth must be used inside <AuthProvider>");
-  return ctx;
 }
