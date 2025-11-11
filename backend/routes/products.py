@@ -1,8 +1,17 @@
-# routes/salesman.py
+# backend/routers/products.py
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import (
+    APIRouter, Depends, HTTPException, Query, Request, 
+    UploadFile, File, Form  # 1. ZMIANA: Import UploadFile, File, Form
+)
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
+from pydantic import ValidationError # 2. ZMIANA: Import do walidacji
+
+# 3. ZMIANA: Importy do zapisu plików
+import shutil
+import uuid
+from pathlib import Path
 
 from database import get_db
 from utils.tokenJWT import get_current_user
@@ -13,6 +22,8 @@ import schemas.product as product_schemas
 
 router = APIRouter(tags=["Products"])
 
+# Ścieżka do zapisu plików (folder /backend/static/uploads/)
+UPLOAD_DIR = Path("static/uploads")
 
 # ---- helpers ----
 def _role_ok(user: User) -> bool:
@@ -20,11 +31,15 @@ def _role_ok(user: User) -> bool:
     role = (user.role or "").upper()
     return role in {"ADMIN", "SALESMAN"}
 
-
 def _can_edit(user: User) -> bool:
     """Zezwól na edycję dla ADMIN/SALESMAN."""
     return _role_ok(user)
 
+def _norm_code(code: Optional[str]) -> Optional[str]:
+    if code is None:
+        return None
+    c = code.strip().upper()
+    return c if c else None
 
 # =========================
 # LISTA PRODUKTÓW
@@ -43,6 +58,7 @@ def list_products(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # ... (Ta funkcja zostaje bez zmian) ...
     if not _role_ok(current_user):
         raise HTTPException(status_code=403, detail="Not authorized to view products")
 
@@ -80,6 +96,7 @@ def list_products(
     serialized = []
     for p in items:
         data = {f: getattr(p, f) for f in product_fields if hasattr(p, f)}
+        # Uwzględniamy pole image_url, które dodaliśmy do schematu
         serialized.append(product_schemas.ProductResponse.model_validate(data))
 
     write_log(
@@ -107,6 +124,7 @@ def list_products(
 # =========================
 @router.get("/products/{product_id}", response_model=product_schemas.ProductResponse)
 def get_product(
+    # ... (Ta funkcja zostaje bez zmian) ...
     product_id: int,
     request: Request,
     db: Session = Depends(get_db),
@@ -144,56 +162,103 @@ def get_product(
 
 
 # =========================
-# DODAWANIE PRODUKTU
+# 4. DUŻA ZMIANA: DODAWANIE PRODUKTU (z uploadem pliku)
 # =========================
 @router.post("/products", response_model=product_schemas.ProductResponse)
 def add_product(
-    product: product_schemas.ProductCreate,
+    # Zamiast Pydantic model, przyjmujemy pola formularza
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    file: Optional[UploadFile] = File(None),
+    name: str = Form(...),
+    code: str = Form(...),
+    sell_price_net: float = Form(...),
+    stock_quantity: int = Form(...),
+    buy_price: float = Form(0.0), # Używamy 0.0 jako domyślnej
+    description: Optional[str] = Form(None),
+    category: Optional[str] = Form(None),
+    supplier: Optional[str] = Form(None),
+    tax_rate: Optional[float] = Form(23.0),
+    location: Optional[str] = Form(None),
+    comment: Optional[str] = Form(None)
 ):
     if not _role_ok(current_user):
         raise HTTPException(status_code=403, detail="Not authorized to add products")
 
-    exists = db.query(Product).filter(Product.code == product.code).first()
+    # Walidujemy dane Pydantic "ręcznie"
+    try:
+        product_data = {
+            "name": name, "code": code, "sell_price_net": sell_price_net,
+            "stock_quantity": stock_quantity, "buy_price": buy_price,
+            "description": description, "category": category, "supplier": supplier,
+            "tax_rate": tax_rate, "location": location, "comment": comment
+        }
+        product = product_schemas.ProductCreate(**product_data)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=e.errors())
+
+    norm_code = _norm_code(product.code)
+    if not norm_code:
+        raise HTTPException(status_code=400, detail="Product code is required")
+
+    exists = db.query(Product).filter(Product.code == norm_code).first()
     if exists:
         write_log(
-            db,
-            user_id=current_user.id,
-            action="PRODUCT_CREATE",
-            resource="products",
-            status="FAIL",
-            ip=request.client.host if request.client else None,
-            meta={"code": product.code, "reason": "code_exists"},
+            db, user_id=current_user.id, action="PRODUCT_CREATE", resource="products",
+            status="FAIL", ip=request.client.host if request.client else None,
+            meta={"code": norm_code, "reason": "code_exists"},
         )
-        raise HTTPException(status_code=400, detail="Product code already exists")
+        raise HTTPException(status_code=409, detail="Product code already exists")
 
-    new_product = Product(**product.model_dump())
+    # Logika zapisu pliku
+    file_url = None
+    if file:
+        if file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
+            raise HTTPException(status_code=400, detail="Invalid file type. Only JPEG, PNG, WebP allowed.")
+        
+        # Tworzy unikalną nazwę pliku
+        file_extension = file.filename.split(".")[-1]
+        unique_filename = f"{uuid.uuid4()}.{file_extension}"
+        save_path = UPLOAD_DIR / unique_filename
+        file_url = f"/uploads/{unique_filename}" # URL, który zapiszemy w bazie
+
+        try:
+            with open(save_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Could not save file: {e}")
+        finally:
+            file.file.close()
+
+    # Tworzenie obiektu bazy danych
+    payload = product.model_dump()
+    payload["code"] = norm_code
+    
+    new_product = Product(**payload)
+    new_product.image_url = file_url # Zapisujemy URL do zdjęcia
+
     db.add(new_product)
     db.commit()
     db.refresh(new_product)
 
     write_log(
-        db,
-        user_id=current_user.id,
-        action="PRODUCT_CREATE",
-        resource="products",
-        status="SUCCESS",
-        ip=request.client.host if request.client else None,
-        meta={"product_id": new_product.id, "code": new_product.code},
+        db, user_id=current_user.id, action="PRODUCT_CREATE", resource="products",
+        status="SUCCESS", ip=request.client.host if request.client else None,
+        meta={"product_id": new_product.id, "code": new_product.code, "image_url": file_url},
     )
 
     fields = list(product_schemas.ProductResponse.model_fields.keys())
     data = {f: getattr(new_product, f) for f in fields if hasattr(new_product, f)}
     return product_schemas.ProductResponse.model_validate(data)
 
-
 # =========================
-# AKTUALIZACJA PRODUKTU
+# AKTUALIZACJA PRODUKTU (PUT)
 # =========================
 @router.put("/products/{product_id}", response_model=product_schemas.ProductResponse)
 def update_product(
+    # ... (Ta funkcja zostaje bez zmian) ...
+    # (Edycja zdjęcia to bardziej skomplikowana operacja, robimy ją oddzielnie)
     product_id: int,
     updated_data: product_schemas.ProductCreate,
     request: Request,
@@ -241,13 +306,27 @@ def update_product(
 # =========================
 # CZĘŚCIOWA EDYCJA PRODUKTU (PATCH)
 # =========================
+# =========================
+# CZĘŚCIOWA EDYCJA PRODUKTU (PATCH – z obsługą pliku)
+# =========================
 @router.patch("/products/{product_id}/edit", response_model=product_schemas.ProductOut)
-def edit_product(
+async def edit_product(
     product_id: int,
-    payload: product_schemas.ProductEditRequest,
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    name: Optional[str] = Form(None),
+    code: Optional[str] = Form(None),
+    sell_price_net: Optional[float] = Form(None),
+    stock_quantity: Optional[int] = Form(None),
+    buy_price: Optional[float] = Form(None),
+    description: Optional[str] = Form(None),
+    category: Optional[str] = Form(None),
+    supplier: Optional[str] = Form(None),
+    tax_rate: Optional[float] = Form(None),
+    location: Optional[str] = Form(None),
+    comment: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
 ):
     if not _can_edit(current_user):
         raise HTTPException(status_code=403, detail="Not authorized")
@@ -256,14 +335,63 @@ def edit_product(
     if not p:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    if payload.sell_price_net is not None and payload.sell_price_net <= 0:
+    # 🔹 Walidacje biznesowe
+    if sell_price_net is not None and sell_price_net <= 0:
         raise HTTPException(status_code=400, detail="Price must be > 0")
-    if payload.tax_rate is not None and payload.tax_rate < 0:
+    if tax_rate is not None and tax_rate < 0:
         raise HTTPException(status_code=400, detail="Tax rate must be >= 0")
-    if payload.stock_quantity is not None and payload.stock_quantity < 0:
+    if stock_quantity is not None and stock_quantity < 0:
         raise HTTPException(status_code=400, detail="Stock must be >= 0")
 
-    for field, value in payload.dict(exclude_unset=True).items():
+    # 🔹 Przygotuj dane do aktualizacji
+    data = {
+        "name": name,
+        "code": code,
+        "sell_price_net": sell_price_net,
+        "stock_quantity": stock_quantity,
+        "buy_price": buy_price,
+        "description": description,
+        "category": category,
+        "supplier": supplier,
+        "tax_rate": tax_rate,
+        "location": location,
+        "comment": comment,
+    }
+    data = {k: v for k, v in data.items() if v is not None}
+
+    # 🔹 Normalizacja kodu + sprawdzenie duplikatów
+    if "code" in data and data["code"]:
+        data["code"] = _norm_code(data["code"])
+        if not data["code"]:
+            raise HTTPException(status_code=400, detail="Product code cannot be empty")
+        conflict = db.query(Product).filter(
+            Product.code == data["code"], Product.id != p.id
+        ).first()
+        if conflict:
+            raise HTTPException(status_code=409, detail="Product code already exists")
+
+    # 🔹 Obsługa uploadu pliku (jeśli przesłano)
+    if file:
+        if file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
+            raise HTTPException(status_code=400, detail="Invalid file type. Only JPEG, PNG, WebP allowed.")
+
+        file_extension = file.filename.split(".")[-1]
+        unique_filename = f"{uuid.uuid4()}.{file_extension}"
+        save_path = UPLOAD_DIR / unique_filename
+        file_url = f"/uploads/{unique_filename}"
+
+        try:
+            with open(save_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            data["image_url"] = file_url
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Could not save file: {e}")
+        finally:
+            file.file.close()
+
+    # 🔹 Zapis zmian
+    before = {k: getattr(p, k) for k in data.keys() if hasattr(p, k)}
+    for field, value in data.items():
         setattr(p, field, value)
 
     db.commit()
@@ -278,18 +406,13 @@ def edit_product(
         ip=request.client.host if request.client else None,
         meta={
             "product_id": p.id,
-            "name": p.name,
-            "code": p.code,
-            "sell_price_net": p.sell_price_net,
-            "tax_rate": p.tax_rate,
-            "stock_quantity": p.stock_quantity,
+            "changed": {k: [before.get(k), getattr(p, k)] for k in data.keys()},
         },
     )
 
     fields = list(product_schemas.ProductOut.model_fields.keys())
-    data = {f: getattr(p, f) for f in fields if hasattr(p, f)}
-    return product_schemas.ProductOut.model_validate(data)
-
+    out = {f: getattr(p, f) for f in fields if hasattr(p, f)}
+    return product_schemas.ProductOut.model_validate(out)
 
 # =========================
 # USUWANIE PRODUKTU

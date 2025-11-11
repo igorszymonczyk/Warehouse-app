@@ -1,3 +1,4 @@
+# backend/schemas/product.py
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 
@@ -20,6 +21,9 @@ class ProductBase(ORMBase):
     stock_quantity: Optional[int] = Field(default=None, ge=0)
     location: Optional[str] = None
     comment: Optional[str] = None
+    
+    # --- 1. ZMIANA: Dodaj tę linię ---
+    image_url: Optional[str] = None
 
 
 # --- TWORZENIE PRODUKTU ---
@@ -28,6 +32,8 @@ class ProductCreate(ProductBase):
     code: str
     sell_price_net: float
     stock_quantity: int
+    # Pole 'image_url' nie jest tutaj potrzebne,
+    # ponieważ będzie przesyłane jako oddzielny plik, a nie JSON
 
 
 # --- EDYCJA PRODUKTU (PATCH) ---
@@ -44,11 +50,13 @@ class ProductEditRequest(ORMBase):
     stock_quantity: Optional[int] = Field(None, ge=0)
     location: Optional[str] = None
     comment: Optional[str] = None
+    # Tu również nie dodajemy image_url, aby uprościć - edycja zdjęcia to osobny proces
 
 
 # --- ODP. DLA JEDNEGO PRODUKTU ---
 class ProductOut(ProductBase):
     id: int
+    # image_url jest już dziedziczone z ProductBase
 
 
 # --- ODP. DLA LISTY PRODUKTÓW (Z PAGINACJĄ) ---
@@ -71,3 +79,5 @@ class ProductResponse(ORMBase):
     stock_quantity: Optional[int] = None
     location: Optional[str] = None
     comment: Optional[str] = None
+    # --- 2. ZMIANA: Dodaj tę linię ---
+    image_url: Optional[str] = None

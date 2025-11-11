@@ -26,6 +26,5 @@ def init_db():
     import models.users           # noqa: F401
     import models.product         # noqa: F401
     import models.cart            # noqa: F401  # <-- dodałeś/aś przed chwilą
-    # tu później dorzucimy: models.order, models.invoice, models.wz, itd.
 
     Base.metadata.create_all(bind=engine)

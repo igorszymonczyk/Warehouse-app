@@ -2,21 +2,58 @@ import { useState, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { toMessage } from "../lib/error";
+import toast from "react-hot-toast";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [imie, setImie] = useState("");
   const [nazwisko, setNazwisko] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>("");
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const navigate = useNavigate();
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError("");
     setLoading(true);
+
+    // --- SEKCJA WALIDACJI ---
+
+    if (password.length < 8) {
+      toast.error("Hasło musi mieć co najmniej 8 znaków.");
+      setLoading(false);
+      return;
+    }
+    // 1. ZMIANA: Sprawdzenie dużej litery
+    if (!/[A-Z]/.test(password)) {
+      toast.error("Hasło musi zawierać co najmniej jedną dużą literę.");
+      setLoading(false);
+      return;
+    }
+    // 2. ZMIANA: Sprawdzenie cyfry
+    if (!/[0-9]/.test(password)) {
+      toast.error("Hasło musi zawierać co najmniej jedną cyfrę.");
+      setLoading(false);
+      return;
+    }
+    // 3. ZMIANA: Sprawdzenie znaku specjalnego
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      toast.error("Hasło musi zawierać co najmniej jeden znak specjalny (np. !@#$).");
+      setLoading(false);
+      return;
+    }
+    if (password !== confirmPassword) {
+      toast.error("Hasła nie są zgodne.");
+      setLoading(false);
+      return;
+    }
+    // --- KONIEC WALIDACJI ---
+
     try {
       await api.post("/register", {
         email,
@@ -24,10 +61,10 @@ export default function RegisterPage() {
         imie,
         nazwisko,
       });
-      alert("Rejestracja zakończona sukcesem! Możesz się teraz zalogować.");
+      toast.success("Rejestracja zakończona sukcesem! Możesz się teraz zalogować.");
       navigate("/login");
     } catch (err) {
-      setError(toMessage(err));
+      toast.error(toMessage(err));
     } finally {
       setLoading(false);
     }
@@ -60,16 +97,45 @@ export default function RegisterPage() {
           type="email"
           required
         />
-        <input
-          className="border rounded w-full p-2 mb-3"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Hasło"
-          required
-        />
 
-        {error && <p className="text-red-600 mb-3">{error}</p>}
+        {/* Pole hasła */}
+        <div className="relative mb-3">
+          <input
+            className="border rounded w-full p-2 pr-10"
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            // 4. ZMIANA: Zaktualizowany placeholder
+            placeholder="Hasło (min. 8 znaków, A-Z, 0-9, !@#)"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700"
+          >
+            {showPassword ? <FaEyeSlash /> : <FaEye />}
+          </button>
+        </div>
+
+        {/* Pole "Potwierdź hasło" */}
+        <div className="relative mb-3">
+          <input
+            className="border rounded w-full p-2 pr-10"
+            type={showConfirmPassword ? "text" : "password"}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Potwierdź hasło"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700"
+          >
+            {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+          </button>
+        </div>
 
         <button
           type="submit"

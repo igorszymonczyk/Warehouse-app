@@ -1,7 +1,13 @@
+# backend/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from database import init_db
+
+# --- 1. ZMIANA: Dodaj te importy ---
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+
 load_dotenv()
 from routes.auth import router as auth_router
 from routes.logs import router as logs_router
@@ -15,6 +21,13 @@ from routes.orders import router as orders_router
 from routes.stock import router as stock_router
 from routes.reports import router as reports_router
 from routes.products import router as products_router
+from routes.stats import router as stats_router
+from routes.shop import router as shop_router
+
+# --- 2. ZMIANA: Stwórz folder na uploady ---
+# Zakładamy, że main.py jest w /backend, więc tworzymy /backend/static/uploads
+Path("static/uploads").mkdir(parents=True, exist_ok=True)
+
 
 # Utworzenie instancji FastAPI
 app = FastAPI(
@@ -22,6 +35,16 @@ app = FastAPI(
     description="Backend do zarządzania magazynem",
     version="1.0.0"
 )
+
+# --- 3. ZMIANA: "Zamontuj" folder statyczny ---
+# Pliki z folderu "static/uploads" będą dostępne pod adresem URL "/uploads"
+app.mount(
+    "/uploads",
+    StaticFiles(directory="static/uploads"),
+    name="uploads"
+)
+
+
 # --- CORS ---
 app.add_middleware(
     CORSMiddleware,
@@ -49,6 +72,10 @@ app.include_router(orders_router)
 app.include_router(stock_router)
 app.include_router(reports_router)
 app.include_router(products_router)
+app.include_router(stats_router)
+app.include_router(shop_router)
+
+# (Usunąłem zduplikowany app.include_router(stats_router))
 
 # Opcjonalny root endpoint
 @app.get("/")

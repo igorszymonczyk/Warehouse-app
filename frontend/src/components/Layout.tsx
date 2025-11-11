@@ -1,26 +1,76 @@
-import { Link, Outlet, useNavigate } from "react-router-dom";
+// frontend/src/components/Layout.tsx
+import { Outlet, useNavigate, NavLink } from "react-router-dom";
 import { useAuth } from "../store/auth";
 
 export default function Layout() {
-  const auth = useAuth();
+  // 1. ZMIANA: Pobieramy rolę i funkcję logout z hooka
+  const { role, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    auth.logout();
+    logout();
     navigate("/login");
   };
+
+  const baseLinkStyle =
+    "px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900";
+  const activeLinkStyle =
+    "px-3 py-2 rounded-md text-sm font-bold text-blue-700 bg-blue-100";
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="flex items-center justify-between p-4 border-b bg-white">
-        <nav className="space-x-4">
-          <Link to="/" className="text-blue-600">Dashboard</Link>
-          <Link to="/invoices" className="text-blue-600">Faktury</Link>
-          <Link to="/wz" className="text-blue-600">WZ</Link>
-          <Link to="/users" className="text-blue-600">Użytkownicy</Link>
-          <Link to="/products" className="text-blue-600">Produkty</Link>
+        {/* 2. ZMIANA: Cała nawigacja jest teraz warunkowa */}
+        <nav className="flex items-center space-x-2">
+          {/* ----- Wspólne dla wszystkich ----- */}
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
+          >
+            Pulpit
+          </NavLink>
+          
+          {/* ----- Tylko dla Admina i Sprzedawcy ----- */}
+          {(role === "admin" || role === "salesman") && (
+            <>
+              <NavLink
+                to="/invoices"
+                className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
+              >
+                Faktury
+              </NavLink>
+              <NavLink
+                to="/wz"
+                className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
+              >
+                WZ
+              </NavLink>
+              <NavLink
+                to="/products"
+                className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
+              >
+                Produkty
+              </NavLink>
+            </>
+          )}
+
+          {/* ----- Tylko dla Admina ----- */}
+          {role === "admin" && (
+            <NavLink
+              to="/users"
+              className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
+            >
+              Użytkownicy
+            </NavLink>
+          )}
+
+          {/* TODO: W przyszłości dodamy tu linki dla 'customer' */}
+
         </nav>
-        <button onClick={handleLogout} className="px-3 py-1 rounded bg-black text-white">Wyloguj</button>
+        <button onClick={handleLogout} className="px-3 py-1 rounded bg-black text-white">
+          Wyloguj
+        </button>
       </header>
       <main className="p-6">
         <Outlet />

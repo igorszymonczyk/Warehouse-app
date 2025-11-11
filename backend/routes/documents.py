@@ -10,7 +10,7 @@ from utils.tokenJWT import get_current_user
 from models.users import User
 
 from models.invoice import Invoice
-from models.WarehouseDoc import WarehouseDocument  # <- poprawna nazwa
+from models.WarehouseDoc import WarehouseDocument, WarehouseStatus
 from schemas.documents import DocumentsPage, DocumentListItem
 
 router = APIRouter(tags=["Documents"])
@@ -29,25 +29,19 @@ def _parse_iso(s: Optional[str]) -> Optional[datetime]:
 
 @router.get("/documents", response_model=DocumentsPage)
 def list_documents(
-    # filtry wspólne
-    type: Optional[Literal["invoice", "wz"]] = Query(
-        None, description="Filtr rodzaju dokumentu"
-    ),
+    type: Optional[Literal["invoice", "wz"]] = Query(None, description="Filtr rodzaju dokumentu"),
     buyer: Optional[str] = Query(None, description="Szukaj po nazwie klienta"),
-    # daty: filtrujemy po created_at jeśli istnieje
     date_from: Optional[str] = Query(None, description="ISO datetime od"),
     date_to: Optional[str] = Query(None, description="ISO datetime do"),
-    # status: dla WZ zawsze, dla Invoice tylko jeśli model ma pole 'status'
-    status: Optional[str] = Query(None, description="Status dokumentu"),
-    # paginacja + sort
+    status: Optional[WarehouseStatus] = Query(None, description="Status (WZ: NEW/IN_PROGRESS/RELEASED/CANCELLED)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
     sort_by: Literal["date", "buyer", "status", "id"] = "date",
     order: Literal["asc", "desc"] = "desc",
-
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+
     if not _role_ok(current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
 
@@ -113,7 +107,7 @@ def list_documents(
         if tdt and hasattr(WarehouseDocument, "created_at"):
             wq = wq.filter(WarehouseDocument.created_at <= tdt)
 
-        if status and hasattr(WarehouseDocument, "status"):
+        if status:
             wq = wq.filter(WarehouseDocument.status == status)
 
         wz_total = wq.count()
@@ -143,6 +137,7 @@ def list_documents(
 
     # UWAGA: prosta paginacja "per-źródło".
     # Dla aplikacji produkcyjnej można zrobić UNION w SQL, ale tutaj
+    # TODO(documents): replace Python merge with DB-level UNION/VIEW when moving to Postgres.
 
     items: List[DocumentListItem] = [DocumentListItem(**x) for x in (inv_items + wz_items)]
     total = (inv_total if type in (None, "invoice") else 0) + (wz_total if type in (None, "wz") else 0)

@@ -1,16 +1,19 @@
-// src/pages/Login.tsx
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { toMessage } from "../lib/error";
 import { useAuth } from "../store/auth";
 import { Link } from "react-router-dom";
+// 1. Zaimportuj ikony
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("admin2@example.com");
   const [password, setPassword] = useState("Admin123!");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
+  // 2. Dodaj stan do pokazywania/ukrywania hasła
+  const [showPassword, setShowPassword] = useState(false);
 
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -43,13 +46,24 @@ export default function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="E-mail"
         />
-        <input
-          className="border rounded w-full p-2 mb-4"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Hasło"
-        />
+
+        {/* 3. Zmodyfikuj sekcję z hasłem */}
+        <div className="relative mb-4">
+          <input
+            className="border rounded w-full p-2 pr-10" // Dodany padding po prawej (pr-10)
+            type={showPassword ? "text" : "password"} // Dynamiczny typ
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Hasło"
+          />
+          <button
+            type="button" // Ważne, aby nie wysyłać formularza
+            onClick={() => setShowPassword(!showPassword)} // Przełącznik stanu
+            className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700"
+          >
+            {showPassword ? <FaEyeSlash /> : <FaEye />}
+          </button>
+        </div>
 
         {error && <p className="text-red-600 mb-3">{error}</p>}
 
