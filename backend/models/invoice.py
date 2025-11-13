@@ -33,6 +33,11 @@ class InvoiceItem(Base):
     invoice_id = Column(Integer, ForeignKey("invoices.id"))
     product_id = Column(Integer, ForeignKey("products.id"))
 
+    #snapshot danych produktu w momencie wystawienia
+    product_name = Column(String, nullable=False)
+    product_code = Column(String, nullable=True)
+    unit = Column(String, nullable=True) 
+
     quantity = Column(Integer, nullable=False)
     price_net = Column(Float, nullable=False)
     tax_rate = Column(Float, nullable=False)
@@ -41,6 +46,7 @@ class InvoiceItem(Base):
 
     invoice = relationship("Invoice", back_populates="items")
     product = relationship("Product")
+
 
 
 

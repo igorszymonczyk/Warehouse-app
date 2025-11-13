@@ -198,6 +198,9 @@ def create_invoice(
         items.append(
             InvoiceItem(
                 product_id=product.id,
+                product_name=product.name,
+                product_code=product.code,
+                unit=getattr(product, "unit", None),
                 quantity=quantity,
                 price_net=price_net,
                 tax_rate=tax_rate,
@@ -206,7 +209,7 @@ def create_invoice(
             )
         )
 
-        # 🔹 aktualizacja stanu magazynowego
+        #  aktualizacja stanu magazynowego
         product.stock_quantity -= quantity
 
     # --- zapis faktury ---
@@ -304,7 +307,8 @@ def get_invoice(
     for item in invoice.items:
         detailed_items.append({
             "product_id": item.product_id,
-            "product_name": item.product.name if item.product else None,
+            "product_name": item.product_name,    # używamy snapshotu
+            "product_code": item.product_code,
             "quantity": item.quantity,
             "price_net": item.price_net,
             "tax_rate": item.tax_rate,

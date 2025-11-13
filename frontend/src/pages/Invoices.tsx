@@ -7,6 +7,7 @@ import type { Invoice, Page } from "../lib/types";
 export default function InvoicesPage() {
   const [data, setData] = useState<Page<Invoice> | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [q, setQ] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -20,10 +21,14 @@ export default function InvoicesPage() {
   const pageSize = 10;
   const navigate = useNavigate();
 
-  // Główne ładowanie danych
+  // ======================
+  // Pobieranie faktur
+  // ======================
   const load = async () => {
-    if (dateError) return; // nie wysyłaj zapytania przy błędzie
+    if (dateError) return;
     setLoading(true);
+    setError(null);
+
     try {
       const res = await api.get<Page<Invoice>>("/invoices", {
         params: {
@@ -37,14 +42,17 @@ export default function InvoicesPage() {
         },
       });
       setData(res.data);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Błąd przy pobieraniu faktur:", err);
+      setError("Nie udało się pobrać listy faktur.");
     } finally {
       setLoading(false);
     }
   };
 
+  // ======================
   // Walidacja dat
+  // ======================
   useEffect(() => {
     if (dateFrom && dateTo && new Date(dateTo) < new Date(dateFrom)) {
       setDateError("Data 'do' nie może być wcześniejsza niż 'od'");
@@ -53,7 +61,9 @@ export default function InvoicesPage() {
     }
   }, [dateFrom, dateTo]);
 
-  // Debounce wyszukiwania i filtrów
+  // ======================
+  // Debounce wyszukiwania
+  // ======================
   useEffect(() => {
     const timeout = setTimeout(() => {
       setPage(1);
@@ -62,11 +72,16 @@ export default function InvoicesPage() {
     return () => clearTimeout(timeout);
   }, [q, dateFrom, dateTo, sortBy, order]);
 
-  // Ładowanie przy zmianie strony
+  // ======================
+  // Zmiana strony
+  // ======================
   useEffect(() => {
     if (!dateError) load();
   }, [page]);
 
+  // ======================
+  // Sortowanie
+  // ======================
   const toggleSort = (field: typeof sortBy) => {
     if (sortBy === field) {
       setOrder((prev) => (prev === "asc" ? "desc" : "asc"));
@@ -76,29 +91,40 @@ export default function InvoicesPage() {
     }
   };
 
+  // ======================
+  // Pobieranie PDF
+  // ======================
   const downloadPdf = async (id: number) => {
-    await api.post(`/invoices/${id}/pdf`);
-    const base = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-    window.open(`${base}/invoices/${id}/download`, "_blank");
+    try {
+      await api.post(`/invoices/${id}/pdf`);
+      const base = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      window.open(`${base}/invoices/${id}/download`, "_blank");
+    } catch (err) {
+      console.error("Błąd generowania PDF:", err);
+      alert("Nie udało się wygenerować pliku PDF.");
+    }
   };
 
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize));
 
+  // ======================
+  // Render
+  // ======================
   return (
     <div className="p-6">
       {/* Nagłówek */}
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold">Faktury</h1>
         <button
           onClick={() => navigate("/invoices/create")}
-          className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
+          className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition"
         >
-          Dodaj fakturę
+          + Nowa faktura
         </button>
       </div>
 
-      {/*  Wyszukiwanie + filtry dat */}
-      <div className="flex flex-wrap items-end gap-3 mb-4">
+      {/* Wyszukiwanie i filtry */}
+      <div className="flex flex-wrap items-end gap-3 mb-5">
         <div>
           <label className="block text-sm text-gray-700 mb-1">Szukaj klienta / NIP</label>
           <input
@@ -126,119 +152,83 @@ export default function InvoicesPage() {
             className={`border px-3 py-2 rounded ${dateError ? "border-red-500" : ""}`}
           />
         </div>
-        {dateError && (
-          <div className="text-red-600 text-sm font-medium">{dateError}</div>
-        )}
+        {dateError && <p className="text-red-600 text-sm font-medium">{dateError}</p>}
       </div>
 
-      {loading && <p>Ładowanie…</p>}
+      {/* Stan ładowania / błędu */}
+      {loading && <p>Ładowanie danych...</p>}
+      {error && <p className="text-red-600">{error}</p>}
 
+      {/* Tabela faktur */}
       {!loading && data && (
         <>
           <div className="overflow-x-auto border rounded">
             <table className="min-w-full bg-white text-sm">
               <thead className="bg-gray-100">
                 <tr>
-                  <th
-                    className="p-2 border text-left cursor-pointer select-none"
-                    onClick={() => toggleSort("id")}
-                  >
-                    <div className="flex items-center gap-1">
-                      ID
-                      <ArrowUpDown
-                        size={16}
-                        className={
-                          sortBy === "id"
-                            ? order === "asc"
-                              ? "rotate-180 text-black"
-                              : "text-black"
-                            : "text-gray-400"
-                        }
-                      />
-                    </div>
-                  </th>
-                  <th
-                    className="p-2 border text-left cursor-pointer select-none"
-                    onClick={() => toggleSort("created_at")}
-                  >
-                    <div className="flex items-center gap-1">
-                      Data
-                      <ArrowUpDown
-                        size={16}
-                        className={
-                          sortBy === "created_at"
-                            ? order === "asc"
-                              ? "rotate-180 text-black"
-                              : "text-black"
-                            : "text-gray-400"
-                        }
-                      />
-                    </div>
-                  </th>
-                  <th
-                    className="p-2 border text-left cursor-pointer select-none"
-                    onClick={() => toggleSort("buyer_name")}
-                  >
-                    <div className="flex items-center gap-1">
-                      Klient
-                      <ArrowUpDown
-                        size={16}
-                        className={
-                          sortBy === "buyer_name"
-                            ? order === "asc"
-                              ? "rotate-180 text-black"
-                              : "text-black"
-                            : "text-gray-400"
-                        }
-                      />
-                    </div>
-                  </th>
-                  <th
-                    className="p-2 border text-right cursor-pointer select-none"
-                    onClick={() => toggleSort("total_gross")}
-                  >
-                    <div className="flex items-center justify-end gap-1">
-                      Wartość brutto
-                      <ArrowUpDown
-                        size={16}
-                        className={
-                          sortBy === "total_gross"
-                            ? order === "asc"
-                              ? "rotate-180 text-black"
-                              : "text-black"
-                            : "text-gray-400"
-                        }
-                      />
-                    </div>
-                  </th>
-                  <th className="p-2 border text-center">Akcje</th>
+                  {[
+                    { key: "id", label: "ID" },
+                    { key: "created_at", label: "Data" },
+                    { key: "buyer_name", label: "Klient" },
+                    { key: "total_gross", label: "Wartość brutto" },
+                  ].map((col) => (
+                    <th
+                      key={col.key}
+                      className={`p-2 border ${col.key === "total_gross" ? "text-right" : "text-left"} cursor-pointer select-none`}
+                      onClick={() => toggleSort(col.key as typeof sortBy)}
+                    >
+                      <div
+                        className={`flex ${
+                          col.key === "total_gross" ? "justify-end" : "justify-start"
+                        } items-center gap-1`}
+                      >
+                        {col.label}
+                        <ArrowUpDown
+                          size={16}
+                          className={
+                            sortBy === col.key
+                              ? order === "asc"
+                                ? "rotate-180 text-black"
+                                : "text-black"
+                              : "text-gray-400"
+                          }
+                        />
+                      </div>
+                    </th>
+                  ))}
+                  <th className="p-2 border text-center">PDF</th>
                 </tr>
               </thead>
+
               <tbody>
-                {data.items.map((inv) => (
-                  <tr key={inv.id} className="border-t">
-                    <td className="p-2 border">{inv.id}</td>
-                    <td className="p-2 border">{new Date(inv.created_at).toLocaleString()}</td>
-                    <td className="p-2 border">{inv.buyer_name}</td>
-                    <td className="p-2 border text-right">
-                      {inv.total_gross.toFixed(2)} zł
-                    </td>
-                    <td className="p-2 border text-center">
-                      <button
-                        onClick={() => downloadPdf(inv.id)}
-                        className="px-2 py-1 border rounded hover:bg-gray-100"
-                      >
-                        PDF
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {data.items.length === 0 && (
+                {data.items.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="p-4 text-center text-gray-500">
                       Brak danych
                     </td>
                   </tr>
+                ) : (
+                  data.items.map((inv) => (
+                    <tr
+                      key={inv.id}
+                      className="border-t hover:bg-gray-50 cursor-pointer transition"
+                      onClick={() => navigate(`/invoices/${inv.id}`)}
+                    >
+                      <td className="p-2 border">{inv.id}</td>
+                      <td className="p-2 border">{new Date(inv.created_at).toLocaleString()}</td>
+                      <td className="p-2 border">{inv.buyer_name}</td>
+                      <td className="p-2 border text-right">{inv.total_gross.toFixed(2)} zł</td>
+                      <td
+                        className="p-2 border text-center"
+                        onClick={(e) => {
+                          e.stopPropagation(); // nie przechodź do szczegółów po kliknięciu PDF
+                          downloadPdf(inv.id);
+                        }}
+                      >
+                        <button className="px-2 py-1 border rounded hover:bg-gray-100">PDF</button>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>

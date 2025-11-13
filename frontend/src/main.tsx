@@ -17,6 +17,7 @@ import UsersPage from "./pages/Users";
 import Register from "./pages/Register";
 import CartPage from "./pages/Cart"; 
 import CheckoutPage from "./pages/Checkout"; // 1. ZMIANA: Import nowej strony
+import InvoiceDetailPage from "./pages/InvoiceDetailPage";
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -49,6 +50,15 @@ const router = createBrowserRouter([
         ),
       },
       
+      {
+  path: "invoices/:id",
+  element: (
+    <Protected allowedRoles={["admin", "salesman"]}>
+      <InvoiceDetailPage />
+    </Protected>
+  ),
+},
+
       // Admin, Salesman, Warehouse
       {
         path: "wz",

@@ -1,6 +1,9 @@
 export type InvoiceItem = {
+    id: number;
     product_id: number;
-    product_name: string | null;
+    product_name: string;
+    product_code?: string | null; 
+    unit?: string | null; 
     quantity: number;
     price_net: number;
     tax_rate: number;

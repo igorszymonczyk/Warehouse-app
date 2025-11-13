@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import LoginPage from "./pages/Login";
 import Register from "./pages/Register";
 
+
 export default function App() {
   return (
     <Routes>
