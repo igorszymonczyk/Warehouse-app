@@ -3,8 +3,9 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import toast from "react-hot-toast";
 import { Search, ShoppingCart } from "lucide-react";
+import { useAuth } from "../store/auth"; // 1. ZMIANA: Import useAuth
 
-// 1. ZMIANA: Zaktualizuj typ, aby zawierał image_url
+// ... (typ Product i PaginatedProducts bez zmian) ...
 type Product = {
   id: number;
   name: string;
@@ -13,9 +14,8 @@ type Product = {
   sell_price_net: number;
   tax_rate: number;
   stock_quantity: number;
-  image_url?: string | null; // <-- DODANE
+  image_url?: string | null;
 };
-
 type PaginatedProducts = {
   items: Product[];
   total: number;
@@ -23,34 +23,63 @@ type PaginatedProducts = {
   page_size: number;
 };
 
+
 // --- Komponent Karty Produktu ---
 function ProductCard({ product }: { product: Product }) {
+  // 2. ZMIANA: Pobieramy setCart i dodajemy stan ładowania
+  const { setCart } = useAuth();
+  const [isAdding, setIsAdding] = useState(false);
+
   const price_gross = product.sell_price_net * (1 + (product.tax_rate ?? 23) / 100);
 
-  // 2. ZMIANA: Budujemy pełny adres URL do zdjęcia
   const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
   const fullImageUrl = product.image_url ? `${API_URL}${product.image_url}` : null;
 
-  const handleAddToCart = () => {
-    // TODO: Zaimplementować logikę koszyka
-    toast.success(`Dodano do koszyka: ${product.name}`);
+  // 3. ZMIANA: Pełna implementacja handleAddToCart
+  const handleAddToCart = async () => {
+    setIsAdding(true);
+    try {
+      // Domyślnie dodajemy 1 sztukę
+      const res = await api.post("/cart/add", {
+        product_id: product.id,
+        qty: 1,
+      });
+      setCart(res.data); // Aktualizuj globalny stan koszyka!
+      toast.success(`Dodano do koszyka: ${product.name}`);
+    } catch (err: unknown) { // <-- ZMIANA 1: Typ 'unknown' zamiast 'any'
+      console.error(err);
+      
+      let msg = "Nie udało się dodać produktu"; 
+      if (typeof err === 'object' && err !== null && 'response' in err) {
+        const response = (err as { response?: { data?: { detail?: string } } }).response;
+        if (response?.data?.detail) {
+          msg = response.data.detail;
+        }
+      }
+      
+      toast.error(msg);
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   return (
     <div className="bg-white shadow rounded-lg overflow-hidden flex flex-col">
-      {/* 3. ZMIANA: Logika wyświetlania zdjęcia */}
+      {/* ... (logika wyświetlania zdjęcia bez zmian) ... */}
       <div className="h-48 bg-gray-200 flex items-center justify-center relative">
         {fullImageUrl ? (
           <img
             src={fullImageUrl}
             alt={product.name}
-            className="w-full h-full object-cover" // object-cover zapewni, że zdjęcie wypełni pole
+            className="w-full h-full object-cover"
           />
         ) : (
           <span className="text-gray-400">Brak zdjęcia</span>
         )}
       </div>
+      
       <div className="p-4 flex flex-col flex-grow">
+        {/* ... (dane produktu bez zmian) ... */}
         <h3 className="text-lg font-semibold text-gray-800 h-14">
           {product.name}
         </h3>
@@ -60,16 +89,24 @@ function ProductCard({ product }: { product: Product }) {
         </p>
 
         <div className="mt-auto">
+          {/* ... (cena bez zmian) ... */}
           <p className="text-2xl font-bold text-gray-900 mb-3">
             {price_gross.toFixed(2)} zł
             <span className="text-sm font-normal text-gray-500"> /szt. (brutto)</span>
           </p>
+
+          {/* 4. ZMIANA: Aktualizacja przycisku */}
           <button
             onClick={handleAddToCart}
-            className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            disabled={isAdding || product.stock_quantity <= 0}
+            className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400"
           >
             <ShoppingCart size={18} className="mr-2" />
-            Dodaj do koszyka
+            {product.stock_quantity <= 0
+              ? "Brak na stanie"
+              : isAdding
+              ? "Dodawanie..."
+              : "Dodaj do koszyka"}
           </button>
         </div>
       </div>
@@ -79,11 +116,11 @@ function ProductCard({ product }: { product: Product }) {
 
 // --- Główny komponent sklepu ---
 export default function CustomerShop() {
+  // ... (Cała reszta tego komponentu pozostaje bez zmian) ...
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // ... (stany i logika useEffect bez zmian) ...
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);

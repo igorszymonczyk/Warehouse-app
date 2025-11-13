@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, CheckConstraint
 from sqlalchemy.orm import relationship
+
 from database import Base
 
 class User(Base):

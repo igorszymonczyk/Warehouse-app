@@ -2,7 +2,7 @@ import { Navigate } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useAuth } from "../store/auth";
 
-type Role = "admin" | "salesman" | "customer";
+type Role = "admin" | "salesman" | "customer" | "warehouse";
 
 type ProtectedProps = {
   children: ReactNode;

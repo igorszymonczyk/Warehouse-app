@@ -1,4 +1,4 @@
-# backend/routers/products.py
+# backend/routes/products.py
 from typing import Optional, List
 from fastapi import (
     APIRouter, Depends, HTTPException, Query, Request, 
@@ -35,6 +35,11 @@ def _can_edit(user: User) -> bool:
     """Zezwól na edycję dla ADMIN/SALESMAN."""
     return _role_ok(user)
 
+def _can_manage_stock(user: User) -> bool:
+    """Zezwól na dostęp dla ADMIN/SALESMAN/WAREHOUSE."""
+    role = (user.role or "").upper()
+    return role in {"ADMIN", "SALESMAN", "WAREHOUSE"}
+
 def _norm_code(code: Optional[str]) -> Optional[str]:
     if code is None:
         return None
@@ -58,8 +63,7 @@ def list_products(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # ... (Ta funkcja zostaje bez zmian) ...
-    if not _role_ok(current_user):
+    if not _can_manage_stock(current_user):
         raise HTTPException(status_code=403, detail="Not authorized to view products")
 
     query = db.query(Product)
@@ -130,7 +134,7 @@ def get_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not _role_ok(current_user):
+    if not _can_manage_stock(current_user):
         raise HTTPException(status_code=403, detail="Not authorized to view products")
 
     product = db.query(Product).filter(Product.id == product_id).first()
@@ -183,7 +187,7 @@ def add_product(
     location: Optional[str] = Form(None),
     comment: Optional[str] = Form(None)
 ):
-    if not _role_ok(current_user):
+    if not _can_manage_stock(current_user):
         raise HTTPException(status_code=403, detail="Not authorized to add products")
 
     # Walidujemy dane Pydantic "ręcznie"
@@ -306,61 +310,34 @@ def update_product(
 # =========================
 # CZĘŚCIOWA EDYCJA PRODUKTU (PATCH)
 # =========================
-# =========================
-# CZĘŚCIOWA EDYCJA PRODUKTU (PATCH – z obsługą pliku)
-# =========================
 @router.patch("/products/{product_id}/edit", response_model=product_schemas.ProductOut)
-async def edit_product(
+def edit_product(
+    # ... (Ta funkcja zostaje bez zmian) ...
     product_id: int,
+    payload: product_schemas.ProductEditRequest,
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    name: Optional[str] = Form(None),
-    code: Optional[str] = Form(None),
-    sell_price_net: Optional[float] = Form(None),
-    stock_quantity: Optional[int] = Form(None),
-    buy_price: Optional[float] = Form(None),
-    description: Optional[str] = Form(None),
-    category: Optional[str] = Form(None),
-    supplier: Optional[str] = Form(None),
-    tax_rate: Optional[float] = Form(None),
-    location: Optional[str] = Form(None),
-    comment: Optional[str] = Form(None),
-    file: Optional[UploadFile] = File(None),
 ):
-    if not _can_edit(current_user):
+    if not _can_manage_stock(current_user):
         raise HTTPException(status_code=403, detail="Not authorized")
 
     p: Product = db.query(Product).filter(Product.id == product_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # 🔹 Walidacje biznesowe
-    if sell_price_net is not None and sell_price_net <= 0:
+    # walidacje biznesowe
+    if payload.sell_price_net is not None and payload.sell_price_net <= 0:
         raise HTTPException(status_code=400, detail="Price must be > 0")
-    if tax_rate is not None and tax_rate < 0:
+    if payload.tax_rate is not None and payload.tax_rate < 0:
         raise HTTPException(status_code=400, detail="Tax rate must be >= 0")
-    if stock_quantity is not None and stock_quantity < 0:
+    if payload.stock_quantity is not None and payload.stock_quantity < 0:
         raise HTTPException(status_code=400, detail="Stock must be >= 0")
 
-    # 🔹 Przygotuj dane do aktualizacji
-    data = {
-        "name": name,
-        "code": code,
-        "sell_price_net": sell_price_net,
-        "stock_quantity": stock_quantity,
-        "buy_price": buy_price,
-        "description": description,
-        "category": category,
-        "supplier": supplier,
-        "tax_rate": tax_rate,
-        "location": location,
-        "comment": comment,
-    }
-    data = {k: v for k, v in data.items() if v is not None}
+    data = payload.dict(exclude_unset=True)
 
-    # 🔹 Normalizacja kodu + sprawdzenie duplikatów
-    if "code" in data and data["code"]:
+    # normalizacja + sprawdzenie konfliktu kodu
+    if "code" in data and data["code"] is not None:
         data["code"] = _norm_code(data["code"])
         if not data["code"]:
             raise HTTPException(status_code=400, detail="Product code cannot be empty")
@@ -370,27 +347,10 @@ async def edit_product(
         if conflict:
             raise HTTPException(status_code=409, detail="Product code already exists")
 
-    # 🔹 Obsługa uploadu pliku (jeśli przesłano)
-    if file:
-        if file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
-            raise HTTPException(status_code=400, detail="Invalid file type. Only JPEG, PNG, WebP allowed.")
-
-        file_extension = file.filename.split(".")[-1]
-        unique_filename = f"{uuid.uuid4()}.{file_extension}"
-        save_path = UPLOAD_DIR / unique_filename
-        file_url = f"/uploads/{unique_filename}"
-
-        try:
-            with open(save_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-            data["image_url"] = file_url
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Could not save file: {e}")
-        finally:
-            file.file.close()
-
-    # 🔹 Zapis zmian
+    # log: wartości przed zmianą
     before = {k: getattr(p, k) for k in data.keys() if hasattr(p, k)}
+
+    # przypisz tylko przekazane pola
     for field, value in data.items():
         setattr(p, field, value)
 
@@ -404,10 +364,7 @@ async def edit_product(
         resource="products",
         status="SUCCESS",
         ip=request.client.host if request.client else None,
-        meta={
-            "product_id": p.id,
-            "changed": {k: [before.get(k), getattr(p, k)] for k in data.keys()},
-        },
+        meta={"product_id": p.id, "changed": {k: [before.get(k), getattr(p, k)] for k in data.keys()}},
     )
 
     fields = list(product_schemas.ProductOut.model_fields.keys())
@@ -419,6 +376,7 @@ async def edit_product(
 # =========================
 @router.delete("/products/{product_id}")
 def delete_product(
+    # ... (Ta funkcja zostaje bez zmian) ...
     product_id: int,
     request: Request,
     db: Session = Depends(get_db),

@@ -19,8 +19,8 @@ type PaginatedUsers = {
 };
 
 // Pomocnicza funkcja do walidacji roli (na wszelki wypadek)
-const isValidRole = (role: string): role is "admin" | "salesman" | "customer" => {
-  return ["admin", "salesman", "customer"].includes(role);
+const isValidRole = (role: string): role is "admin" | "salesman" | "customer" | "warehouse" => {
+  return ["admin", "salesman", "customer", "warehouse"].includes(role);
 }
 
 export default function UsersPage() {
@@ -158,6 +158,7 @@ export default function UsersPage() {
             <option value="customer">customer</option>
             <option value="salesman">salesman</option>
             <option value="admin">admin</option>
+            <option value="warehouse">warehouse</option>
           </select>
         </div>
       </div>
@@ -249,6 +250,7 @@ export default function UsersPage() {
                           <option value="customer">customer</option>
                           <option value="salesman">salesman</option>
                           <option value="admin">admin</option>
+                          <option value="warehouse">warehouse</option>
                         </select>
                         <button
                           onClick={(e) => {

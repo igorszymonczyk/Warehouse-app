@@ -15,6 +15,8 @@ import CreateInvoice from "./pages/CreateInvoice";
 import ProductsPage from "./pages/Products";
 import UsersPage from "./pages/Users";
 import Register from "./pages/Register";
+import CartPage from "./pages/Cart"; 
+import CheckoutPage from "./pages/Checkout"; // 1. ZMIANA: Import nowej strony
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -22,14 +24,11 @@ const router = createBrowserRouter([
   {
     path: "/",
     element: (
-      // Ten główny <Protected> sprawdza tylko, CZY jesteś zalogowany
       <Protected>
         <Layout />
       </Protected>
     ),
-    // Poszczególne trasy sprawdzają, JAKĄ masz rolę
     children: [
-      // Każdy zalogowany użytkownik widzi Pulpit
       { index: true, element: <Dashboard /> },
 
       // Admin i Salesman
@@ -49,10 +48,12 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
+      
+      // Admin, Salesman, Warehouse
       {
         path: "wz",
         element: (
-          <Protected allowedRoles={["admin", "salesman"]}>
+          <Protected allowedRoles={["admin", "salesman", "warehouse"]}>
             <WZPage />
           </Protected>
         ),
@@ -60,7 +61,7 @@ const router = createBrowserRouter([
       {
         path: "products",
         element: (
-          <Protected allowedRoles={["admin", "salesman"]}>
+          <Protected allowedRoles={["admin", "salesman", "warehouse"]}>
             <ProductsPage />
           </Protected>
         ),
@@ -72,6 +73,26 @@ const router = createBrowserRouter([
         element: (
           <Protected allowedRoles={["admin"]}>
             <UsersPage />
+          </Protected>
+        ),
+      },
+      
+      // Tylko Customer
+      {
+        path: "cart",
+        element: (
+          <Protected allowedRoles={["customer"]}>
+            <CartPage />
+          </Protected>
+        ),
+      },
+
+      // 2. ZMIANA: Dodanie trasy /checkout
+      {
+        path: "checkout",
+        element: (
+          <Protected allowedRoles={["customer"]}>
+            <CheckoutPage />
           </Protected>
         ),
       },

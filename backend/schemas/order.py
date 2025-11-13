@@ -27,3 +27,11 @@ class OrdersPage(BaseModel):
 class OrderStatusPatch(BaseModel):
     # dopuszczamy również 'cancelled'
     status: str = Field(pattern="^(pending|processing|shipped|cancelled)$")
+
+class OrderCreatePayload(BaseModel):
+    invoice_buyer_name: str     # Nazwa firmy
+    invoice_contact_person: str # Imię i nazwisko
+    invoice_buyer_nip: Optional[str] = None
+    invoice_address_street: str # Ulica + Numer
+    invoice_address_zip: str    # Kod pocztowy
+    invoice_address_city: str   # Miasto

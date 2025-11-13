@@ -1,3 +1,4 @@
+# backend/routes/orders.py
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session
@@ -9,7 +10,7 @@ from models.users import User
 from models.product import Product
 from models.cart import Cart, CartItem
 from models.order import Order, OrderItem
-from schemas.order import OrderResponse, OrdersPage, OrderStatusPatch, OrderItemOut
+from schemas.order import OrderResponse, OrdersPage, OrderStatusPatch, OrderItemOut, OrderCreatePayload
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -38,6 +39,7 @@ def _order_to_out(order: Order) -> OrderResponse:
 
 @router.post("/create", response_model=OrderResponse)
 def create_order(
+    payload: OrderCreatePayload,
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -54,7 +56,12 @@ def create_order(
         if prod.stock_quantity is not None and ci.qty > prod.stock_quantity:
             raise HTTPException(status_code=400, detail=f"Insufficient stock for product {prod.id}")
 
-    order = Order(user_id=current_user.id, status="pending", total_amount=0.0)
+    order = Order(
+        user_id=current_user.id, 
+        status="pending", 
+        total_amount=0.0,
+        **payload.model_dump()
+    )
     db.add(order)
     db.flush()  # mamy order.id
 
