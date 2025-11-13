@@ -15,8 +15,10 @@ import CreateInvoice from "./pages/CreateInvoice";
 import ProductsPage from "./pages/Products";
 import UsersPage from "./pages/Users";
 import Register from "./pages/Register";
-import CartPage from "./pages/Cart"; 
-import CheckoutPage from "./pages/Checkout"; // 1. ZMIANA: Import nowej strony
+import CartPage from "./pages/Cart";
+import CheckoutPage from "./pages/Checkout";
+import MyOrdersPage from "./pages/MyOrders";
+import MyInvoicesPage from "./pages/MyInvoices"; // 1. ZMIANA: Import
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -30,8 +32,7 @@ const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Dashboard /> },
-
-      // Admin i Salesman
+      // ... (trasy admina/sprzedawcy/magazyniera bez zmian)
       {
         path: "invoices",
         element: (
@@ -48,8 +49,6 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
-      
-      // Admin, Salesman, Warehouse
       {
         path: "wz",
         element: (
@@ -66,8 +65,6 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
-
-      // Tylko Admin
       {
         path: "users",
         element: (
@@ -76,8 +73,8 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
-      
-      // Tylko Customer
+
+      // Trasy Klienta
       {
         path: "cart",
         element: (
@@ -86,13 +83,29 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
-
-      // 2. ZMIANA: Dodanie trasy /checkout
       {
         path: "checkout",
         element: (
           <Protected allowedRoles={["customer"]}>
             <CheckoutPage />
+          </Protected>
+        ),
+      },
+      {
+        path: "my-orders",
+        element: (
+          <Protected allowedRoles={["customer"]}>
+            <MyOrdersPage />
+          </Protected>
+        ),
+      },
+      
+      // 2. ZMIANA: Dodanie trasy /my-invoices
+      {
+        path: "my-invoices",
+        element: (
+          <Protected allowedRoles={["customer"]}>
+            <MyInvoicesPage />
           </Protected>
         ),
       },

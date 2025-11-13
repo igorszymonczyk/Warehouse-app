@@ -1,4 +1,3 @@
-# routes/invoice.py
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
@@ -7,7 +6,7 @@ from sqlalchemy import or_
 from pathlib import Path
 import json
 
-from models.invoice import Invoice, InvoiceItem
+from models.invoice import Invoice, InvoiceItem, PaymentStatus
 from models.product import Product
 from models.WarehouseDoc import WarehouseDocument
 from database import get_db
@@ -21,6 +20,7 @@ router = APIRouter(tags=["Invoices"])
 
 
 # POMOCNICZE: PDF + fonty PL
+# ... (cała sekcja pomocników PDF bez zmian, od linii 19 do 107) ...
 STORAGE_DIR = Path("storage/invoices")
 
 FONT_DIR = Path("assets/fonts")
@@ -154,6 +154,7 @@ def _generate_invoice_pdf_file(invoice: Invoice, items: List[InvoiceItem], out_p
 # =========================
 @router.post("/invoices", response_model=invoice_schemas.InvoiceResponse)
 def create_invoice(
+    # ... (cała funkcja create_invoice bez zmian, od linii 220 do 318) ...
     request: Request,
     invoice_data: invoice_schemas.InvoiceCreate,
     db: Session = Depends(get_db),
@@ -269,10 +270,56 @@ def create_invoice(
 
 
 # =========================
+# LIST (DLA KLIENTA)
+# =========================
+@router.get("/invoices/me", response_model=invoice_schemas.InvoiceListPage)
+def list_my_invoices(
+    # ... (cała funkcja list_my_invoices bez zmian, od linii 324 do 363) ...
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(5, ge=1, le=50), # Mniejsza strona domyślnie dla klienta
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Uprawnienia: Tylko zalogowany użytkownik (każdy może zobaczyć swoje faktury)
+    if not current_user:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    #  Zapytanie: Filtrujemy po user_id
+    query = db.query(Invoice).filter(Invoice.user_id == current_user.id)
+    
+    # Sortowanie: Zawsze po najnowszych dla klienta
+    query = query.order_by(Invoice.created_at.desc())
+
+    # Paginacja
+    total = query.count()
+    invoices = query.offset((page - 1) * page_size).limit(page_size).all()
+
+    # Logowanie
+    write_log(
+        db,
+        user_id=current_user.id,
+        action="INVOICES_LIST_ME",
+        resource="invoices",
+        status="SUCCESS",
+        ip=request.client.host if request.client else None,
+        meta={"page": page, "returned": len(invoices)},
+    )
+
+    return {
+        "items": invoices,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+# =========================
 # DETAIL
 # =========================
 @router.get("/invoices/{invoice_id}", response_model=invoice_schemas.InvoiceDetail)
 def get_invoice(
+    # ... (cała funkcja get_invoice bez zmian, od linii 369 do 429) ...
     invoice_id: int,
     request: Request,
     db: Session = Depends(get_db),
@@ -336,10 +383,11 @@ def get_invoice(
 
 
 # =========================
-# LIST
+# LIST (DLA ADMINA)
 # =========================
 @router.get("/invoices", response_model=invoice_schemas.InvoiceListPage)
 def list_invoices(
+    # ... (cała funkcja list_invoices bez zmian, od linii 435 do 513) ...
     request: Request,
     q: Optional[str] = Query(None, description="Szukaj po nazwie lub NIP klienta"),
     page: int = Query(1, ge=1),
@@ -423,9 +471,34 @@ def list_invoices(
     }
 
 
+# ========== POCZĄTEK ZMIAN: ZASTĄPIONO SEKCJĘ PDF ==========
 # =========================
 # PDF: GENERATE & DOWNLOAD
 # =========================
+
+# Funkcja pomocnicza do sprawdzania uprawnień do PDF
+def _check_pdf_permission(db: Session, invoice_id: int, user: User) -> Invoice:
+    """
+    Sprawdza, czy użytkownik może uzyskać dostęp do PDF faktury.
+    Zezwala Adminowi/Sprzedawcy lub właścicielowi faktury.
+    """
+    query = db.query(Invoice).options(
+        joinedload(Invoice.items).joinedload(InvoiceItem.product)
+    )
+    invoice = query.filter(Invoice.id == invoice_id).first()
+    
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    is_admin_or_sales = (user.role or "").upper() in {"ADMIN", "SALESMAN"}
+    # Sprawdzamy czy user_id na fakturze zgadza się z zalogowanym użytkownikiem
+    is_owner = invoice.user_id == user.id 
+
+    if not is_admin_or_sales and not is_owner:
+        raise HTTPException(status_code=403, detail="Not authorized to access this invoice")
+        
+    return invoice
+
 @router.post("/invoices/{invoice_id}/pdf")
 def generate_invoice_pdf(
     invoice_id: int,
@@ -433,17 +506,8 @@ def generate_invoice_pdf(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if (current_user.role or "").upper() not in {"ADMIN", "SALESMAN"}:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    invoice = (
-        db.query(Invoice)
-        .options(joinedload(Invoice.items).joinedload(InvoiceItem.product))
-        .filter(Invoice.id == invoice_id)
-        .first()
-    )
-    if not invoice:
-        raise HTTPException(status_code=404, detail="Invoice not found")
+    # Używamy nowej funkcji sprawdzającej
+    invoice = _check_pdf_permission(db, invoice_id, current_user)
 
     out_path = _pdf_path_for(invoice.id)
     _generate_invoice_pdf_file(invoice, invoice.items, out_path)
@@ -472,16 +536,30 @@ def download_invoice_pdf(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if (current_user.role or "").upper() not in {"ADMIN", "SALESMAN"}:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
+    # Używamy nowej funkcji sprawdzającej (wystarczy zwykłe zapytanie)
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
+    is_admin_or_sales = (current_user.role or "").upper() in {"ADMIN", "SALESMAN"}
+    is_owner = invoice.user_id == current_user.id
+
+    if not is_admin_or_sales and not is_owner:
+        raise HTTPException(status_code=403, detail="Not authorized to access this invoice")
+        
+    # PDF musi istnieć
     pdf_path = Path(getattr(invoice, "pdf_path", "") or _pdf_path_for(invoice.id))
     if not pdf_path.exists():
-        raise HTTPException(status_code=404, detail="PDF not found. Generate it first via POST /invoices/{id}/pdf")
+        # Jeśli nie istnieje, spróbujmy go wygenerować (zamiast rzucać błąd)
+        try:
+            full_invoice_details = _check_pdf_permission(db, invoice_id, current_user)
+            _generate_invoice_pdf_file(full_invoice_details, full_invoice_details.items, pdf_path)
+            if hasattr(full_invoice_details, "pdf_path"):
+                full_invoice_details.pdf_path = str(pdf_path)
+                db.commit()
+        except Exception as e:
+            # Jeśli generowanie się nie uda, rzuć błąd 404
+            raise HTTPException(status_code=404, detail=f"PDF not found and could not be generated: {e}")
 
     write_log(
         db,
@@ -496,5 +574,6 @@ def download_invoice_pdf(
     return FileResponse(
         path=str(pdf_path),
         media_type="application/pdf",
-        filename=pdf_path.name,
+        filename=f"Faktura-INV-{invoice.id}.pdf", # Ulepszona nazwa pliku
     )
+# ========== KONIEC ZMIAN ==========

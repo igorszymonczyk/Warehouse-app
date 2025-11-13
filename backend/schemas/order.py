@@ -1,12 +1,17 @@
+# backend/schemas/order.py
 from typing import List, Optional
 from pydantic import BaseModel, Field
 from datetime import datetime
 
 class OrderItemOut(BaseModel):
     product_id: int
+    product_name: str
     qty: float
     unit_price: float
     line_total: float
+
+    class Config:
+        from_attributes = True
 
 class OrderResponse(BaseModel):
     id: int

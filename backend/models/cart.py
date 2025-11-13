@@ -1,3 +1,4 @@
+# backend/models/cart.py
 from sqlalchemy import Column, Integer, ForeignKey, String, DateTime, Float, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 from database import Base

@@ -2,6 +2,7 @@
 from sqlalchemy import Column, Integer, ForeignKey, String, DateTime, Float, func
 from sqlalchemy.orm import relationship
 from database import Base
+from models.product import Product
 
 class Order(Base):
     __tablename__ = "orders"
@@ -42,3 +43,4 @@ class OrderItem(Base):
     unit_price = Column(Float, nullable=False)
 
     order = relationship("Order", back_populates="items")
+    product = relationship("Product")

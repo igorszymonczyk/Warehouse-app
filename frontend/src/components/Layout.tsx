@@ -1,10 +1,8 @@
-// frontend/src/components/Layout.tsx
 import { Outlet, useNavigate, NavLink } from "react-router-dom";
 import { useAuth } from "../store/auth";
-import { ShoppingCart } from "lucide-react"; // 1. ZMIANA: Import ikony
+import { ShoppingCart } from "lucide-react";
 
 export default function Layout() {
-  // 2. ZMIANA: Pobieramy 'role', 'logout' i 'cart'
   const { role, logout, cart } = useAuth();
   const navigate = useNavigate();
 
@@ -18,13 +16,11 @@ export default function Layout() {
   const activeLinkStyle =
     "px-3 py-2 rounded-md text-sm font-bold text-blue-700 bg-blue-100";
 
-  // 3. ZMIANA: Obliczamy łączną liczbę sztuk w koszyku
   const cartItemCount = cart?.items.reduce((sum, item) => sum + item.qty, 0) ?? 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="flex items-center justify-between p-4 border-b bg-white">
-        {/* Nawigacja po lewej (bez zmian) */}
         <nav className="flex items-center space-x-2">
           {/* ----- Wspólne dla wszystkich ----- */}
           <NavLink
@@ -35,10 +31,9 @@ export default function Layout() {
             Pulpit
           </NavLink>
           
-          {/* ----- Tylko dla Admina i Sprzedawcy ----- */}
+          {/* ... (trasy admina/sprzedawcy/magazyniera bez zmian) ... */}
           {(role === "admin" || role === "salesman") && (
             <>
-              {/* ... (linki admina/sprzedawcy bez zmian) ... */}
               <NavLink
                 to="/invoices"
                 className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
@@ -59,8 +54,6 @@ export default function Layout() {
               </NavLink>
             </>
           )}
-
-          {/* ----- Tylko dla Admina ----- */}
           {role === "admin" && (
             <NavLink
               to="/users"
@@ -69,10 +62,8 @@ export default function Layout() {
               Użytkownicy
             </NavLink>
           )}
-          {/* ----- Tylko dla Magazyniera ----- */}
           {role === "warehouse" && (
             <>
-              {/* ... (linki magazyniera bez zmian) ... */}
               <NavLink
                 to="/wz"
                 className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
@@ -87,12 +78,31 @@ export default function Layout() {
               </NavLink>
             </>
           )}
+
+          {/* ----- Tylko dla Klienta ----- */}
+          {role === "customer" && (
+            <>
+              <NavLink
+                to="/my-orders"
+                className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
+              >
+                Moje zamówienia
+              </NavLink>
+              
+              {/* ZMIANA: Dodany link */}
+              <NavLink
+                to="/my-invoices"
+                className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
+              >
+                Moje faktury
+              </NavLink>
+            </>
+          )}
+
         </nav>
 
-        {/* 4. ZMIANA: Kontener na akcje po prawej stronie (koszyk + wyloguj) */}
+        {/* Akcje po prawej (koszyk + wyloguj) */}
         <div className="flex items-center space-x-4">
-          
-          {/* ----- Ikona Koszyka (tylko customer) ----- */}
           {role === "customer" && (
             <NavLink
               to="/cart"
