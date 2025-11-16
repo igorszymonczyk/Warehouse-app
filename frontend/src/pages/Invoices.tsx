@@ -30,7 +30,7 @@ export default function InvoicesPage() {
           q: q || undefined,
           page,
           page_size: pageSize,
-          sort_by: sortBy === "id" ? "created_at" : sortBy,
+          sort_by: sortBy,
           order,
           date_from: dateFrom || undefined,
           date_to: dateTo || undefined,
@@ -143,9 +143,9 @@ export default function InvoicesPage() {
                     className="p-2 border text-left cursor-pointer select-none"
                     onClick={() => toggleSort("id")}
                   >
-                    <div className="flex items-center gap-1">
+                     <div className="flex items-center gap-1">
                       ID
-                      <ArrowUpDown
+                       <ArrowUpDown
                         size={16}
                         className={
                           sortBy === "id"
@@ -216,7 +216,11 @@ export default function InvoicesPage() {
               </thead>
               <tbody>
                 {data.items.map((inv) => (
-                  <tr key={inv.id} className="border-t">
+                  <tr 
+                    key={inv.id} 
+                    className="border-t hover:bg-gray-50 cursor-pointer"
+                    onClick={() => navigate(`/invoices/${inv.id}`)}
+                  >
                     <td className="p-2 border">{inv.id}</td>
                     <td className="p-2 border">{new Date(inv.created_at).toLocaleString()}</td>
                     <td className="p-2 border">{inv.buyer_name}</td>
@@ -225,7 +229,7 @@ export default function InvoicesPage() {
                     </td>
                     <td className="p-2 border text-center">
                       <button
-                        onClick={() => downloadPdf(inv.id)}
+                        onClick={(e) => { e.stopPropagation(); downloadPdf(inv.id); }}
                         className="px-2 py-1 border rounded hover:bg-gray-100"
                       >
                         PDF

@@ -21,8 +21,6 @@ class ProductBase(ORMBase):
     stock_quantity: Optional[int] = Field(default=None, ge=0)
     location: Optional[str] = None
     comment: Optional[str] = None
-    
-    # --- 1. ZMIANA: Dodaj tę linię ---
     image_url: Optional[str] = None
 
 
@@ -79,5 +77,4 @@ class ProductResponse(ORMBase):
     stock_quantity: Optional[int] = None
     location: Optional[str] = None
     comment: Optional[str] = None
-    # --- 2. ZMIANA: Dodaj tę linię ---
     image_url: Optional[str] = None

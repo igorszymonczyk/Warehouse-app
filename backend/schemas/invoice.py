@@ -6,8 +6,8 @@ from datetime import datetime
 class InvoiceItemCreate(BaseModel):
     product_id: int
     quantity: int = Field(gt=0)
-    price_net: float  # aktualna cena netto (można zmienić jednorazowo)
-    tax_rate: float   # stawka VAT w %
+    price_net: Optional[float] = None
+    tax_rate: Optional[float] = None
 
 class InvoiceCreate(BaseModel):
     buyer_name: str
@@ -15,9 +15,17 @@ class InvoiceCreate(BaseModel):
     buyer_address: Optional[str] = None
     items: List[InvoiceItemCreate]
 
-class InvoiceItemResponse(InvoiceItemCreate):
+class InvoiceItemResponse(BaseModel):
+    product_id: int
+    product_name: str # Added this
+    quantity: int
+    price_net: float
+    tax_rate: float
     total_net: float
     total_gross: float
+
+    class Config:
+        from_attributes = True
 
 class InvoiceResponse(BaseModel):
     id: int
@@ -34,7 +42,7 @@ class InvoiceResponse(BaseModel):
 
 class InvoiceItemDetail(BaseModel):
     product_id: int
-    product_name: Optional[str]
+    product_name: str
     quantity: int
     price_net: float
     tax_rate: float
@@ -66,6 +74,7 @@ class InvoiceListItem(BaseModel):
     total_net: float
     total_vat: float
     total_gross: float
+    payment_status: Optional[str] = None 
 
     class Config:
         from_attributes = True

@@ -1,40 +1,54 @@
-export type InvoiceItem = {
-    product_id: number;
-    product_name: string | null;
-    quantity: number;
-    price_net: number;
-    tax_rate: number;
-    total_net: number;
-    total_gross: number;
-  };
-  
-  export type Invoice = {
-    id: number;
-    buyer_name: string;
-    buyer_nip?: string | null;
-    buyer_address?: string | null;
-    created_at: string;
-    total_net: number;
-    total_vat: number;
-    total_gross: number;
-    items?: InvoiceItem[];
-  };
-  
-  export type Page<T> = {
-    items: T[];
-    total: number;
-    page: number;
-    page_size: number;
-  };
-  
-  export type WarehouseDoc = {
-    id: number;
-    buyer_name: string | null;
-    invoice_id: number | null;
-    invoice_date: string | null;
-    items_json: string | null;
-    status: "NEW" | "IN_PROGRESS" | "RELEASED" | "CANCELLED";
-    created_at: string;
-    pdf_path?: string | null;
-  };
-  
+export interface Page<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+// For the invoice list page (as used in InvoicesPage.tsx)
+export interface Invoice {
+  id: number;
+  created_at: string;
+  buyer_name: string;
+  buyer_nip: string | null;
+  total_gross: number;
+  total_net: number;
+  total_vat: number;
+}
+
+// Represents a single item within a detailed invoice view.
+// product_name is now a required string, snapshotted from the product at creation time.
+export interface InvoiceItemDetail {
+  product_id: number;
+  product_name: string;
+  quantity: number;
+  price_net: number;
+  tax_rate: number;
+  total_net: number;
+  total_gross: number;
+}
+
+// For the full invoice detail page (as used in InvoiceDetailPage.tsx)
+export interface InvoiceDetail {
+  id: number;
+  buyer_name: string;
+  buyer_nip: string | null;
+  buyer_address: string | null;
+  created_at: string;
+  total_net: number;
+  total_vat: number;
+  total_gross: number;
+  items: InvoiceItemDetail[];
+}
+
+// Warehouse Document Type
+export interface WarehouseDoc {
+  id: number;
+  buyer_name: string | null;
+  invoice_id: number | null;
+  invoice_date: string | null;
+  items_json: string | null;
+  status: "NEW" | "IN_PROGRESS" | "RELEASED" | "CANCELLED";
+  created_at: string;
+  pdf_path?: string | null;
+}

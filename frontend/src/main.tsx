@@ -18,7 +18,9 @@ import Register from "./pages/Register";
 import CartPage from "./pages/Cart";
 import CheckoutPage from "./pages/Checkout";
 import MyOrdersPage from "./pages/MyOrders";
-import MyInvoicesPage from "./pages/MyInvoices"; // 1. ZMIANA: Import
+import MyInvoicesPage from "./pages/MyInvoices";
+import InvoiceDetailPage from "./pages/InvoiceDetail";
+
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -41,6 +43,15 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
+
+      {
+        path: "invoices/:id",
+        element: (
+          <Protected allowedRoles={["admin", "salesman"]}> 
+            <InvoiceDetailPage />
+          </Protected>
+        ),
+      },
       {
         path: "invoices/create",
         element: (
@@ -57,6 +68,7 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
+  
       {
         path: "products",
         element: (
