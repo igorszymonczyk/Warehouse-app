@@ -1,5 +1,5 @@
 # backend/routes/products.py
-from typing import Optional, List
+from typing import Optional, List, Union
 from fastapi import (
     APIRouter, Depends, HTTPException, Query, Request, 
     UploadFile, File, Form  # 1. ZMIANA: Import UploadFile, File, Form
@@ -19,6 +19,12 @@ from utils.audit import write_log
 from models.users import User
 from models.product import Product
 import schemas.product as product_schemas
+from urllib.parse import urljoin
+
+def _full_url(request: Request, path: Union[str, None]) -> Union[str, None]:
+    if not path:
+        return None
+    return urljoin(str(request.base_url), path.lstrip("/"))
 
 router = APIRouter(tags=["Products"])
 

@@ -33,8 +33,12 @@ function ProductCard({ product }: { product: Product }) {
   const price_gross = product.sell_price_net * (1 + (product.tax_rate ?? 23) / 100);
 
   const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-  const fullImageUrl = product.image_url ? `${API_URL}${product.image_url}` : null;
-
+  // 1. ZMIANA: Sprawdzamy, czy URL jest już pełny (np. z Picsum)
+  const fullImageUrl = product.image_url 
+    ? (product.image_url.startsWith('http') || product.image_url.startsWith('https')
+         ? product.image_url // Użyj bezpośrednio, jeśli jest to link zewnętrzny
+         : `${API_URL}${product.image_url}`) // W przeciwnym razie dodaj URL API
+    : null;
   // 3. ZMIANA: Pełna implementacja handleAddToCart
   const handleAddToCart = async () => {
     setIsAdding(true);
