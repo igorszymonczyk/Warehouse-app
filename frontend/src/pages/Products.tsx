@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ChangeEvent } from "react";
+import React, { useCallback, useEffect, useState, type ChangeEvent } from "react";
 import { api } from "../lib/api";
 import { ArrowUp, ArrowDown, Trash2, Edit, X, Upload } from "lucide-react";
 import axios, { type AxiosError } from "axios";
@@ -58,7 +58,7 @@ type ApiError = {
   message?: string;
 };
 
-function getErrorMessage(err: unknown, fallback = "An error occurred") {
+function getErrorMessage(err: unknown, fallback = "Wystąpił błąd") {
     if (axios.isAxiosError(err)) {
         const ax = err as AxiosError<ApiError>;
         const data = ax.response?.data;
@@ -83,7 +83,7 @@ const ConfirmationModal = ({
   isLoading,
   title,
   children,
-  confirmText = "Confirm",
+  confirmText = "Potwierdź",
   confirmVariant = "primary",
 }: {
   isOpen: boolean;
@@ -119,7 +119,7 @@ const ConfirmationModal = ({
             onClick={onClose}
             disabled={isLoading}
           >
-            Cancel
+            Anuluj
           </button>
           <button
             className={`px-4 py-2 text-white rounded ${
@@ -128,7 +128,7 @@ const ConfirmationModal = ({
             onClick={onConfirm}
             disabled={isLoading}
           >
-            {isLoading ? "Loading..." : confirmText}
+            {isLoading ? "Ładowanie..." : confirmText}
           </button>
         </div>
       </div>
@@ -205,7 +205,7 @@ export default function ProductsPage() {
       setTotal(res.data.total);
     } catch (err) {
       console.error(err);
-      const msg = getErrorMessage(err, "Could not fetch product list");
+      const msg = getErrorMessage(err, "Nie udało się pobrać listy produktów");
       setError(msg);
       toast.error(msg);
     } finally {
@@ -268,20 +268,20 @@ export default function ProductsPage() {
     });
     
     if (changedData.sell_price_net !== undefined && Number(changedData.sell_price_net) <= 0) {
-      toast.error("Price must be > 0"); return;
+      toast.error("Cena musi być większa od 0"); return;
     }
     if (changedData.stock_quantity !== undefined && Number(changedData.stock_quantity) < 0) {
-      toast.error("Stock cannot be negative"); return;
+      toast.error("Stan magazynowy nie może być ujemny"); return;
     }
     if (changedData.name !== undefined && !String(changedData.name).trim()) {
-      toast.error("Name cannot be empty"); return;
+      toast.error("Nazwa nie może być pusta"); return;
     }
     if (changedData.code !== undefined && !String(changedData.code).trim()) {
-      toast.error("Code cannot be empty"); return;
+      toast.error("Kod nie może być pusty"); return;
     }
 
     if (Object.keys(changedData).length === 0 && !editImageFile) {
-        toast.success("No changes to save.");
+        toast.success("Brak zmian do zapisania.");
         setEditing(false);
         return;
     }
@@ -302,10 +302,10 @@ export default function ProductsPage() {
     try {
       await api.patch(`/products/${selected.id}/edit`, formData);
       await load();
-      toast.success("Product updated!");
+      toast.success("Zaktualizowano produkt!");
       closeDetails();
     } catch (err: unknown) {
-      const msg = getErrorMessage(err, "Failed to update product");
+      const msg = getErrorMessage(err, "Nie udało się zaktualizować produktu");
       toast.error(msg);
       console.error(err);
     }    
@@ -318,10 +318,10 @@ export default function ProductsPage() {
       await api.delete(`/products/${productToDelete.id}`);
       await load();
       setProductToDelete(null);
-      toast.success("Product deleted!");
+      toast.success("Produkt usunięty!");
     } catch (err) {
       console.error(err);
-      toast.error("Error deleting product");
+      toast.error("Błąd podczas usuwania produktu");
     } finally {
       setDeleteLoading(false);
     }
@@ -331,11 +331,11 @@ export default function ProductsPage() {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        toast.error("File is too large! Max size is 5MB.");
+        toast.error("Plik jest za duży! Maksymalny rozmiar to 5MB.");
         return;
       }
       if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-        toast.error("Invalid file format. Allowed: JPEG, PNG, WebP.");
+        toast.error("Nieprawidłowy format pliku. Dozwolone: JPEG, PNG, WebP.");
         return;
       }
       setImageFile(file);
@@ -346,11 +346,11 @@ export default function ProductsPage() {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
        if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        toast.error("File is too large! Max size is 5MB.");
+        toast.error("Plik jest za duży! Maksymalny rozmiar to 5MB.");
         return;
       }
       if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-        toast.error("Invalid file format. Allowed: JPEG, PNG, WebP.");
+        toast.error("Nieprawidłowy format pliku. Dozwolone: JPEG, PNG, WebP.");
         return;
       }
       setEditImageFile(file);
@@ -361,15 +361,15 @@ export default function ProductsPage() {
 
   const createProduct = async () => {
     if (!addForm.name.trim() || !addForm.code.trim()) {
-      toast.error("Required: name and code");
+      toast.error("Wymagane: nazwa i kod");
       return;
     }
     if (addForm.sell_price_net <= 0) {
-      toast.error("Price must be > 0");
+      toast.error("Cena musi być większa od 0");
       return;
     }
     if (addForm.stock_quantity < 0) {
-      toast.error("Stock cannot be negative");
+      toast.error("Stan magazynowy nie może być ujemny");
       return;
     }
 
@@ -402,9 +402,9 @@ export default function ProductsPage() {
       });
       setImageFile(null);
       await load();
-      toast.success("Product added successfully!");
+      toast.success("Produkt dodany pomyślnie!");
     } catch (err: unknown) {
-      const msg = getErrorMessage(err, "Failed to add product");
+      const msg = getErrorMessage(err, "Nie udało się dodać produktu");
       toast.error(msg);
       console.error(err);
     } finally {      
@@ -415,11 +415,11 @@ export default function ProductsPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Product Management</h1>
+      <h1 className="text-2xl font-semibold mb-4">Zarządzanie Produktami</h1>
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <input
           type="text"
-          placeholder="Search by name or code..."
+          placeholder="Szukaj po nazwie lub kodzie..."
           className="border rounded px-3 py-2 w-64"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -428,11 +428,11 @@ export default function ProductsPage() {
           className="ml-auto bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
           onClick={() => setShowAdd(true)}
         >
-          Add Product
+          Dodaj Produkt
         </button>
       </div>
 
-      {loading && <p>Loading data...</p>}
+      {loading && <p>Ładowanie danych...</p>}
       {error && <p className="text-red-500">{error}</p>}
 
       {!loading && !error && (
@@ -445,18 +445,18 @@ export default function ProductsPage() {
                     ID {renderSortIcon("id")}
                   </th>
                   <th className="p-2 border text-left cursor-pointer" onClick={() => toggleSort("name")}>
-                    Name {renderSortIcon("name")}
+                    Nazwa {renderSortIcon("name")}
                   </th>
                   <th className="p-2 border text-left cursor-pointer" onClick={() => toggleSort("code")}>
-                    Code {renderSortIcon("code")}
+                    Kod {renderSortIcon("code")}
                   </th>
                   <th className="p-2 border text-right cursor-pointer" onClick={() => toggleSort("sell_price_net")}>
-                    Net Price {renderSortIcon("sell_price_net")}
+                    Cena Netto {renderSortIcon("sell_price_net")}
                   </th>
                   <th className="p-2 border text-right cursor-pointer" onClick={() => toggleSort("stock_quantity")}>
-                    Stock {renderSortIcon("stock_quantity")}
+                    Stan {renderSortIcon("stock_quantity")}
                   </th>
-                  <th className="p-2 border text-center">Actions</th>
+                  <th className="p-2 border text-center">Akcje</th>
                 </tr>
               </thead>
               <tbody>
@@ -476,14 +476,16 @@ export default function ProductsPage() {
                         <button
                           onClick={() => openDetails(p)}
                           className="px-2 py-1 text-blue-600 hover:text-blue-800"
-                          aria-label={`Edit ${p.name}`}
+                          aria-label={`Edytuj ${p.name}`}
+                          title="Edytuj"
                         >
                           <Edit size={16} />
                         </button>
                         <button
                           onClick={() => setProductToDelete(p)}
                           className="px-2 py-1 text-red-600 hover:text-red-800"
-                          aria-label={`Delete ${p.name}`}
+                          aria-label={`Usuń ${p.name}`}
+                          title="Usuń"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -493,7 +495,7 @@ export default function ProductsPage() {
                 ) : (
                   <tr>
                     <td colSpan={6} className="p-4 text-center text-gray-500">
-                      No products found
+                      Nie znaleziono produktów
                     </td>
                   </tr>
                 )}
@@ -506,17 +508,17 @@ export default function ProductsPage() {
               disabled={page === 1}
               onClick={() => setPage((p) => p - 1)}
             >
-              Prev
+              Poprz.
             </button>
             <span>
-              Page {page} / {totalPages}
+              Strona {page} z {totalPages}
             </span>
             <button
               className="border rounded px-3 py-1 disabled:opacity-50"
               disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
             >
-              Next
+              Nast.
             </button>
           </div>
         </>
@@ -527,7 +529,7 @@ export default function ProductsPage() {
           <div className="bg-white rounded-2xl p-6 w-[500px] max-h-[80vh] overflow-y-auto shadow-lg">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">
-                {editing ? "Edit Product" : "Product Details"}
+                {editing ? "Edycja Produktu" : "Szczegóły Produktu"}
               </h2>
               <button onClick={closeDetails}>
                 <X size={20} />
@@ -537,7 +539,7 @@ export default function ProductsPage() {
             {editing ? (
               <>
                 <label className="block mb-2">
-                  Name:
+                  Nazwa:
                   <input
                     className="border w-full p-2 rounded mt-1"
                     value={editData.name || ""}
@@ -545,7 +547,7 @@ export default function ProductsPage() {
                   />
                 </label>
                 <label className="block mb-2">
-                  Code:
+                  Kod:
                   <input
                     className="border w-full p-2 rounded mt-1"
                     value={editData.code || ""}
@@ -555,7 +557,7 @@ export default function ProductsPage() {
                   />
                 </label>
                 <label className="block mb-2">
-                  Net Price:
+                  Cena Netto:
                   <input
                     type="number"
                     className="border w-full p-2 rounded mt-1"
@@ -569,7 +571,7 @@ export default function ProductsPage() {
                   />
                 </label>
                 <label className="block mb-2">
-                  Stock Quantity:
+                  Ilość Magazynowa:
                   <input
                     type="number"
                     className="border w-full p-2 rounded mt-1"
@@ -583,7 +585,7 @@ export default function ProductsPage() {
                   />
                 </label>
                 <label className="block mb-2">
-                  Supplier:
+                  Dostawca:
                   <input
                     className="border w-full p-2 rounded mt-1"
                     value={editData.supplier || ""}
@@ -591,7 +593,7 @@ export default function ProductsPage() {
                   />
                 </label>
                 <label className="block mb-2">
-                  Category:
+                  Kategoria:
                   <input
                     className="border w-full p-2 rounded mt-1"
                     value={editData.category || ""}
@@ -599,7 +601,7 @@ export default function ProductsPage() {
                   />
                 </label>
                 <label className="block mb-2">
-                  Location:
+                  Lokalizacja:
                   <input
                     className="border w-full p-2 rounded mt-1"
                     value={editData.location || ""}
@@ -607,7 +609,7 @@ export default function ProductsPage() {
                   />
                 </label>
                 <label className="block mb-2">
-                  Description:
+                  Opis:
                   <input
                     className="border w-full p-2 rounded mt-1"
                     value={editData.description || ""}
@@ -616,10 +618,10 @@ export default function ProductsPage() {
                 </label>
                 
                 <label className="block mb-2">
-                  <span className="text-sm">Change Product Image</span>
+                  <span className="text-sm">Zmień zdjęcie produktu</span>
                   {editData.image_url && !editImageFile && (
                      <img 
-                      src={`${import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"}${editData.image_url}`} 
+                      src={`${(import.meta as any).env.VITE_API_URL || "http://127.0.0.1:8000"}${editData.image_url}`} 
                       alt={editData.name} 
                       className="w-full h-auto max-h-32 object-contain rounded-md bg-gray-100 my-2"
                     />
@@ -627,7 +629,7 @@ export default function ProductsPage() {
                   <div className="mt-1 flex items-center gap-3">
                     <label className="cursor-pointer border rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
                       <Upload size={16} />
-                      <span>Choose file</span>
+                      <span>Wybierz plik</span>
                       <input
                         type="file"
                         className="hidden"
@@ -638,7 +640,7 @@ export default function ProductsPage() {
                     {editImageFile ? (
                       <span className="text-sm text-gray-600">{editImageFile.name}</span>
                     ) : (
-                      <span className="text-sm text-gray-500">No file selected</span>
+                      <span className="text-sm text-gray-500">Nie wybrano pliku</span>
                     )}
                   </div>
                 </label>
@@ -647,7 +649,7 @@ export default function ProductsPage() {
                   onClick={saveProduct}
                   className="mt-4 w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
                 >
-                  Save Changes
+                  Zapisz Zmiany
                 </button>
               </>
             ) : (
@@ -655,26 +657,26 @@ export default function ProductsPage() {
                 {selected.image_url && (
                   <div className="mb-4">
                     <img 
-                      src={`${import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"}${selected.image_url}`} 
+                      src={`${(import.meta as any).env.VITE_API_URL || "http://127.0.0.1:8000"}${selected.image_url}`} 
                       alt={selected.name} 
                       className="w-full h-auto max-h-48 object-contain rounded-md bg-gray-100"
                     />
                   </div>
                 )}
                 <p><strong>ID:</strong> {selected.id}</p>
-                <p><strong>Name:</strong> {selected.name}</p>
-                <p><strong>Code:</strong> {selected.code}</p>
-                <p><strong>Net Price:</strong> {selected.sell_price_net.toFixed(2)} zł</p>
-                <p><strong>Stock:</strong> {selected.stock_quantity}</p>
-                <p><strong>Supplier:</strong> {selected.supplier || "N/A"}</p>
-                <p><strong>Category:</strong> {selected.category || "N/A"}</p>
-                <p><strong>Location:</strong> {selected.location || "N/A"}</p>
-                <p><strong>Description:</strong> {selected.description || "N/A"}</p>
+                <p><strong>Nazwa:</strong> {selected.name}</p>
+                <p><strong>Kod:</strong> {selected.code}</p>
+                <p><strong>Cena Netto:</strong> {selected.sell_price_net.toFixed(2)} zł</p>
+                <p><strong>Stan:</strong> {selected.stock_quantity}</p>
+                <p><strong>Dostawca:</strong> {selected.supplier || "Brak"}</p>
+                <p><strong>Kategoria:</strong> {selected.category || "Brak"}</p>
+                <p><strong>Lokalizacja:</strong> {selected.location || "Brak"}</p>
+                <p><strong>Opis:</strong> {selected.description || "Brak"}</p>
                 <button
                   onClick={() => setEditing(true)}
                   className="mt-4 w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
                 >
-                  Edit
+                  Edytuj
                 </button>
               </>
             )}
@@ -686,7 +688,7 @@ export default function ProductsPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-[520px] max-h-[85vh] overflow-y-auto shadow-lg">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Add Product</h2>
+              <h2 className="text-xl font-semibold">Dodaj Produkt</h2>
               <button onClick={() => setShowAdd(false)}>
                 <X size={20} />
               </button>
@@ -694,7 +696,7 @@ export default function ProductsPage() {
 
             <div className="grid gap-3">
               <label className="block">
-                <span className="text-sm">Name *</span>
+                <span className="text-sm">Nazwa *</span>
                 <input
                   className="border w-full p-2 rounded mt-1"
                   value={addForm.name}
@@ -702,7 +704,7 @@ export default function ProductsPage() {
                 />
               </label>
               <label className="block">
-                <span className="text-sm">Code *</span>
+                <span className="text-sm">Kod *</span>
                 <input
                   className="border w-full p-2 rounded mt-1"
                   value={addForm.code}
@@ -713,7 +715,7 @@ export default function ProductsPage() {
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-sm">Net Price *</span>
+                  <span className="text-sm">Cena Netto *</span>
                   <input
                     type="number"
                     step="0.01"
@@ -725,7 +727,7 @@ export default function ProductsPage() {
                   />
                 </label>
                 <label className="block">
-                  <span className="text-sm">Buy Price</span>
+                  <span className="text-sm">Cena Zakupu</span>
                   <input
                     type="number"
                     step="0.01"
@@ -739,7 +741,7 @@ export default function ProductsPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-sm">Stock *</span>
+                  <span className="text-sm">Stan *</span>
                   <input
                     type="number"
                     className="border w-full p-2 rounded mt-1"
@@ -750,7 +752,7 @@ export default function ProductsPage() {
                   />
                 </label>
                 <label className="block">
-                  <span className="text-sm">VAT Rate (%)</span>
+                  <span className="text-sm">Stawka VAT (%)</span>
                   <input
                     type="number"
                     className="border w-full p-2 rounded mt-1"
@@ -762,7 +764,7 @@ export default function ProductsPage() {
                 </label>
               </div>
               <label className="block">
-                <span className="text-sm">Category</span>
+                <span className="text-sm">Kategoria</span>
                 <input
                   className="border w-full p-2 rounded mt-1"
                   value={addForm.category ?? ""}
@@ -772,7 +774,7 @@ export default function ProductsPage() {
                 />
               </label>
               <label className="block">
-                <span className="text-sm">Supplier</span>
+                <span className="text-sm">Dostawca</span>
                 <input
                   className="border w-full p-2 rounded mt-1"
                   value={addForm.supplier ?? ""}
@@ -782,7 +784,7 @@ export default function ProductsPage() {
                 />
               </label>
               <label className="block">
-                <span className="text-sm">Location</span>
+                <span className="text-sm">Lokalizacja</span>
                 <input
                   className="border w-full p-2 rounded mt-1"
                   value={addForm.location ?? ""}
@@ -792,7 +794,7 @@ export default function ProductsPage() {
                 />
               </label>
               <label className="block">
-                <span className="text-sm">Description</span>
+                <span className="text-sm">Opis</span>
                 <textarea
                   className="border w-full p-2 rounded mt-1"
                   rows={2}
@@ -804,11 +806,11 @@ export default function ProductsPage() {
               </label>
 
               <label className="block">
-                <span className="text-sm">Product Image</span>
+                <span className="text-sm">Zdjęcie Produktu</span>
                 <div className="mt-1 flex items-center gap-3">
                   <label className="cursor-pointer border rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
                     <Upload size={16} />
-                    <span>Choose File</span>
+                    <span>Wybierz plik</span>
                     <input
                       type="file"
                       className="hidden"
@@ -819,7 +821,7 @@ export default function ProductsPage() {
                   {imageFile ? (
                     <span className="text-sm text-gray-600">{imageFile.name}</span>
                   ) : (
-                    <span className="text-sm text-gray-500">No file selected</span>
+                    <span className="text-sm text-gray-500">Nie wybrano pliku</span>
                   )}
                 </div>
               </label>
@@ -829,7 +831,7 @@ export default function ProductsPage() {
                 disabled={addLoading}
                 className="mt-2 w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-60"
               >
-                {addLoading ? "Adding..." : "Add Product"}
+                {addLoading ? "Dodawanie..." : "Dodaj Produkt"}
               </button>
             </div>
           </div>
@@ -841,13 +843,13 @@ export default function ProductsPage() {
         onClose={() => setProductToDelete(null)}
         onConfirm={deleteProduct}
         isLoading={deleteLoading}
-        title="Confirm Deletion"
-        confirmText="Delete"
+        title="Potwierdzenie usunięcia"
+        confirmText="Usuń"
         confirmVariant="danger"
       >
-        <p>Are you sure you want to delete this product?</p>
+        <p>Czy na pewno chcesz usunąć ten produkt?</p>
         <p className="font-semibold mt-2">{productToDelete?.name}</p>
-        <p className="text-sm text-gray-600">This action cannot be undone.</p>
+        <p className="text-sm text-gray-600">Tej operacji nie można cofnąć.</p>
       </ConfirmationModal>
     </div>
   );

@@ -74,12 +74,12 @@ def create_order(
     # --- 2. Stworzenie Zamówienia (Order) ---
     order = Order(
         user_id=current_user.id,
-        status="processing", # Ustawiamy "w trakcie realizacji", bo faktura od razu powstaje
-        total_amount=0.0, # Obliczymy to za chwilę
-        **payload.model_dump() # Zapisz dane adresowe w zamówieniu
+        status="processing",
+        total_amount=0.0,
+        **payload.model_dump()
     )
     db.add(order)
-    db.flush()  # Potrzebujemy order.id dla faktury
+    db.flush()
 
     total_net = 0.0
     total_vat = 0.0
@@ -89,9 +89,8 @@ def create_order(
 
     # --- 3. Pętla tworząca pozycje Zamówienia (OrderItem) i Faktury (InvoiceItem) ---
     for ci in cart.items:
-        prod = product_cache[ci.product_id] # Pobieramy produkt z pamię podręcznej
+        prod = product_cache[ci.product_id]
 
-        # Obliczenia kwot
         price_net = ci.unit_price_snapshot
         tax_rate = prod.tax_rate
         quantity = ci.qty
@@ -104,7 +103,6 @@ def create_order(
         total_vat += vat_value
         total_gross += total_item_gross
 
-        # A. Pozycja zamówienia
         oi = OrderItem(
             order_id=order.id,
             product_id=ci.product_id,
@@ -113,10 +111,11 @@ def create_order(
         )
         db.add(oi)
         
-        # B. Pozycja faktury
+        # POPRAWIONY FRAGMENT
         invoice_items.append(
             InvoiceItem(
                 product_id=prod.id,
+                product_name=prod.name, # <--- DODANA KLUCZOWA LINIA
                 quantity=quantity,
                 price_net=price_net,
                 tax_rate=tax_rate,
@@ -125,7 +124,6 @@ def create_order(
             )
         )
         
-        # C. Pozycja WZ (jako dict dla JSON)
         wz_items_json.append({
             "product_name": prod.name,
             "product_code": prod.code,
@@ -133,11 +131,8 @@ def create_order(
             "location": prod.location or "",
         })
         
-        # D. OSTATECZNE ZDJĘCIE STANU MAGAZYNOWEGO
-        # Robimy to tylko raz, tutaj!
         prod.stock_quantity -= quantity
 
-    # Uzupełniamy kwotę w zamówieniu
     order.total_amount = total_gross 
 
     # --- 4. Stworzenie Faktury (Invoice) ---
@@ -154,56 +149,45 @@ def create_order(
         total_net=total_net,
         total_vat=total_vat,
         total_gross=total_gross,
-        items=invoice_items, # Przypisujemy pozycje faktury
+        items=invoice_items,
     )
     db.add(invoice)
-    db.flush() # Potrzebujemy invoice.id dla WZ
+    db.flush()
 
     # --- 5. Stworzenie WZ (WarehouseDocument) ---
     warehouse_doc = WarehouseDocument(
-        invoice_id=invoice.id, # Kluczowe powiązanie!
-        buyer_name=invoice.buyer_name, # Bierzemy dane z faktury
+        invoice_id=invoice.id,
+        buyer_name=invoice.buyer_name,
         invoice_date=invoice.created_at,
         items_json=json.dumps(wz_items_json),
-        status=WarehouseStatus.NEW # Gotowe dla magazyniera
+        status=WarehouseStatus.NEW
     )
     db.add(warehouse_doc)
 
     # --- 6. Zakończenie transakcji ---
-    cart.status = "ordered" # Zamykamy koszyk
+    cart.status = "ordered"
     
     try:
-        db.commit() # Zapisujemy wszystko (Order, Invoice, WZ, zmiany stanów)
+        db.commit()
     except Exception as e:
         db.rollback()
         print(f"BŁĄD TRANSAKCJI: {e}")
         raise HTTPException(status_code=500, detail="Nie udało się przetworzyć zamówienia z powodu błędu serwera.")
 
-    db.refresh(order) # Odświeżamy zamówienie
+    db.refresh(order)
 
     # --- 7. Logowanie ---
     write_log(
-        db,
-        user_id=current_user.id,
-        action="ORDER_CREATE_WITH_INVOICE",
-        resource="orders",
-        status="SUCCESS",
+        db, user_id=current_user.id, action="ORDER_CREATE_WITH_INVOICE", resource="orders", status="SUCCESS",
         ip=request.client.host if request.client else None,
-        meta={
-            "order_id": order.id, 
-            "invoice_id": invoice.id, 
-            "wz_id": warehouse_doc.id,
-            "total_gross": total_gross
-        }
+        meta={ "order_id": order.id, "invoice_id": invoice.id, "wz_id": warehouse_doc.id, "total_gross": total_gross }
     )
     
-    # Przeładowujemy zamówienie z relacjami do odpowiedzi
     order_with_relations = db.query(Order).options(
         joinedload(Order.items).joinedload(OrderItem.product)
     ).filter(Order.id == order.id).first()
 
     return _order_to_out(order_with_relations)
-
 
 # ... (reszta pliku: list_my_orders, get_order_detail, update_order_status - bez zmian) ...
 
