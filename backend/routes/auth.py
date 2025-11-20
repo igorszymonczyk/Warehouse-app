@@ -17,10 +17,10 @@ router = APIRouter(tags=["Auth"])
 # Rejestracja
 @router.post("/register", response_model=schemas.UserResponse)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db), request: Request = None):
-    # 🔹 Wymuś małe litery dla emaila
+    # Wymuś małe litery dla emaila
     normalized_email = user.email.strip().lower()
 
-    # 🔹 Sprawdź czy email istnieje (case-insensitive)
+    # Sprawdź czy email istnieje (case-insensitive)
     db_user = db.query(models.User).filter(func.lower(models.User.email) == normalized_email).first()
     if db_user:
         if request:
@@ -35,7 +35,7 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db), request: R
             )
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # 🔹 Stwórz użytkownika
+    # Stwórz użytkownika
     hashed_password = get_password_hash(user.password)
     new_user = models.User(email=normalized_email, password_hash=hashed_password, role="customer")
     db.add(new_user)

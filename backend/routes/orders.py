@@ -71,7 +71,7 @@ def create_order(
             )
         product_cache[ci.product_id] = prod
 
-    # --- 2. Stworzenie Zamówienia (Order) ---
+       # --- 2. Stworzenie Zamówienia (Order) ---
     order = Order(
         user_id=current_user.id,
         status="processing", # Ustawiamy "w trakcie realizacji", bo faktura od razu powstaje
@@ -117,6 +117,7 @@ def create_order(
         invoice_items.append(
             InvoiceItem(
                 product_id=prod.id,
+                product_name=prod.name, # <--- Zastosowana kluczowa poprawka
                 quantity=quantity,
                 price_net=price_net,
                 tax_rate=tax_rate,
@@ -134,7 +135,6 @@ def create_order(
         })
         
         # D. OSTATECZNE ZDJĘCIE STANU MAGAZYNOWEGO
-        # Robimy to tylko raz, tutaj!
         prod.stock_quantity -= quantity
 
     # Uzupełniamy kwotę w zamówieniu
@@ -169,33 +169,25 @@ def create_order(
     )
     db.add(warehouse_doc)
 
-    # --- 6. Zakończenie transakcji ---
+     # --- 6. Zakończenie transakcji ---
     cart.status = "ordered" # Zamykamy koszyk
     
+    # --- 7. Logowanie (przeniesione PRZED commit) ---
+    write_log(
+        db, user_id=current_user.id, action="ORDER_CREATE_WITH_INVOICE", resource="orders", status="SUCCESS",
+        ip=request.client.host if request.client else None,
+        meta={ "order_id": order.id, "invoice_id": invoice.id, "wz_id": warehouse_doc.id, "total_gross": total_gross }
+    )
+
     try:
-        db.commit() # Zapisujemy wszystko (Order, Invoice, WZ, zmiany stanów)
+        # Zapisujemy wszystko w jednej transakcji (Zamówienie, Fakturę, WZ, zmiany stanów ORAZ log)
+        db.commit()
     except Exception as e:
         db.rollback()
         print(f"BŁĄD TRANSAKCJI: {e}")
         raise HTTPException(status_code=500, detail="Nie udało się przetworzyć zamówienia z powodu błędu serwera.")
 
     db.refresh(order) # Odświeżamy zamówienie
-
-    # --- 7. Logowanie ---
-    write_log(
-        db,
-        user_id=current_user.id,
-        action="ORDER_CREATE_WITH_INVOICE",
-        resource="orders",
-        status="SUCCESS",
-        ip=request.client.host if request.client else None,
-        meta={
-            "order_id": order.id, 
-            "invoice_id": invoice.id, 
-            "wz_id": warehouse_doc.id,
-            "total_gross": total_gross
-        }
-    )
     
     # Przeładowujemy zamówienie z relacjami do odpowiedzi
     order_with_relations = db.query(Order).options(
@@ -205,7 +197,6 @@ def create_order(
     return _order_to_out(order_with_relations)
 
 
-# ... (reszta pliku: list_my_orders, get_order_detail, update_order_status - bez zmian) ...
 
 @router.get("", response_model=OrdersPage)
 def list_my_orders(

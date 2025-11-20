@@ -239,13 +239,13 @@ export default function UsersPage() {
                     
                     {/* 6. ZMIANA: Aktualizacja sekcji Akcje */}
                     <td className="p-2 border text-center">
-                      <div className="flex justify-center gap-2">
+                      <div className="flex justify-center items-center gap-2">
                         <select
                           value={u.role}
                           onChange={(e) => changeRole(u.id, e.target.value)}
                           // Zatrzymujemy propagację, aby kliknięcie nie robiło nic innego
                           onClick={(e) => e.stopPropagation()} 
-                          className="border px-2 py-1 rounded"
+                          className="border px-2 py-1 rounded text-sm"
                         >
                           <option value="customer">customer</option>
                           <option value="salesman">salesman</option>
@@ -257,7 +257,8 @@ export default function UsersPage() {
                              e.stopPropagation(); // Zatrzymujemy propagację
                              setUserToDelete(u);
                           }}
-                          className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                          className="px-2 py-1 text-red-600 hover:text-red-800"
+                          aria-label={`Usuń użytkownika ${u.email}`}
                         >
                           <Trash2 size={16} />
                         </button>
