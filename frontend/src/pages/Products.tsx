@@ -164,19 +164,38 @@ export default function ProductsPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
 
+  // === STANY DLA FILTRÓW ===
+  const [nameFilter, setNameFilter] = useState("");
+  const [codeFilter, setCodeFilter] = useState("");
+  const [supplierFilter, setSupplierFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  
+  // Stany dla list rozwijanych
+  const [allCategories, setAllCategories] = useState<string[]>([]);
+  const [allSuppliers, setAllSuppliers] = useState<string[]>([]);
+  const [allLocations, setAllLocations] = useState<string[]>([]);
+  
+  // Debounce dla szybkich filtrów (Nazwa, Kod)
+  const [debouncedNameFilter, setDebouncedNameFilter] = useState(nameFilter);
+  const [debouncedCodeFilter, setDebouncedCodeFilter] = useState(codeFilter);
+  
+  useEffect(() => {
+    const tName = setTimeout(() => setDebouncedNameFilter(nameFilter), 500);
+    const tCode = setTimeout(() => setDebouncedCodeFilter(codeFilter), 500);
+    return () => { 
+        clearTimeout(tName);
+        clearTimeout(tCode);
+    }
+  }, [nameFilter, codeFilter]);
+  // === KONIEC STANÓW ===
+
   const [searchParams, setSearchParams] = useSearchParams();
   const urlSortKey = searchParams.get("sort_by");
   const urlSortOrder = searchParams.get("order");
   const [page, setPage] = useState(1);
   const pageSize = 10;
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState(search);
   
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 500);
-    return () => clearTimeout(t);
-  }, [search]);
-
   const [sortKey, setSortKey] = useState<SortKey>(
     isValidSortKey(urlSortKey) ? urlSortKey : "id"
   );
@@ -187,6 +206,27 @@ export default function ProductsPage() {
   const [selected, setSelected] = useState<Product | null>(null);
   const [editData, setEditData] = useState<Partial<Product>>({});
   const [editing, setEditing] = useState(false);
+  
+  // === FUNKCJA POBIERANIA UNIKALNYCH WARTOŚCI ===
+  useEffect(() => {
+    const fetchUniqueValues = async () => {
+        try {
+            const [catRes, suppRes, locRes] = await Promise.all([
+                api.get<string[]>("/products/unique/categories"),
+                api.get<string[]>("/products/unique/suppliers"),
+                api.get<string[]>("/products/unique/locations"),
+            ]);
+            setAllCategories(catRes.data);
+            setAllSuppliers(suppRes.data);
+            setAllLocations(locRes.data);
+        } catch (err) {
+            console.error("Failed to load unique filters", err);
+            if (!error) toast.error("Nie udało się załadować filtrów. Sprawdź backend.");
+        }
+    };
+    fetchUniqueValues();
+  }, [error]); 
+  
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -196,7 +236,13 @@ export default function ProductsPage() {
         params: {
           page,
           page_size: pageSize,
-          q: debouncedSearch || undefined,
+          // === NOWE PARAMETRY DLA API ===
+          name: debouncedNameFilter || undefined,
+          code: debouncedCodeFilter || undefined,
+          supplier: supplierFilter || undefined,
+          category: categoryFilter || undefined,
+          location: locationFilter || undefined,
+          // === KONIEC NOWYCH PARAMETRÓW ===
           sort_by: sortKey,
           order: sortOrder,
         },
@@ -211,7 +257,7 @@ export default function ProductsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch, sortKey, sortOrder]);
+  }, [page, debouncedNameFilter, debouncedCodeFilter, supplierFilter, categoryFilter, locationFilter, sortKey, sortOrder]); 
   
   useEffect(() => {
     load();
@@ -222,9 +268,16 @@ export default function ProductsPage() {
     if (page > 1) params.set("page", String(page));
     params.set("sort_by", sortKey);
     params.set("order", sortOrder);
-    if (debouncedSearch) params.set("q", debouncedSearch);
+    
+    // === SYNCHRONIZACJA URL DLA NOWYCH FILTRÓW ===
+    if (debouncedNameFilter) params.set("name", debouncedNameFilter);
+    if (debouncedCodeFilter) params.set("code", debouncedCodeFilter);
+    if (supplierFilter) params.set("supplier", supplierFilter);
+    if (categoryFilter) params.set("category", categoryFilter);
+    if (locationFilter) params.set("location", locationFilter);
+    
     setSearchParams(params, { replace: true });
-  }, [page, sortKey, sortOrder, debouncedSearch, setSearchParams]);
+  }, [page, sortKey, sortOrder, debouncedNameFilter, debouncedCodeFilter, supplierFilter, categoryFilter, locationFilter, setSearchParams]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortOrder((p) => (p === "asc" ? "desc" : "asc"));
@@ -258,7 +311,7 @@ export default function ProductsPage() {
   const saveProduct = async () => {
     if (!selected) return;
 
-    const changedData: { [key: string]: any } = {};
+    const changedData: { [key: string]: string | number | null | undefined } = {};
 
     Object.keys(editData).forEach(keyStr => {
       const key = keyStr as keyof Product;
@@ -417,13 +470,54 @@ export default function ProductsPage() {
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-4">Product Management</h1>
       <div className="flex flex-wrap items-center gap-3 mb-4">
+        
+        {/* === NOWE FILTRY === */}
         <input
           type="text"
-          placeholder="Search by name or code..."
-          className="border rounded px-3 py-2 w-64"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Filter by Name"
+          className="border rounded px-3 py-2 w-48"
+          value={nameFilter}
+          onChange={(e) => {setNameFilter(e.target.value); setPage(1);}}
         />
+        <input
+          type="text"
+          placeholder="Filter by Code"
+          className="border rounded px-3 py-2 w-32"
+          value={codeFilter}
+          onChange={(e) => {setCodeFilter(e.target.value); setPage(1);}}
+        />
+        
+        {/* FILTR DOSTAWCY (DROPDOWN) */}
+        <select
+          className="border rounded px-3 py-2 w-32"
+          value={supplierFilter}
+          onChange={(e) => {setSupplierFilter(e.target.value || ""); setPage(1);}}
+        >
+          <option value="">-- Dostawca --</option>
+          {allSuppliers.map(val => (<option key={val} value={val}>{val}</option>))}
+        </select>
+        
+        {/* FILTR KATEGORII (DROPDOWN) */}
+        <select
+          className="border rounded px-3 py-2 w-32"
+          value={categoryFilter}
+          onChange={(e) => {setCategoryFilter(e.target.value || ""); setPage(1);}}
+        >
+          <option value="">-- Kategoria --</option>
+          {allCategories.map(val => (<option key={val} value={val}>{val}</option>))}
+        </select>
+        
+        {/* FILTR LOKALIZACJI (DROPDOWN) */}
+        <select
+          className="border rounded px-3 py-2 w-32"
+          value={locationFilter}
+          onChange={(e) => {setLocationFilter(e.target.value || ""); setPage(1);}}
+        >
+          <option value="">-- Lokalizacja --</option>
+          {allLocations.map(val => (<option key={val} value={val}>{val}</option>))}
+        </select>
+        {/* === KONIEC NOWYCH FILTRÓW === */}
+        
         <button
           className="ml-auto bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
           onClick={() => setShowAdd(true)}

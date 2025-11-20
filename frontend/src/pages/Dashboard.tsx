@@ -12,7 +12,9 @@ import {
   PackageX,
   Archive,
   TrendingUp,
-  Lightbulb, // 1. ZMIANA: Dodajemy ikonę Żarówki
+  Lightbulb,
+  Package, // <-- NOWY IMPORT
+  ListOrdered, // <-- NOWY IMPORT
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -26,14 +28,19 @@ import {
 } from "recharts";
 
 // === TYPY DANYCH ===
+type WzDoc = { // <-- NOWY TYP DANYCH
+    id: number;
+    buyer_name: string;
+    status: 'NEW' | 'IN_PROGRESS' | 'RELEASED' | 'CANCELLED';
+    created_at: string;
+};
 
-// 2. ZMIANA: Nowy typ dla rekomendacji AI
 type RecommendationRule = {
     product_in: string[];
     product_out: string[];
     confidence: string;
     lift: string;
-    message?: string; // Dla obsługi komunikatu o braku danych
+    message?: string;
 };
 
 type StatsData = {
@@ -98,9 +105,9 @@ function StatCard({ title, value, icon, colorClass, to }: StatCardProps) {
   return cardContent;
 }
 
-// === KOMPONENT WYKRESU ===
+// === KOMPONENTY WYKRESÓW I LIST (bez zmian) ===
+
 function RevenueChart({ data }: { data: ChartDataPoint[] }) {
-  // ... (bez zmian) ...
   return (
     <div className="bg-white p-6 rounded-lg shadow-md h-full">
       <h3 className="text-lg font-semibold mb-4">Przychód (ostatnie 7 dni)</h3>
@@ -129,9 +136,7 @@ function RevenueChart({ data }: { data: ChartDataPoint[] }) {
   );
 }
 
-// === KOMPONENT LISTY "Top 5 Produktów" ===
 function TopProductsList({ products }: { products: TopProduct[] }) {
-  // ... (bez zmian) ...
   return (
     <div className="bg-white p-6 rounded-lg shadow-md h-full">
       <h3 className="text-lg font-semibold mb-4 flex items-center">
@@ -158,10 +163,8 @@ function TopProductsList({ products }: { products: TopProduct[] }) {
   );
 }
 
-// === 4. ZMIANA: NOWY KOMPONENT RecommendationPanel (Poprawiona czytelność) ===
 function RecommendationPanel({ rules }: { rules: RecommendationRule[] }) {
   if (rules.length === 1 && rules[0].message) {
-      // ... (Obsługa błędów bez zmian)
       return (
           <div className="bg-orange-100 border border-orange-400 text-orange-700 p-4 rounded-lg shadow-md">
               <h3 className="text-lg font-semibold mb-2 flex items-center">
@@ -180,14 +183,13 @@ function RecommendationPanel({ rules }: { rules: RecommendationRule[] }) {
               Sugerowane Akcje Sprzedażowe (AI)
           </h3>
           <p className="text-sm text-gray-600 mb-4">
-              Poniższe sugestie oparte są na wzorcach zakupowych Twoich klientów. **Użyj ich do tworzenia ofert i mailingu.**
+              Oparte na analizie transakcji historycznych (Apriori). **Użyj ich do tworzenia ofert i mailingu.**
           </p>
           
-          <ol className="space-y-4"> {/* Usunięto list-decimal, zwiększono odstępy */}
+          <ol className="space-y-4"> 
               {rules.map((rule, index) => (
                   <li key={index} className="text-base border-b pb-2 last:border-b-0">
                       
-                      {/* NOWA STRUKTURA TEKSTU I KOLORY */}
                       <p className="mb-1">
                           <span className="font-semibold text-gray-700">Wzorzec:</span>
                           <span className="font-bold text-blue-700 ml-2 p-1 bg-blue-50 rounded-md">
@@ -202,7 +204,6 @@ function RecommendationPanel({ rules }: { rules: RecommendationRule[] }) {
                           </span>
                       </p>
 
-                      {/* Informacje statystyczne w małej czcionce, ale czytelnie */}
                       <p className="text-xs text-gray-500 mt-1">
                           Pewność: <span className="font-medium">{rule.confidence}</span> | 
                           Wzrost (Lift): <span className="font-medium">{rule.lift}</span>
@@ -214,21 +215,106 @@ function RecommendationPanel({ rules }: { rules: RecommendationRule[] }) {
   );
 }
 
-// === KOMPONENT GŁÓWNY (Z PODZIAŁEM NA ROLE) ===
 
+// === PULPIT DLA MAGAZYNIERA === <---------------------------------- NOWY KOMPONENT
+function WarehouseDashboard() {
+    const [wzPending, setWzPending] = useState<WzDoc[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const loadWzData = async () => {
+            try {
+                setLoading(true);
+                // 1. Pobieramy dokumenty WZ ze statusami NEW lub IN_PROGRESS
+                const res = await api.get<{ items: WzDoc[], total: number }>("/warehouse-documents", {
+                    params: {
+                        status: ["NEW", "IN_PROGRESS"], // Filtr po wielu statusach
+                        page_size: 20,
+                    }
+                });
+                setWzPending(res.data.items);
+
+                // 2. Opcjonalnie: możemy też pobrać statystyki low_stock
+                
+            } catch (err) {
+                console.error(err);
+                setError("Nie udało się załadować listy WZ.");
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadWzData();
+    }, []);
+
+    if (loading) return <p>Ładowanie pulpitu magazynu...</p>;
+    if (error) return <p className="text-red-500">{error}</p>;
+
+    const wzCount = wzPending.length;
+
+    return (
+        <>
+            <dl className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <StatCard
+                    title="WZ Oczekujące / W Trakcie"
+                    value={wzCount}
+                    icon={<ListOrdered size={24} />}
+                    colorClass={wzCount > 0 ? "bg-red-600" : "bg-green-600"}
+                    to="/wz"
+                />
+                {/* TUTAJ MOŻNA DODAĆ DRUGĄ KARTĘ np. Produkty na wyczerpaniu */}
+                <StatCard
+                    title="Całkowita liczba WZ (historia)"
+                    value={"..."} 
+                    icon={<Archive size={24} />}
+                    colorClass={"bg-gray-500"}
+                    to="/wz"
+                />
+            </dl>
+
+            <div className="mt-6">
+                <h2 className="text-xl font-semibold mb-3 flex items-center">
+                    <Package size={20} className="mr-2 text-red-600" /> 
+                    WZ do realizacji ({wzCount})
+                </h2>
+                {wzCount === 0 ? (
+                    <div className="bg-green-100 p-4 rounded-lg text-green-700">Brak dokumentów do wydania.</div>
+                ) : (
+                    <div className="bg-white p-4 rounded-lg shadow-md">
+                        {wzPending.map(doc => (
+                            <Link 
+                                to={`/wz?doc_id=${doc.id}`} // Zakładamy, że WZ przyjmuje ID w query
+                                key={doc.id} 
+                                className="block border-b p-2 hover:bg-gray-50 transition"
+                            >
+                                <div className="flex justify-between text-sm">
+                                    <span className="font-medium text-gray-800">WZ #{doc.id} ({doc.status})</span>
+                                    <span className="text-gray-600">{doc.buyer_name}</span>
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </>
+    );
+}
+
+
+// === PULPIT DLA ADMINA / SPRZEDAWCY (AI jest w tym komponencie) ===
 function AdminSalesmanDashboard() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
+  const [recommendations, setRecommendations] = useState<RecommendationRule[]>([]);
   
   // 5. ZMIANA: Dodajemy stan na rekomendacje
-  const [recommendations, setRecommendations] = useState<RecommendationRule[]>([]);
+  // ... (reszta stanów i logiki ładowania bez zmian) ...
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingAI, setLoadingAI] = useState(true); // Nowy stan dla ładowania AI
 
-  // 6. ZMIANA: Funkcja ładowania rekomendacji
   useEffect(() => {
     const loadRecommendations = async () => {
       try {
@@ -298,7 +384,7 @@ function AdminSalesmanDashboard() {
 
   return (
     <>
-      {/* 7. ZMIANA: Wstawienie panelu rekomendacji */}
+      {/* Panel AI widoczny tylko dla Admin/Salesman */}
       <div className="mb-6">
           {loadingAI ? (
             <p className="text-sm text-gray-500">Ładowanie analizy AI...</p>
@@ -372,6 +458,8 @@ export default function Dashboard() {
       {/* Renderujemy odpowiedni pulpit na podstawie roli */}
       {role === "admin" || role === "salesman" ? (
         <AdminSalesmanDashboard />
+      ) : role === "warehouse" ? (
+        <WarehouseDashboard /> // <-- ZMIANA: Nowy pulpit dla Magazyniera
       ) : (
         <CustomerDashboard />
       )}

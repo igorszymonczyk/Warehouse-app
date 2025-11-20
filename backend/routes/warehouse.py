@@ -1,5 +1,5 @@
 # routes/warehouse.py
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from datetime import datetime
 from pathlib import Path
 import json
@@ -28,7 +28,7 @@ def _role_ok(user: User) -> bool:
 @router.get("/", response_model=WarehouseDocPage)
 def list_warehouse_documents(
     request: Request,
-    status: Optional[WarehouseStatus] = Query(None, description="Filtruj po statusie"),
+    status: Optional[List[WarehouseStatus]] = Query(None, description="Filtruj po statusie"),
     buyer: Optional[str] = Query(None, description="Szukaj po nazwie klienta"),
     from_dt: Optional[str] = Query(None, description="ISO datetime, np. 2025-10-23T00:00:00"),
     to_dt: Optional[str] = Query(None, description="ISO datetime"),
@@ -44,8 +44,11 @@ def list_warehouse_documents(
 
     q = db.query(WarehouseDocument)
 
+    # === OSTATECZNA POPRAWKA: Konwersja Enum na stringi ===
     if status:
-        q = q.filter(WarehouseDocument.status == status)
+        # Konwertujemy listę Enum na listę stringów ('NEW', 'IN_PROGRESS')
+        status_values = [s.value for s in status]
+        q = q.filter(WarehouseDocument.status.in_(status_values))
 
     if buyer:
         like = f"%{buyer}%"

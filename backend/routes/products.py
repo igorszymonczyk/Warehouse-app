@@ -2,13 +2,14 @@
 from typing import Optional, List, Union
 from fastapi import (
     APIRouter, Depends, HTTPException, Query, Request, 
-    UploadFile, File, Form  # 1. ZMIANA: Import UploadFile, File, Form
+    UploadFile, File, Form
 )
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
-from pydantic import ValidationError, BaseModel # 2. ZMIANA: Import do walidacji
+from pydantic import ValidationError, BaseModel 
+# 1. ZMIANA: Import potrzebny do funkcji pomocniczej
+from sqlalchemy.sql.expression import ColumnElement 
 
-# 3. ZMIANA: Importy do zapisu plików
 import shutil
 import uuid
 from pathlib import Path
@@ -55,13 +56,27 @@ def _norm_code(code: Optional[str]) -> Optional[str]:
     c = code.strip().upper()
     return c if c else None
 
+# === 2. ZMIANA: NOWA FUNKCJA POMOCNICZA ===
+def _get_unique_values(db: Session, column: ColumnElement) -> List[str]:
+    """Pomocnik do pobierania unikalnych, niepustych wartości z danej kolumny."""
+    values = db.query(column).distinct().filter(column != None, column != "").all()
+    # values to lista krotek np. [('Kategoria A',), ('Kategoria B',)]
+    return [v[0] for v in values]
+
+
 # =========================
 # LISTA PRODUKTÓW
 # =========================
 @router.get("/products", response_model=product_schemas.ProductListPage)
 def list_products(
     request: Request,
-    q: Optional[str] = Query(None, description="Szukaj po nazwie, kodzie, opisie, kategorii lub dostawcy"),
+    # 3. ZMIANA: Parametry filtrowania
+    name: Optional[str] = Query(None, description="Filtruj po nazwie produktu"),
+    code: Optional[str] = Query(None, description="Filtruj po kodzie produktu"),
+    supplier: Optional[str] = Query(None, description="Filtruj po dostawcy"),
+    category: Optional[str] = Query(None, description="Filtruj po kategorii"),
+    location: Optional[str] = Query(None, description="Filtruj po lokalizacji"),
+    
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=200),
     sort_by: str = Query(
@@ -77,17 +92,17 @@ def list_products(
 
     query = db.query(Product)
 
-    if q:
-        like = f"%{q}%"
-        query = query.filter(
-            or_(
-                Product.name.ilike(like),
-                Product.code.ilike(like),
-                Product.description.ilike(like),
-                Product.category.ilike(like),
-                Product.supplier.ilike(like),
-            )
-        )
+    # 4. ZMIANA: Logika filtrowania
+    if name:
+        query = query.filter(Product.name.ilike(f"%{name}%"))
+    if code:
+        query = query.filter(Product.code.ilike(f"%{code}%"))
+    if supplier:
+        query = query.filter(Product.supplier.ilike(f"%{supplier}%"))
+    if category:
+        query = query.filter(Product.category.ilike(f"%{category}%"))
+    if location:
+        query = query.filter(Product.location.ilike(f"%{location}%"))
 
     allowed = {
         "id": Product.id,
@@ -109,7 +124,6 @@ def list_products(
     serialized = []
     for p in items:
         data = {f: getattr(p, f) for f in product_fields if hasattr(p, f)}
-        # Uwzględniamy pole image_url, które dodaliśmy do schematu
         serialized.append(product_schemas.ProductResponse.model_validate(data))
 
     write_log(
@@ -120,24 +134,43 @@ def list_products(
         status="SUCCESS",
         ip=request.client.host if request.client else None,
         meta={
-            "q": q,
             "page": page,
             "page_size": page_size,
             "sort_by": sort_by,
             "order": order,
             "returned": len(items),
+            "filters": {"name": name, "code": code, "supplier": supplier, "category": category, "location": location}
         },
     )
 
     return {"items": serialized, "total": total, "page": page, "page_size": page_size}
 
 
+# =====================================================================
+# 5. ZMIANA: NOWE ENDPOINTY MUSZĄ BYĆ TUTAJ (PRZED /{product_id}) !!!
+# =====================================================================
+
+@router.get("/products/unique/categories", response_model=List[str])
+def get_product_categories(db: Session = Depends(get_db)):
+    """Zwraca listę wszystkich unikalnych kategorii produktów."""
+    return _get_unique_values(db, Product.category)
+
+@router.get("/products/unique/suppliers", response_model=List[str])
+def get_product_suppliers(db: Session = Depends(get_db)):
+    """Zwraca listę wszystkich unikalnych dostawców produktów."""
+    return _get_unique_values(db, Product.supplier)
+
+@router.get("/products/unique/locations", response_model=List[str])
+def get_product_locations(db: Session = Depends(get_db)):
+    """Zwraca listę wszystkich unikalnych lokalizacji produktów."""
+    return _get_unique_values(db, Product.location)
+
+
 # =========================
-# POJEDYNCZY PRODUKT
+# POJEDYNCZY PRODUKT (Dynamiczny URL - musi być po statycznych)
 # =========================
 @router.get("/products/{product_id}", response_model=product_schemas.ProductResponse)
 def get_product(
-    # ... (Ta funkcja zostaje bez zmian) ...
     product_id: int,
     request: Request,
     db: Session = Depends(get_db),
@@ -175,11 +208,10 @@ def get_product(
 
 
 # =========================
-# 4. DUŻA ZMIANA: DODAWANIE PRODUKTU (z uploadem pliku)
+# DODAWANIE PRODUKTU
 # =========================
 @router.post("/products", response_model=product_schemas.ProductResponse)
 def add_product(
-    # Zamiast Pydantic model, przyjmujemy pola formularza
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -188,7 +220,7 @@ def add_product(
     code: str = Form(...),
     sell_price_net: float = Form(...),
     stock_quantity: int = Form(...),
-    buy_price: float = Form(0.0), # Używamy 0.0 jako domyślnej
+    buy_price: float = Form(0.0),
     description: Optional[str] = Form(None),
     category: Optional[str] = Form(None),
     supplier: Optional[str] = Form(None),
@@ -199,7 +231,6 @@ def add_product(
     if not _can_manage_stock(current_user):
         raise HTTPException(status_code=403, detail="Not authorized to add products")
 
-    # Walidujemy dane Pydantic "ręcznie"
     try:
         product_data = {
             "name": name, "code": code, "sell_price_net": sell_price_net,
@@ -224,17 +255,15 @@ def add_product(
         )
         raise HTTPException(status_code=409, detail="Product code already exists")
 
-    # Logika zapisu pliku
     file_url = None
     if file:
         if file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
             raise HTTPException(status_code=400, detail="Invalid file type. Only JPEG, PNG, WebP allowed.")
         
-        # Tworzy unikalną nazwę pliku
         file_extension = file.filename.split(".")[-1]
         unique_filename = f"{uuid.uuid4()}.{file_extension}"
         save_path = UPLOAD_DIR / unique_filename
-        file_url = f"/uploads/{unique_filename}" # URL, który zapiszemy w bazie
+        file_url = f"/uploads/{unique_filename}" 
 
         try:
             with open(save_path, "wb") as buffer:
@@ -244,12 +273,11 @@ def add_product(
         finally:
             file.file.close()
 
-    # Tworzenie obiektu bazy danych
     payload = product.model_dump()
     payload["code"] = norm_code
     
     new_product = Product(**payload)
-    new_product.image_url = file_url # Zapisujemy URL do zdjęcia
+    new_product.image_url = file_url 
 
     db.add(new_product)
     db.commit()
@@ -265,13 +293,12 @@ def add_product(
     data = {f: getattr(new_product, f) for f in fields if hasattr(new_product, f)}
     return product_schemas.ProductResponse.model_validate(data)
 
+
 # =========================
 # AKTUALIZACJA PRODUKTU (PUT)
 # =========================
 @router.put("/products/{product_id}", response_model=product_schemas.ProductResponse)
 def update_product(
-    # ... (Ta funkcja zostaje bez zmian) ...
-    # (Edycja zdjęcia to bardziej skomplikowana operacja, robimy ją oddzielnie)
     product_id: int,
     updated_data: product_schemas.ProductCreate,
     request: Request,
@@ -321,7 +348,6 @@ def update_product(
 # =========================
 @router.patch("/products/{product_id}/edit", response_model=product_schemas.ProductOut)
 def edit_product(
-    # ... (Ta funkcja zostaje bez zmian) ...
     product_id: int,
     payload: product_schemas.ProductEditRequest,
     request: Request,
@@ -345,7 +371,6 @@ def edit_product(
 
     data = payload.dict(exclude_unset=True)
 
-    # normalizacja + sprawdzenie konfliktu kodu
     if "code" in data and data["code"] is not None:
         data["code"] = _norm_code(data["code"])
         if not data["code"]:
@@ -356,10 +381,8 @@ def edit_product(
         if conflict:
             raise HTTPException(status_code=409, detail="Product code already exists")
 
-    # log: wartości przed zmianą
     before = {k: getattr(p, k) for k in data.keys() if hasattr(p, k)}
 
-    # przypisz tylko przekazane pola
     for field, value in data.items():
         setattr(p, field, value)
 
@@ -394,7 +417,6 @@ def get_products_by_names(
     if not current_user:
         raise HTTPException(status_code=403, detail="Not authenticated.")
 
-    # Zapytanie filtrujące produkty na podstawie dostarczonej listy nazw
     products = db.query(Product).filter(
         Product.name.in_(payload.product_names)
     ).all()
@@ -422,7 +444,6 @@ def get_products_by_names(
 # =========================
 @router.delete("/products/{product_id}")
 def delete_product(
-    # ... (Ta funkcja zostaje bez zmian) ...
     product_id: int,
     request: Request,
     db: Session = Depends(get_db),
