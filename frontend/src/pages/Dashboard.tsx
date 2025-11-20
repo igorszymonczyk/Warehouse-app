@@ -12,6 +12,7 @@ import {
   PackageX,
   Archive,
   TrendingUp,
+  Lightbulb, // 1. ZMIANA: Dodajemy ikonę Żarówki
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -23,9 +24,18 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-// Usunąłem zduplikowany import useAuth stąd
 
 // === TYPY DANYCH ===
+
+// 2. ZMIANA: Nowy typ dla rekomendacji AI
+type RecommendationRule = {
+    product_in: string[];
+    product_out: string[];
+    confidence: string;
+    lift: string;
+    message?: string; // Dla obsługi komunikatu o braku danych
+};
+
 type StatsData = {
   total_revenue: number;
   total_invoices: number;
@@ -148,16 +158,91 @@ function TopProductsList({ products }: { products: TopProduct[] }) {
   );
 }
 
+// === 4. ZMIANA: NOWY KOMPONENT RecommendationPanel (Poprawiona czytelność) ===
+function RecommendationPanel({ rules }: { rules: RecommendationRule[] }) {
+  if (rules.length === 1 && rules[0].message) {
+      // ... (Obsługa błędów bez zmian)
+      return (
+          <div className="bg-orange-100 border border-orange-400 text-orange-700 p-4 rounded-lg shadow-md">
+              <h3 className="text-lg font-semibold mb-2 flex items-center">
+                  <Lightbulb size={20} className="mr-2" />
+                  Wsparcie AI (Rekomendacje)
+              </h3>
+              <p className="text-sm">{rules[0].message}</p>
+          </div>
+      );
+  }
+
+  return (
+      <div className="bg-white p-6 rounded-lg shadow-xl border border-blue-200">
+          <h3 className="text-xl font-bold mb-4 flex items-center text-blue-800">
+              <Lightbulb size={24} className="mr-3 text-blue-600" />
+              Sugerowane Akcje Sprzedażowe (AI)
+          </h3>
+          <p className="text-sm text-gray-600 mb-4">
+              Poniższe sugestie oparte są na wzorcach zakupowych Twoich klientów. **Użyj ich do tworzenia ofert i mailingu.**
+          </p>
+          
+          <ol className="space-y-4"> {/* Usunięto list-decimal, zwiększono odstępy */}
+              {rules.map((rule, index) => (
+                  <li key={index} className="text-base border-b pb-2 last:border-b-0">
+                      
+                      {/* NOWA STRUKTURA TEKSTU I KOLORY */}
+                      <p className="mb-1">
+                          <span className="font-semibold text-gray-700">Wzorzec:</span>
+                          <span className="font-bold text-blue-700 ml-2 p-1 bg-blue-50 rounded-md">
+                              {rule.product_in.join(' + ')}
+                          </span>
+                      </p>
+                      
+                      <p>
+                          <span className="font-semibold text-gray-700">Zasugeruj dodatkowo:</span>
+                          <span className="font-bold text-green-700 ml-2 p-1 bg-green-50 rounded-md">
+                              {rule.product_out.join(' + ')}
+                          </span>
+                      </p>
+
+                      {/* Informacje statystyczne w małej czcionce, ale czytelnie */}
+                      <p className="text-xs text-gray-500 mt-1">
+                          Pewność: <span className="font-medium">{rule.confidence}</span> | 
+                          Wzrost (Lift): <span className="font-medium">{rule.lift}</span>
+                      </p>
+                  </li>
+              ))}
+          </ol>
+      </div>
+  );
+}
+
 // === KOMPONENT GŁÓWNY (Z PODZIAŁEM NA ROLE) ===
 
 function AdminSalesmanDashboard() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
+  
+  // 5. ZMIANA: Dodajemy stan na rekomendacje
+  const [recommendations, setRecommendations] = useState<RecommendationRule[]>([]);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadingAI, setLoadingAI] = useState(true); // Nowy stan dla ładowania AI
 
+  // 6. ZMIANA: Funkcja ładowania rekomendacji
   useEffect(() => {
+    const loadRecommendations = async () => {
+      try {
+        setLoadingAI(true);
+        const aiRes = await api.get<RecommendationRule[]>("/salesman/recommendations");
+        setRecommendations(aiRes.data);
+      } catch (err) {
+        console.error("Błąd ładowania AI:", err);
+        setRecommendations([{ message: "Błąd serwera AI lub brak dostępu." } as RecommendationRule]);
+      } finally {
+        setLoadingAI(false);
+      }
+    };
+
     const loadDashboardData = async () => {
       try {
         setLoading(true);
@@ -187,7 +272,10 @@ function AdminSalesmanDashboard() {
         setLoading(false);
       }
     };
+    
+    // Ładujemy dane statystyczne i rekomendacje równolegle
     loadDashboardData();
+    loadRecommendations();
   }, []);
 
   if (loading) {
@@ -210,6 +298,15 @@ function AdminSalesmanDashboard() {
 
   return (
     <>
+      {/* 7. ZMIANA: Wstawienie panelu rekomendacji */}
+      <div className="mb-6">
+          {loadingAI ? (
+            <p className="text-sm text-gray-500">Ładowanie analizy AI...</p>
+          ) : (
+            <RecommendationPanel rules={recommendations} />
+          )}
+      </div>
+
       {stats && (
         <dl className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           <StatCard

@@ -23,6 +23,7 @@ from routes.reports import router as reports_router
 from routes.products import router as products_router
 from routes.stats import router as stats_router
 from routes.shop import router as shop_router
+from routes.salesman import router as salesman_router
 
 # --- 2. ZMIANA: Stwórz folder na uploady ---
 # Zakładamy, że main.py jest w /backend, więc tworzymy /backend/static/uploads
@@ -74,6 +75,7 @@ app.include_router(reports_router)
 app.include_router(products_router)
 app.include_router(stats_router)
 app.include_router(shop_router)
+app.include_router(salesman_router)
 
 # (Usunąłem zduplikowany app.include_router(stats_router))
 

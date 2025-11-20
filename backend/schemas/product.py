@@ -56,7 +56,9 @@ class ProductOut(ProductBase):
     id: int
     # image_url jest już dziedziczone z ProductBase
 
-
+class ProductNameList(BaseModel):
+    product_names: List[str]
+    
 # --- ODP. DLA LISTY PRODUKTÓW (Z PAGINACJĄ) ---
 class ProductListPage(ORMBase):
     items: List[ProductOut]

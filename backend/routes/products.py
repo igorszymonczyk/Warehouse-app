@@ -6,7 +6,7 @@ from fastapi import (
 )
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
-from pydantic import ValidationError # 2. ZMIANA: Import do walidacji
+from pydantic import ValidationError, BaseModel # 2. ZMIANA: Import do walidacji
 
 # 3. ZMIANA: Importy do zapisu plików
 import shutil
@@ -20,6 +20,9 @@ from models.users import User
 from models.product import Product
 import schemas.product as product_schemas
 from urllib.parse import urljoin
+
+class ProductNameList(BaseModel):
+    product_names: List[str]
 
 def _full_url(request: Request, path: Union[str, None]) -> Union[str, None]:
     if not path:
@@ -376,6 +379,43 @@ def edit_product(
     fields = list(product_schemas.ProductOut.model_fields.keys())
     out = {f: getattr(p, f) for f in fields if hasattr(p, f)}
     return product_schemas.ProductOut.model_validate(out)
+
+# =========================
+# POBIERANIE SZCZEGÓŁÓW PO NAZWACH
+# =========================
+@router.post("/products/details", response_model=List[product_schemas.ProductResponse])
+def get_products_by_names(
+    payload: ProductNameList,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Dostęp jest dozwolony dla wszystkich zalogowanych (w tym klienta, który używa koszyka)
+    if not current_user:
+        raise HTTPException(status_code=403, detail="Not authenticated.")
+
+    # Zapytanie filtrujące produkty na podstawie dostarczonej listy nazw
+    products = db.query(Product).filter(
+        Product.name.in_(payload.product_names)
+    ).all()
+
+    product_fields = list(product_schemas.ProductResponse.model_fields.keys())
+    serialized = []
+    for p in products:
+        data = {f: getattr(p, f) for f in product_fields if hasattr(p, f)}
+        serialized.append(product_schemas.ProductResponse.model_validate(data))
+
+    write_log(
+        db,
+        user_id=current_user.id,
+        action="PRODUCTS_DETAILS_BY_NAME",
+        resource="products",
+        status="SUCCESS",
+        ip=request.client.host if request.client else None,
+        meta={"names_requested": len(payload.product_names), "returned": len(products)},
+    )
+
+    return serialized
 
 # =========================
 # USUWANIE PRODUKTU
