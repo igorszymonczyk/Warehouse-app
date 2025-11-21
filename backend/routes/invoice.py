@@ -11,6 +11,7 @@ import json
 from models.invoice import Invoice, InvoiceItem
 from models.product import Product
 from models.WarehouseDoc import WarehouseDocument
+from models.company import Company
 from database import get_db
 from utils.tokenJWT import get_current_user
 from models.users import User
@@ -68,7 +69,7 @@ def _init_fonts():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Font init error: {e}")
 
-def _generate_invoice_pdf_file(invoice: Invoice, items: List[InvoiceItem], out_path: Path) -> None:
+def _generate_invoice_pdf_file(invoice: Invoice, items: List[InvoiceItem], out_path: Path, company: dict | None = None) -> None:
     """Generates a PDF file for an invoice with Polish character support."""
     try:
         from reportlab.lib.pagesizes import A4
@@ -88,22 +89,43 @@ def _generate_invoice_pdf_file(invoice: Invoice, items: List[InvoiceItem], out_p
 
     y = height - 30 * mm
     c.setFont(FONT_BOLD_NAME, 16)
-    c.drawString(20 * mm, y, f"Faktura: INV-{invoice.id}")
-    y -= 10 * mm
+    # Company details on top-left (if provided)
+    if company:
+        c.setFont(FONT_BOLD_NAME, 12)
+        if company.get("name"):
+            c.drawString(20 * mm, y, str(company.get("name")))
+            y -= 6 * mm
+        c.setFont(FONT_REGULAR_NAME, 10)
+        if company.get("nip"):
+            c.drawString(20 * mm, y, f"NIP: {company.get('nip')}")
+            y -= 6 * mm
+        if company.get("address"):
+            c.drawString(20 * mm, y, f"Adres: {company.get('address')}")
+            y -= 8 * mm
+        # leave a little gap before invoice header
+        y -= 4 * mm
 
+    c.setFont(FONT_BOLD_NAME, 16)
+    c.drawString(120 * mm, height - 30 * mm, f"Faktura: INV-{invoice.id}")
     c.setFont(FONT_REGULAR_NAME, 10)
-    c.drawString(20 * mm, y, f"Data: {getattr(invoice, 'created_at', '')}")
-    y -= 6 * mm
-    c.drawString(20 * mm, y, f"Nabywca: {invoice.buyer_name or ''}")
-    y -= 6 * mm
+    c.drawString(120 * mm, height - 36 * mm, f"Data: {getattr(invoice, 'created_at', '')}")
+
+    # Buyer block (left, under company if present)
+    y_buyer = height - 54 * mm
+    c.setFont(FONT_REGULAR_NAME, 10)
+    c.drawString(20 * mm, y_buyer, f"Nabywca: {invoice.buyer_name or ''}")
+    y_buyer -= 6 * mm
     if getattr(invoice, "buyer_nip", None):
-        c.drawString(20 * mm, y, f"NIP: {invoice.buyer_nip}")
-        y -= 6 * mm
+        c.drawString(20 * mm, y_buyer, f"NIP: {invoice.buyer_nip}")
+        y_buyer -= 6 * mm
     if getattr(invoice, "buyer_address", None):
-        c.drawString(20 * mm, y, f"Adres: {invoice.buyer_address}")
-        y -= 10 * mm
+        c.drawString(20 * mm, y_buyer, f"Adres: {invoice.buyer_address}")
+        y_buyer -= 10 * mm
     else:
-        y -= 6 * mm
+        y_buyer -= 6 * mm
+
+    # Start table lower, reuse y variable
+    y = y_buyer - 6 * mm
 
     # Table Headers
     c.setFont(FONT_BOLD_NAME, 10)
@@ -376,7 +398,12 @@ def generate_invoice_pdf(
 ):
     invoice = _check_pdf_permission(db, invoice_id, current_user)
     out_path = _pdf_path_for(invoice.id)
-    _generate_invoice_pdf_file(invoice, invoice.items, out_path)
+    # attach company data if available
+    company = db.query(Company).first()
+    company_dict = None
+    if company:
+        company_dict = {"name": company.name, "nip": company.nip, "address": company.address}
+    _generate_invoice_pdf_file(invoice, invoice.items, out_path, company=company_dict)
 
     if hasattr(invoice, "pdf_path"):
         invoice.pdf_path = str(out_path)
@@ -404,7 +431,11 @@ def download_invoice_pdf(
         try:
             # Re-fetch with all items for generation
             full_invoice_details = _check_pdf_permission(db, invoice_id, current_user)
-            _generate_invoice_pdf_file(full_invoice_details, full_invoice_details.items, pdf_path)
+            company = db.query(Company).first()
+            company_dict = None
+            if company:
+                company_dict = {"name": company.name, "nip": company.nip, "address": company.address}
+            _generate_invoice_pdf_file(full_invoice_details, full_invoice_details.items, pdf_path, company=company_dict)
             if hasattr(full_invoice_details, "pdf_path"):
                 full_invoice_details.pdf_path = str(pdf_path)
                 db.commit()

@@ -1,5 +1,5 @@
 // src/App.tsx
-import React from "react";
+
 import { Routes, Route, Navigate } from "react-router-dom";
 import Protected from "./components/Protected";
 import Dashboard from "./pages/Dashboard";

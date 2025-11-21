@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useAuth } from "../store/auth";
 import { api } from "../lib/api";
 import toast from "react-hot-toast";
-import { useNavigate } from "react-router-dom";
+
 
 // Komponent do renderowania pól formularza (dla czystości kodu)
 type InputProps = {
@@ -33,7 +33,6 @@ function FormInput({ label, id, ...props }: InputProps) {
 
 export default function CheckoutPage() {
   const { cart, setCart, role } = useAuth();
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
   // Stan formularza (dopasowany do OrderCreatePayload z backendu)
