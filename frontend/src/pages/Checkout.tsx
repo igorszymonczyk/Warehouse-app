@@ -61,16 +61,19 @@ export default function CheckoutPage() {
     setLoading(true);
 
     try {
-      // Wywołujemy endpoint API, który zmodyfikowaliśmy
-      await api.post("/orders/create", formData);
+      // Inicjujemy płatność w backendzie — otrzymamy link do PayU
+      const response = await api.post("/orders/initiate-payment", formData);
+      const { redirect_url } = response.data as { redirect_url?: string };
 
-      toast.success("Zamówienie zostało złożone!");
-      
-      // Czyścimy koszyk w globalnym stanie (bo backend zamknął go w bazie)
-      setCart(null); 
-      
-      // Przekierowujemy na stronę główną (lub na stronę "Moje zamówienia", jak ją stworzymy)
-      navigate("/");
+      if (redirect_url) {
+        // Czyścimy koszyk lokalnie (backend zamknął koszyk)
+        setCart(null);
+        // Przekierowanie do PayU
+        window.location.href = redirect_url;
+        return;
+      }
+
+      toast.success("Zamówienie zostało zainicjowane.");
 
     } catch (err: unknown) {
       console.error(err);

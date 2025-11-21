@@ -114,10 +114,10 @@ export default function WZPage() {
             className="border px-3 py-2 rounded"
           >
             <option value="">Wszystkie</option>
-            <option value="NEW">NEW</option>
-            <option value="IN_PROGRESS">IN_PROGRESS</option>
-            <option value="RELEASED">RELEASED</option>
-            <option value="CANCELLED">CANCELLED</option>
+            <option value="NEW">Nowy</option>
+            <option value="IN_PROGRESS">W trakcie realizacji</option>
+            <option value="RELEASED">Wydane</option>
+            <option value="CANCELLED">Anulowany</option>
           </select>
         </div>
         <div>
@@ -219,10 +219,10 @@ export default function WZPage() {
                       changeStatus(r.id, e.target.value as WzItem["status"])
                     }
                   >
-                    <option value="NEW">NEW</option>
-                    <option value="IN_PROGRESS">IN_PROGRESS</option>
-                    <option value="RELEASED">RELEASED</option>
-                    <option value="CANCELLED">CANCELLED</option>
+                    <option value="NEW">Nowy</option>
+                    <option value="IN_PROGRESS">W trakcie realizacji</option>
+                    <option value="RELEASED">Wydane</option>
+                    <option value="CANCELLED">Anulowany</option>
                   </select>
                 </td>
                 <td className="p-2 border">
@@ -256,7 +256,7 @@ export default function WZPage() {
           disabled={page === 1}
           onClick={() => setPage((p) => p - 1)}
         >
-          Prev
+          Poprzednia
         </button>
         <span>
           Strona {page} / {totalPages}
@@ -266,7 +266,7 @@ export default function WZPage() {
           disabled={page >= totalPages}
           onClick={() => setPage((p) => p + 1)}
         >
-          Next
+          Następna
         </button>
       </div>
     </div>

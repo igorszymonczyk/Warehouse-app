@@ -3,6 +3,8 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 from datetime import datetime
 
+
+
 class OrderItemOut(BaseModel):
     product_id: int
     product_name: str
@@ -40,3 +42,7 @@ class OrderCreatePayload(BaseModel):
     invoice_address_street: str # Ulica + Numer
     invoice_address_zip: str    # Kod pocztowy
     invoice_address_city: str   # Miasto
+
+class PaymentInitiationResponse(BaseModel):
+    redirect_url: str
+    order_id: int

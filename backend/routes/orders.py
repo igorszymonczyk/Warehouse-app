@@ -1,31 +1,40 @@
+# backend/routes/orders.py
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session, joinedload
-import json # Import do WZ
+import json
+import httpx
 
 from database import get_db
+import logging
 from utils.tokenJWT import get_current_user
 from utils.audit import write_log
+from utils.payu_client import payu_client
+from config import settings
 from models.users import User
 from models.product import Product
 from models.cart import Cart, CartItem
 from models.order import Order, OrderItem
-# 1. ZMIANA: Importujemy modele Faktury i WZ
 from models.invoice import Invoice, InvoiceItem, PaymentStatus
 from models.WarehouseDoc import WarehouseDocument, WarehouseStatus
-
-from schemas.order import OrderResponse, OrdersPage, OrderStatusPatch, OrderItemOut, OrderCreatePayload
+from schemas.order import (
+    OrderResponse, OrdersPage, OrderStatusPatch, OrderItemOut,
+    OrderCreatePayload, PaymentInitiationResponse
+)
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
+logger = logging.getLogger(__name__)
+
 
 def _is_admin_or_sales(user: User) -> bool:
     return (user.role or "").upper() in {"ADMIN", "SALESMAN"}
 
+
 def _cart_open(db: Session, user_id: int) -> Cart:
     return db.query(Cart).filter(Cart.user_id == user_id, Cart.status == "open").first()
 
+
 def _order_to_out(order: Order) -> OrderResponse:
-    # ... (ta funkcja bez zmian) ...
     items: List[OrderItemOut] = []
     for it in order.items:
         product_name = it.product.name if it.product else "Usunięty produkt"
@@ -44,11 +53,69 @@ def _order_to_out(order: Order) -> OrderResponse:
         items=items
     )
 
-#
-# 2. ZMIANA: Całkowicie nowa funkcja create_order
-#
-@router.post("/create", response_model=OrderResponse)
-def create_order(
+
+def _fulfill_order(db: Session, order: Order, request: Request):
+    db.refresh(order)
+    for item in order.items:
+        db.refresh(item)
+
+    # 1. ZDJĘCIE STANU MAGAZYNOWEGO
+    for item in order.items:
+        product = db.query(Product).filter(Product.id == item.product_id).with_for_update().first()
+        if product:
+            product.stock_quantity -= item.qty
+
+    # 2. TWORZENIE FAKTURY i WZ
+    total_net, total_vat, total_gross = 0.0, 0.0, 0.0
+    invoice_items, wz_items_json = [], []
+
+    for item in order.items:
+        prod = item.product
+        if not prod: continue
+
+        price_net = item.unit_price
+        tax_rate, quantity = prod.tax_rate, item.qty
+        total_item_net = price_net * quantity
+        total_item_gross = total_item_net * (1 + tax_rate / 100)
+        
+        total_net += total_item_net
+        total_vat += (total_item_gross - total_item_net)
+        total_gross += total_item_gross
+
+        invoice_items.append(InvoiceItem(
+            product_id=prod.id, product_name=prod.name, quantity=quantity, price_net=price_net,
+            tax_rate=tax_rate, total_net=total_item_net, total_gross=total_item_gross
+        ))
+        wz_items_json.append({
+            "product_name": prod.name, "product_code": prod.code,
+            "quantity": quantity, "location": prod.location or ""
+        })
+
+    full_buyer_address = f"{order.invoice_address_street}, {order.invoice_address_zip} {order.invoice_address_city}"
+    invoice = Invoice(
+        user_id=order.user_id, order_id=order.id, payment_status=PaymentStatus.PAID,
+        buyer_name=order.invoice_buyer_name, buyer_nip=order.invoice_buyer_nip,
+        buyer_address=full_buyer_address, created_by=order.user_id,
+        total_net=total_net, total_vat=total_vat, total_gross=total_gross, items=invoice_items
+    )
+    db.add(invoice)
+    db.flush()
+
+    warehouse_doc = WarehouseDocument(
+        invoice_id=invoice.id, buyer_name=invoice.buyer_name, invoice_date=invoice.created_at,
+        items_json=json.dumps(wz_items_json), status=WarehouseStatus.NEW
+    )
+    db.add(warehouse_doc)
+
+    write_log(
+        db, user_id=order.user_id, action="ORDER_FULFILL_AFTER_PAYMENT", resource="orders", status="SUCCESS",
+        ip=request.client.host,
+        meta={"order_id": order.id, "invoice_id": invoice.id, "wz_id": warehouse_doc.id}
+    )
+
+
+@router.post("/initiate-payment", response_model=PaymentInitiationResponse)
+async def initiate_payment(
     payload: OrderCreatePayload,
     request: Request,
     db: Session = Depends(get_db),
@@ -58,144 +125,87 @@ def create_order(
     if not cart or not cart.items:
         raise HTTPException(status_code=400, detail="Cart is empty")
 
-    # --- 1. Walidacja stanów magazynowych (zanim cokolwiek zrobimy) ---
-    product_cache = {} # Szybka pamięć podręczna dla produktów
+    product_cache, total_gross = {}, 0.0
     for ci in cart.items:
-        prod = db.query(Product).filter(Product.id == ci.product_id).with_for_update().first()
-        if not prod:
-            raise HTTPException(status_code=404, detail=f"Produkt ID {ci.product_id} nie znaleziony")
-        if prod.stock_quantity < ci.qty:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Brak wystarczającego stanu dla produktu: {prod.name}"
-            )
+        prod = db.query(Product).filter(Product.id == ci.product_id).first()
+        if not prod or prod.stock_quantity < ci.qty:
+            raise HTTPException(status_code=400, detail=f"Brak stanu dla: {prod.name if prod else 'Brak produktu'}")
         product_cache[ci.product_id] = prod
+        total_gross += ci.qty * ci.unit_price_snapshot * (1 + prod.tax_rate / 100)
 
-       # --- 2. Stworzenie Zamówienia (Order) ---
     order = Order(
-        user_id=current_user.id,
-        status="processing", # Ustawiamy "w trakcie realizacji", bo faktura od razu powstaje
-        total_amount=0.0, # Obliczymy to za chwilę
-        **payload.model_dump() # Zapisz dane adresowe w zamówieniu
+        user_id=current_user.id, status="pending_payment",
+        total_amount=round(total_gross, 2), **payload.model_dump()
     )
     db.add(order)
-    db.flush()  # Potrzebujemy order.id dla faktury
-
-    total_net = 0.0
-    total_vat = 0.0
-    total_gross = 0.0
-    invoice_items = []
-    wz_items_json = []
-
-    # --- 3. Pętla tworząca pozycje Zamówienia (OrderItem) i Faktury (InvoiceItem) ---
-    for ci in cart.items:
-        prod = product_cache[ci.product_id] # Pobieramy produkt z pamię podręcznej
-
-        # Obliczenia kwot
-        price_net = ci.unit_price_snapshot
-        tax_rate = prod.tax_rate
-        quantity = ci.qty
-        
-        total_item_net = price_net * quantity
-        total_item_gross = total_item_net * (1 + tax_rate / 100)
-        vat_value = total_item_gross - total_item_net
-
-        total_net += total_item_net
-        total_vat += vat_value
-        total_gross += total_item_gross
-
-        # A. Pozycja zamówienia
-        oi = OrderItem(
-            order_id=order.id,
-            product_id=ci.product_id,
-            qty=quantity,
-            unit_price=price_net
-        )
-        db.add(oi)
-        
-        # B. Pozycja faktury
-        invoice_items.append(
-            InvoiceItem(
-                product_id=prod.id,
-                product_name=prod.name, # <--- Zastosowana kluczowa poprawka
-                quantity=quantity,
-                price_net=price_net,
-                tax_rate=tax_rate,
-                total_net=total_item_net,
-                total_gross=total_item_gross,
-            )
-        )
-        
-        # C. Pozycja WZ (jako dict dla JSON)
-        wz_items_json.append({
-            "product_name": prod.name,
-            "product_code": prod.code,
-            "quantity": quantity,
-            "location": prod.location or "",
-        })
-        
-        # D. OSTATECZNE ZDJĘCIE STANU MAGAZYNOWEGO
-        prod.stock_quantity -= quantity
-
-    # Uzupełniamy kwotę w zamówieniu
-    order.total_amount = total_gross 
-
-    # --- 4. Stworzenie Faktury (Invoice) ---
-    full_buyer_address = f"{payload.invoice_address_street}, {payload.invoice_address_zip} {payload.invoice_address_city}"
     
-    invoice = Invoice(
-        user_id=current_user.id,
-        order_id=order.id,
-        payment_status=PaymentStatus.PENDING,
-        buyer_name=payload.invoice_buyer_name,
-        buyer_nip=payload.invoice_buyer_nip,
-        buyer_address=full_buyer_address,
-        created_by=current_user.id,
-        total_net=total_net,
-        total_vat=total_vat,
-        total_gross=total_gross,
-        items=invoice_items, # Przypisujemy pozycje faktury
-    )
-    db.add(invoice)
-    db.flush() # Potrzebujemy invoice.id dla WZ
+    order_items = [OrderItem(
+        order=order, product_id=ci.product_id, qty=ci.qty, unit_price=ci.unit_price_snapshot
+    ) for ci in cart.items]
+    db.add_all(order_items)
 
-    # --- 5. Stworzenie WZ (WarehouseDocument) ---
-    warehouse_doc = WarehouseDocument(
-        invoice_id=invoice.id, # Kluczowe powiązanie!
-        buyer_name=invoice.buyer_name, # Bierzemy dane z faktury
-        invoice_date=invoice.created_at,
-        items_json=json.dumps(wz_items_json),
-        status=WarehouseStatus.NEW # Gotowe dla magazyniera
-    )
-    db.add(warehouse_doc)
+    cart.status = "ordered"
+    db.commit()
+    db.refresh(order)
 
-     # --- 6. Zakończenie transakcji ---
-    cart.status = "ordered" # Zamykamy koszyk
+    payu_products = [{
+        "name": product_cache[it.product_id].name,
+        "quantity": int(it.qty) if it.qty.is_integer() else it.qty,
+        "unitPrice": int(round(it.unit_price * (1 + product_cache[it.product_id].tax_rate / 100), 2) * 100)
+    } for it in order.items]
     
-    # --- 7. Logowanie (przeniesione PRZED commit) ---
-    write_log(
-        db, user_id=current_user.id, action="ORDER_CREATE_WITH_INVOICE", resource="orders", status="SUCCESS",
-        ip=request.client.host if request.client else None,
-        meta={ "order_id": order.id, "invoice_id": invoice.id, "wz_id": warehouse_doc.id, "total_gross": total_gross }
-    )
+    payu_order_data = {
+        "notifyUrl": payu_client.notify_url,
+        "continueUrl": payu_client.continue_url,
+        "customerIp": request.client.host,
+        "merchantPosId": settings.PAYU_POS_ID,
+        "description": f"Zamówienie #{order.id}",
+        "currencyCode": "PLN",
+        "totalAmount": int(order.total_amount * 100),
+        "extOrderId": str(order.id),
+        "buyer": {
+            "email": current_user.email,
+            "firstName": payload.invoice_contact_person.split(' ')[0],
+            "lastName": " ".join(payload.invoice_contact_person.split(' ')[1:]),
+            "language": "pl"
+        },
+        "products": payu_products
+    }
 
+    # Immediately fulfill the order and mark as paid/processing when user clicks "Pay",
+    # then create PayU order and return redirect URL so user is redirected to PayU.
     try:
-        # Zapisujemy wszystko w jednej transakcji (Zamówienie, Fakturę, WZ, zmiany stanów ORAZ log)
-        db.commit()
+        order.status = "processing"
+        try:
+            _fulfill_order(db, order, request)
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to fulfill order after payment: {e}")
+
+        # Now create PayU order to obtain redirect URL for the user
+        try:
+            token = await payu_client.get_auth_token()
+            payu_response = await payu_client.create_order(token, payu_order_data)
+
+            redirect = None
+            if isinstance(payu_response, dict):
+                redirect = payu_response.get("redirectUri") or payu_response.get("redirect_uri") or payu_response.get("redirectUrl") or payu_response.get("Location") or payu_response.get("location")
+                order.payu_order_id = payu_response.get("orderId") or payu_response.get("order_id")
+
+            order.payment_url = redirect
+            db.commit()
+
+            return PaymentInitiationResponse(redirect_url=redirect, order_id=order.id)
+        except httpx.HTTPError as e:
+            logger.exception("PayU create order failed: %s", e)
+            # Payment initiation failed, but fulfillment already happened. Inform frontend.
+            raise HTTPException(status_code=500, detail=f"Błąd komunikacji z systemem płatności: {e}")
+    except HTTPException:
+        raise
     except Exception as e:
-        db.rollback()
-        print(f"BŁĄD TRANSAKCJI: {e}")
-        raise HTTPException(status_code=500, detail="Nie udało się przetworzyć zamówienia z powodu błędu serwera.")
-
-    db.refresh(order) # Odświeżamy zamówienie
-    
-    # Przeładowujemy zamówienie z relacjami do odpowiedzi
-    order_with_relations = db.query(Order).options(
-        joinedload(Order.items).joinedload(OrderItem.product)
-    ).filter(Order.id == order.id).first()
-
-    return _order_to_out(order_with_relations)
-
+        logger.exception("Unexpected error in initiate_payment: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("", response_model=OrdersPage)
@@ -205,14 +215,30 @@ def list_my_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # Synchronize order status with WarehouseDocument status if needed
+    orders = db.query(Order).filter(Order.user_id == current_user.id).all()
+    for order in orders:
+        # Find related invoice and warehouse document
+        invoice = db.query(Invoice).filter(Invoice.order_id == order.id).first()
+        if invoice:
+            wz = db.query(WarehouseDocument).filter(WarehouseDocument.invoice_id == invoice.id).first()
+            if wz:
+                # If WZ is released, set order status to shipped
+                if wz.status == "RELEASED" and order.status != "shipped":
+                    order.status = "shipped"
+                    db.commit()
+                # If WZ is cancelled, set order status to cancelled
+                elif wz.status == "CANCELLED" and order.status != "cancelled":
+                    order.status = "cancelled"
+                    db.commit()
     q = db.query(Order).options(
         joinedload(Order.items).joinedload(OrderItem.product)
     ).filter(Order.user_id == current_user.id).order_by(Order.created_at.desc())
-    
     total = q.count()
     rows = q.offset((page - 1) * page_size).limit(page_size).all()
     items = [_order_to_out(o) for o in rows]
     return {"items": items, "total": total, "page": page, "page_size": page_size}
+
 
 @router.get("/{order_id}", response_model=OrderResponse)
 def get_order_detail(
@@ -224,11 +250,10 @@ def get_order_detail(
         joinedload(Order.items).joinedload(OrderItem.product)
     ).filter(Order.id == order_id).first()
     
-    if not o:
-        raise HTTPException(status_code=404, detail="Order not found")
-    if o.user_id != current_user.id and not _is_admin_or_sales(current_user):
-        raise HTTPException(status_code=403, detail="Forbidden")
+    if not o or (o.user_id != current_user.id and not _is_admin_or_sales(current_user)):
+        raise HTTPException(status_code=404, detail="Order not found or forbidden")
     return _order_to_out(o)
+
 
 @router.patch("/{order_id}/status", response_model=OrderResponse)
 def update_order_status(
@@ -241,52 +266,30 @@ def update_order_status(
     if not _is_admin_or_sales(current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    o = db.query(Order).options(
-        joinedload(Order.items).joinedload(OrderItem.product)
-    ).filter(Order.id == order_id).first()
-    
-    if not o:
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    old = o.status
-    new = payload.status
-
-    allowed = {
-        "pending": ["processing", "cancelled"],
-        "processing": ["shipped", "cancelled"],
-        "shipped": [],
-        "cancelled": [],
-    }
-    if new not in allowed.get(old, []):
-        raise HTTPException(status_code=400, detail=f"Invalid transition {old} → {new}")
-
-    if new == "cancelled" and old in ("pending", "processing"):
-        # UWAGA: Ta logika teraz jest bardziej skomplikowana.
-        # Jeśli anulujemy zamówienie, powinniśmy też anulować WZ i ewentualnie fakturę.
-        # Na razie zostawmy zwrot stanów.
-        for it in o.items:
-            prod = db.query(Product).filter(Product.id == it.product_id).with_for_update(read=False).first()
-            if not prod:
-                continue
-            prod.stock_quantity = (prod.stock_quantity or 0) + it.qty
-
-    o.status = new
-    db.commit()
-    db.refresh(o) 
-
-    write_log(
-        db,
-        user_id=current_user.id,
-        action="ORDER_STATUS",
-        resource="orders",
-        status="SUCCESS",
-        ip=request.client.host if request.client else None,
-        meta={"order_id": o.id, "old_status": old, "new_status": o.status}
-    )
+    old_status, new_status = order.status, payload.status
     
-    db.refresh(o) 
+    # Prosta walidacja, można rozbudować
+    if old_status == "shipped" or old_status == "cancelled":
+        raise HTTPException(status_code=400, detail=f"Cannot change status from {old_status}")
+
+    # Logika anulowania zamówienia przedpłaconego jest skomplikowana (zwrot środków)
+    # Na razie pozwalamy tylko na anulowanie przed wysyłką, bez automatycznego zwrotu stanu
+    if new_status == "cancelled" and old_status in ("pending_payment", "processing"):
+        # TODO: Implement refund logic via PayU API if needed
+        pass
+
+    order.status = new_status
+    db.commit()
+    write_log(db, user_id=current_user.id, action="ORDER_STATUS_CHANGE", resource="orders", status="SUCCESS",
+        ip=request.client.host, meta={"order_id": order.id, "old": old_status, "new": new_status})
+
+    db.refresh(order)
     order_with_relations = db.query(Order).options(
         joinedload(Order.items).joinedload(OrderItem.product)
-    ).filter(Order.id == o.id).first()
+    ).filter(Order.id == order.id).first()
     
     return _order_to_out(order_with_relations)

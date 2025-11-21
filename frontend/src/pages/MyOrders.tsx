@@ -43,10 +43,14 @@ function OrderCard({ order }: { order: Order }) {
 
   const statusMap: { [key: string]: string } = {
     pending: "Oczekujące",
+    pending_payment: "W trakcie realizacji",
     processing: "W trakcie realizacji",
     shipped: "Wysłane",
     cancelled: "Anulowane",
+    CANCELLED: "Anulowane",
   };
+  // Normalize status for display (handle different casing/whitespace)
+  const normalize = (s?: string) => (s || "").toString().trim().toLowerCase();
 
   return (
     <div className="bg-white rounded-lg shadow-md border overflow-hidden">
@@ -64,12 +68,13 @@ function OrderCard({ order }: { order: Order }) {
         </div>
         <div className="flex justify-between items-center">
           <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-            order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-            order.status === 'shipped' ? 'bg-green-100 text-green-800' :
-            order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-            'bg-blue-100 text-blue-800'
+            normalize(order.status) === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+            normalize(order.status) === 'shipped' ? 'bg-green-100 text-green-800' :
+            (normalize(order.status) === 'cancelled' || normalize(order.status) === 'CANCELLED') ? 'bg-red-100 text-red-800' :
+            (normalize(order.status) === 'processing' || normalize(order.status) === 'pending_payment') ? 'bg-blue-100 text-blue-800' :
+            'bg-gray-100 text-gray-800'
           }`}>
-            {statusMap[order.status] || order.status}
+            {statusMap[normalize(order.status)] || statusMap[order.status] || "Nieznany"}
           </span>
           <div className="flex items-center gap-4">
             <span className="text-xl font-bold">{order.total_amount.toFixed(2)} zł</span>
@@ -108,23 +113,32 @@ export default function MyOrdersPage() {
   const [data, setData] = useState<PaginatedOrders | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const loadOrders = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get<PaginatedOrders>("/orders", {
+        params: { page, page_size: 10 },
+      });
+      setData(res.data);
+    } catch (err) {
+      console.error("Błąd ładowania zamówień:", err);
+      toast.error("Nie udało się pobrać zamówień");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Load once on mount / when page changes
   useEffect(() => {
-    const loadOrders = async () => {
-      setLoading(true);
-      try {
-        const res = await api.get<PaginatedOrders>("/orders", {
-          params: { page, page_size: 10 },
-        });
-        setData(res.data);
-      } catch (err) {
-        console.error("Błąd ładowania zamówień:", err); // Poprawka błędu eslint
-        toast.error("Nie udało się pobrać zamówień");
-      } finally {
-        setLoading(false);
-      }
-    };
     loadOrders();
+  }, [page]);
+
+  // Poll periodically so the page reflects changes (e.g. WZ -> RELEASED -> order shipped)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadOrders();
+    }, 10000); // every 10 seconds
+    return () => clearInterval(interval);
   }, [page]);
 
   if (role !== "customer") return <div>Brak dostępu</div>;

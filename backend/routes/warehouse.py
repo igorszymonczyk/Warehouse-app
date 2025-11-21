@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.users import User
 from models.WarehouseDoc import WarehouseDocument, WarehouseStatus
+from models.invoice import Invoice
+from models.order import Order
 from utils.tokenJWT import get_current_user
 from utils.audit import write_log
 
@@ -143,6 +145,40 @@ def update_warehouse_status(
         meta={"doc_id": doc.id, "old_status": old_status, "new_status": new_status},
     )
 
+    # If WZ was released, mark the related order as shipped
+    try:
+        if new_status == WarehouseStatus.RELEASED:
+            # invoice -> order relationship: WarehouseDocument.invoice_id -> Invoice -> order_id
+            inv = db.query(Invoice).filter(Invoice.id == doc.invoice_id).first()
+            if inv and inv.order_id:
+                order = db.query(Order).filter(Order.id == inv.order_id).first()
+                if order:
+                    old = order.status
+                    order.status = "shipped"
+                    db.commit()
+                    write_log(
+                        db,
+                        user_id=current_user.id,
+                        action="ORDER_STATUS_FROM_WZ",
+                        resource="orders",
+                        status="SUCCESS",
+                        ip=request.client.host if request.client else None,
+                        meta={"order_id": order.id, "old_status": old, "new_status": order.status, "wz_id": doc.id},
+                    )
+    except Exception:
+        # don't block the WZ status change if order update fails; just log
+        try:
+            write_log(
+                db,
+                user_id=current_user.id,
+                action="ORDER_STATUS_FROM_WZ",
+                resource="orders",
+                status="FAILED",
+                ip=request.client.host if request.client else None,
+                meta={"wz_id": doc.id},
+            )
+        except Exception:
+            pass
     return {"message": f"Status changed from {old_status} → {new_status}"}
 
 # =============================
