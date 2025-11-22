@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, Download } from "lucide-react";
+import toast from "react-hot-toast";
 
 type WzItem = {
   id: number;
@@ -13,6 +14,9 @@ export default function WZPage() {
   const [rows, setRows] = useState<WzItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Stan do śledzenia pobierania konkretnego pliku
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
   const [buyer, setBuyer] = useState("");
   const [status, setStatus] = useState("");
@@ -59,6 +63,7 @@ export default function WZPage() {
       setTotal(res.data.total ?? 0);
     } catch {
       setError("Nie udało się pobrać dokumentów WZ");
+      toast.error("Błąd ładowania listy WZ");
     } finally {
       setLoading(false);
     }
@@ -74,18 +79,52 @@ export default function WZPage() {
 
   useEffect(() => { load(); }, [page]);
 
-  async function genPdf(id: number) {
-    await api.post(`/warehouse-documents/${id}/pdf`);
-    const base = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-    window.open(`${base}/warehouse-documents/${id}/download`, "_blank");
+  // --- NOWA LOGIKA POBIERANIA ---
+  async function downloadPdf(id: number) {
+    if (downloadingId === id) return;
+    
+    setDownloadingId(id);
+    const toastId = toast.loading("Generowanie i pobieranie WZ...");
+
+    try {
+      // 1. Generowanie PDF (jeśli nie istnieje)
+      await api.post(`/warehouse-documents/${id}/pdf`);
+      
+      // 2. Pobieranie Bloba
+      const res = await api.get(`/warehouse-documents/${id}/download`, {
+        responseType: 'blob',
+      });
+
+      // 3. Tworzenie linku i kliknięcie
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `WZ-${id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      
+      // Sprzątanie
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("Dokument WZ pobrany!", { id: toastId });
+    } catch (err) {
+      console.error(err);
+      toast.error("Nie udało się pobrać pliku PDF", { id: toastId });
+    } finally {
+      setDownloadingId(null);
+    }
   }
+  // ------------------------------
 
   async function changeStatus(id: number, status: WzItem["status"]) {
+    const toastId = toast.loading("Zmiana statusu...");
     try {
       await api.patch(`/warehouse-documents/${id}/status`, { status });
       setRows((r) => r.map((x) => (x.id === id ? { ...x, status } : x)));
+      toast.success("Status zmieniony", { id: toastId });
     } catch {
-      setError("Nie udało się zmienić statusu");
+      toast.error("Nie udało się zmienić statusu", { id: toastId });
     }
   }
 
@@ -103,7 +142,7 @@ export default function WZPage() {
             value={buyer}
             onChange={(e) => setBuyer(e.target.value)}
             placeholder="Nazwa odbiorcy"
-            className="border px-3 py-2 rounded w-64"
+            className="border px-3 py-2 rounded w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div>
@@ -111,7 +150,7 @@ export default function WZPage() {
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="border px-3 py-2 rounded"
+            className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Wszystkie</option>
             <option value="NEW">Nowy</option>
@@ -126,7 +165,7 @@ export default function WZPage() {
             type="date"
             value={fromDt}
             onChange={(e) => setFromDt(e.target.value)}
-            className="border px-3 py-2 rounded"
+            className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div>
@@ -135,113 +174,110 @@ export default function WZPage() {
             type="date"
             value={toDt}
             onChange={(e) => setToDt(e.target.value)}
-            className="border px-3 py-2 rounded"
+            className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       </div>
 
       {error && <div className="text-red-600 mb-2">{error}</div>}
-      {loading && <div>Ładowanie…</div>}
+      {loading && <div className="text-gray-500 mb-2">Ładowanie...</div>}
 
       {/* TABELA */}
-      <div className="overflow-x-auto border rounded">
+      <div className="overflow-x-auto border rounded shadow-sm">
         <table className="min-w-full text-sm bg-white">
-          <thead className="bg-gray-100">
+          <thead className="bg-gray-100 border-b">
             <tr>
               <th
-                className="p-2 border cursor-pointer"
+                className="p-3 border-r cursor-pointer select-none hover:bg-gray-200"
                 onClick={() => toggleSort("created_at")}
               >
-                <div className="flex items-center gap-1 justify-center">
+                <div className="flex items-center gap-1 font-semibold text-gray-700">
                   ID
                   <ArrowUpDown
-                    size={16}
+                    size={14}
                     className={
-                      sortBy === "created_at"
-                        ? order === "asc"
-                          ? "rotate-180 text-black"
-                          : "text-black"
-                        : "text-gray-400"
+                      sortBy === "created_at" ? "text-blue-600" : "text-gray-400"
                     }
                   />
                 </div>
               </th>
               <th
-                className="p-2 border cursor-pointer"
+                className="p-3 border-r cursor-pointer select-none hover:bg-gray-200"
                 onClick={() => toggleSort("buyer_name")}
               >
-                <div className="flex items-center gap-1 justify-center">
+                <div className="flex items-center gap-1 font-semibold text-gray-700">
                   Odbiorca
                   <ArrowUpDown
-                    size={16}
+                    size={14}
                     className={
-                      sortBy === "buyer_name"
-                        ? order === "asc"
-                          ? "rotate-180 text-black"
-                          : "text-black"
-                        : "text-gray-400"
+                      sortBy === "buyer_name" ? "text-blue-600" : "text-gray-400"
                     }
                   />
                 </div>
               </th>
               <th
-                className="p-2 border cursor-pointer"
+                className="p-3 border-r cursor-pointer select-none hover:bg-gray-200"
                 onClick={() => toggleSort("status")}
               >
-                <div className="flex items-center gap-1 justify-center">
+                <div className="flex items-center gap-1 font-semibold text-gray-700">
                   Status
                   <ArrowUpDown
-                    size={16}
+                    size={14}
                     className={
-                      sortBy === "status"
-                        ? order === "asc"
-                          ? "rotate-180 text-black"
-                          : "text-black"
-                        : "text-gray-400"
+                      sortBy === "status" ? "text-blue-600" : "text-gray-400"
                     }
                   />
                 </div>
               </th>
-              <th className="p-2 border">Data</th>
-              <th className="p-2 border">Akcje</th>
+              <th className="p-3 border-r font-semibold text-gray-700">Data</th>
+              <th className="p-3 font-semibold text-center text-gray-700">Akcje</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id}>
-                <td className="p-2 border">{r.id}</td>
-                <td className="p-2 border">{r.buyer_name ?? "-"}</td>
-                <td className="p-2 border">
+              <tr key={r.id} className="border-b hover:bg-gray-50 transition-colors">
+                <td className="p-3 border-r text-gray-900 font-medium">{r.id}</td>
+                <td className="p-3 border-r text-gray-800">{r.buyer_name ?? "-"}</td>
+                <td className="p-3 border-r">
                   <select
-                    className="border rounded px-2 py-1"
+                    className={`border rounded px-2 py-1 text-xs font-medium
+                      ${r.status === 'RELEASED' ? 'bg-green-50 text-green-700 border-green-200' : 
+                        r.status === 'CANCELLED' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-white'}`}
                     value={r.status}
                     onChange={(e) =>
                       changeStatus(r.id, e.target.value as WzItem["status"])
                     }
                   >
                     <option value="NEW">Nowy</option>
-                    <option value="IN_PROGRESS">W trakcie realizacji</option>
+                    <option value="IN_PROGRESS">W trakcie</option>
                     <option value="RELEASED">Wydane</option>
                     <option value="CANCELLED">Anulowany</option>
                   </select>
                 </td>
-                <td className="p-2 border">
-                  {new Date(r.created_at).toLocaleString()}
+                <td className="p-3 border-r text-gray-600">
+                  {new Date(r.created_at).toLocaleString("pl-PL")}
                 </td>
-                <td className="p-2 border text-center">
+                <td className="p-3 text-center">
                   <button
-                    className="px-2 py-1 border rounded"
-                    onClick={() => genPdf(r.id)}
+                    onClick={() => downloadPdf(r.id)}
+                    disabled={downloadingId === r.id}
+                    className={`inline-flex items-center gap-1 px-3 py-1.5 border rounded text-xs font-medium transition-colors
+                      ${downloadingId === r.id 
+                        ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
+                        : "bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
+                      }`}
+                    title="Pobierz PDF"
                   >
-                    PDF
+                    <Download size={14} />
+                    {downloadingId === r.id ? "Pobieranie..." : "PDF"}
                   </button>
                 </td>
               </tr>
             ))}
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-4 text-center text-gray-500">
-                  Brak danych
+                <td colSpan={5} className="p-8 text-center text-gray-500">
+                  Brak dokumentów spełniających kryteria.
                 </td>
               </tr>
             )}
@@ -250,19 +286,19 @@ export default function WZPage() {
       </div>
 
       {/* PAGINACJA */}
-      <div className="mt-4 flex items-center gap-3">
+      <div className="mt-4 flex items-center justify-center gap-4">
         <button
-          className="border rounded px-3 py-1 disabled:opacity-50"
+          className="border rounded px-4 py-2 hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white text-sm"
           disabled={page === 1}
           onClick={() => setPage((p) => p - 1)}
         >
           Poprzednia
         </button>
-        <span>
-          Strona {page} / {totalPages}
+        <span className="text-sm font-medium">
+          Strona {page} z {totalPages}
         </span>
         <button
-          className="border rounded px-3 py-1 disabled:opacity-50"
+          className="border rounded px-4 py-2 hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white text-sm"
           disabled={page >= totalPages}
           onClick={() => setPage((p) => p + 1)}
         >

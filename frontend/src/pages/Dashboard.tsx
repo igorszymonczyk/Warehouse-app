@@ -1,10 +1,9 @@
-// frontend/src/pages/Dashboard.tsx
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import toast from "react-hot-toast";
 import { useAuth } from "../store/auth";
-import CustomerShop from "../components/CustomerShop";
+import CustomerShop from "./CustomerShop";
 
 import {
   DollarSign,
@@ -13,8 +12,8 @@ import {
   Archive,
   TrendingUp,
   Lightbulb,
-  Package, // <-- NOWY IMPORT
-  ListOrdered, // <-- NOWY IMPORT
+  Package,
+  ListOrdered,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -28,7 +27,7 @@ import {
 } from "recharts";
 
 // === TYPY DANYCH ===
-type WzDoc = { // <-- NOWY TYP DANYCH
+type WzDoc = {
     id: number;
     buyer_name: string;
     status: 'NEW' | 'IN_PROGRESS' | 'RELEASED' | 'CANCELLED';
@@ -71,7 +70,6 @@ type StatCardProps = {
 };
 
 function StatCard({ title, value, icon, colorClass, to }: StatCardProps) {
-  // ... (bez zmian) ...
   const cardContent = (
     <div
       className={`bg-white p-6 rounded-lg shadow-md flex items-center gap-4 transition-shadow duration-200 ${
@@ -105,7 +103,7 @@ function StatCard({ title, value, icon, colorClass, to }: StatCardProps) {
   return cardContent;
 }
 
-// === KOMPONENTY WYKRESÓW I LIST (bez zmian) ===
+// === KOMPONENTY WYKRESÓW I LIST ===
 
 function RevenueChart({ data }: { data: ChartDataPoint[] }) {
   return (
@@ -216,7 +214,7 @@ function RecommendationPanel({ rules }: { rules: RecommendationRule[] }) {
 }
 
 
-// === PULPIT DLA MAGAZYNIERA === <---------------------------------- NOWY KOMPONENT
+// === PULPIT DLA MAGAZYNIERA ===
 function WarehouseDashboard() {
     const [wzPending, setWzPending] = useState<WzDoc[]>([]);
     const [loading, setLoading] = useState(true);
@@ -226,7 +224,7 @@ function WarehouseDashboard() {
         const loadWzData = async () => {
             try {
                 setLoading(true);
-                // 1. Pobieramy dokumenty WZ ze statusami NEW lub IN_PROGRESS
+                // Pobieramy dokumenty WZ ze statusami NEW lub IN_PROGRESS
                 const res = await api.get<{ items: WzDoc[], total: number }>("/warehouse-documents", {
                     params: {
                         status: ["NEW", "IN_PROGRESS"], // Filtr po wielu statusach
@@ -234,9 +232,6 @@ function WarehouseDashboard() {
                     }
                 });
                 setWzPending(res.data.items);
-
-                // 2. Opcjonalnie: możemy też pobrać statystyki low_stock
-                
             } catch (err) {
                 console.error(err);
                 setError("Nie udało się załadować listy WZ.");
@@ -262,10 +257,9 @@ function WarehouseDashboard() {
                     colorClass={wzCount > 0 ? "bg-red-600" : "bg-green-600"}
                     to="/wz"
                 />
-                {/* TUTAJ MOŻNA DODAĆ DRUGĄ KARTĘ np. Produkty na wyczerpaniu */}
                 <StatCard
-                    title="Całkowita liczba WZ (historia)"
-                    value={"..."} 
+                    title="Przejdź do listy WZ"
+                    value={"→"} 
                     icon={<Archive size={24} />}
                     colorClass={"bg-gray-500"}
                     to="/wz"
@@ -283,7 +277,7 @@ function WarehouseDashboard() {
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         {wzPending.map(doc => (
                             <Link 
-                                to={`/wz?doc_id=${doc.id}`} // Zakładamy, że WZ przyjmuje ID w query
+                                to={`/wz?doc_id=${doc.id}`}
                                 key={doc.id} 
                                 className="block border-b p-2 hover:bg-gray-50 transition"
                             >
@@ -301,19 +295,16 @@ function WarehouseDashboard() {
 }
 
 
-// === PULPIT DLA ADMINA / SPRZEDAWCY (AI jest w tym komponencie) ===
+// === PULPIT DLA ADMINA / SPRZEDAWCY ===
 function AdminSalesmanDashboard() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
   const [recommendations, setRecommendations] = useState<RecommendationRule[]>([]);
   
-  // 5. ZMIANA: Dodajemy stan na rekomendacje
-  // ... (reszta stanów i logiki ładowania bez zmian) ...
-  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [loadingAI, setLoadingAI] = useState(true); // Nowy stan dla ładowania AI
+  const [loadingAI, setLoadingAI] = useState(true); 
 
   useEffect(() => {
     const loadRecommendations = async () => {
@@ -340,10 +331,8 @@ function AdminSalesmanDashboard() {
         ]);
         setStats(statsRes.data);
         
-        // ZMIANA: Konwersja pola revenue na liczbę (Number())
         const validatedChartData = chartRes.data.data.map(item => ({
             ...item,
-            // Number(null) daje 0, ale Number(undefined) daje NaN, stąd || 0
             revenue: Number(item.revenue) || 0,
         }));
         
@@ -359,7 +348,6 @@ function AdminSalesmanDashboard() {
       }
     };
     
-    // Ładujemy dane statystyczne i rekomendacje równolegle
     loadDashboardData();
     loadRecommendations();
   }, []);
@@ -384,7 +372,7 @@ function AdminSalesmanDashboard() {
 
   return (
     <>
-      {/* Panel AI widoczny tylko dla Admin/Salesman */}
+      {/* Panel AI */}
       <div className="mb-6">
           {loadingAI ? (
             <p className="text-sm text-gray-500">Ładowanie analizy AI...</p>
@@ -439,27 +427,23 @@ function AdminSalesmanDashboard() {
 function CustomerDashboard() {
   return (
     <>
-      {/* Wstawiamy komponent sklepu zamiast tekstu */}
       <CustomerShop />
-      {/* TODO: Dodać listę "Moje Zamówienia" i "Moje Faktury" */}
     </>
   );
 }
 
-// === GŁÓWNY KOMPONENT DASHBOARD (Router) ===
+// === GŁÓWNY KOMPONENT DASHBOARD ===
 export default function Dashboard() {
-  // Pobieramy rolę
   const { role } = useAuth();
 
   return (
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-4">Pulpit</h1>
       
-      {/* Renderujemy odpowiedni pulpit na podstawie roli */}
       {role === "admin" || role === "salesman" ? (
         <AdminSalesmanDashboard />
       ) : role === "warehouse" ? (
-        <WarehouseDashboard /> // <-- ZMIANA: Nowy pulpit dla Magazyniera
+        <WarehouseDashboard /> 
       ) : (
         <CustomerDashboard />
       )}

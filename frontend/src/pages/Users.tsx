@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { ArrowUpDown, Trash2 } from "lucide-react"; // Dodałem Trash2
 import toast from "react-hot-toast"; // 1. ZMIANA: Import toast
-import ConfirmationModal from "../components/ConfirmationModal"; // 2. ZMIANA: Import modala
+import ConfirmationModal from "./ConfirmationModal"; // 2. ZMIANA: Import modala
 
 type User = {
   id: number;
@@ -278,13 +278,13 @@ export default function UsersPage() {
           </div>
 
           {/* Paginacja (bez zmian) */}
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex items-center justify-center gap-3">
             <button
               className="border rounded px-3 py-1 disabled:opacity-50"
               disabled={page === 1}
               onClick={() => setPage((p) => p - 1)}
             >
-              Prev
+              Poprz.
             </button>
             <span>
               Strona {page} / {totalPages}
@@ -294,7 +294,7 @@ export default function UsersPage() {
               disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
             >
-              Next
+              Nast.
             </button>
           </div>
         </>

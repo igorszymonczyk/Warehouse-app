@@ -142,7 +142,6 @@ export default function CustomerShop() {
         setAllCategories(res.data.filter(c => c));
       } catch (err) {
         console.error("Failed to fetch categories", err);
-        // Nie blokujemy UI błędem, po prostu brak kategorii w filtrze
       } finally {
         setCategoryLoading(false);
       }

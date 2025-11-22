@@ -2,7 +2,7 @@ import { Outlet, useNavigate, NavLink } from "react-router-dom";
 import { useAuth } from "../store/auth";
 import { ShoppingCart, Building } from "lucide-react";
 import { useState } from "react";
-import CompanyDataModal from "./CompanyDataModal";
+import CompanyDataModal from "../pages/CompanyDataModal";
 
 export default function Layout() {
   const { role, logout, cart } = useAuth();
