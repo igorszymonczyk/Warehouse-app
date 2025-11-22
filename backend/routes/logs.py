@@ -1,39 +1,67 @@
-# routes/logs.py
-from typing import Optional
-from fastapi import APIRouter, Depends, Query
+# backend/routes/logs.py
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from typing import List, Optional, Any
+from datetime import datetime
+from pydantic import BaseModel
+
 from database import get_db
-from models.log import Log
-from utils.tokenJWT import role_required
+from models.log import Log  # Model z kolumną 'ts'
+from models.users import User
+from utils.tokenJWT import get_current_user
 
 router = APIRouter(prefix="/logs", tags=["Logs"])
 
-@router.get("", dependencies=[Depends(role_required("ADMIN"))])
-def list_logs(
-    db: Session = Depends(get_db),
-    user_id: Optional[int] = Query(None),
-    action: Optional[str] = Query(None),
-    resource: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    from_: Optional[str] = Query(None, alias="from"),
-    to: Optional[str] = Query(None),
-    page: int = 1,
-    page_size: int = 50,
-):
-    q = db.query(Log)
-    if user_id is not None:
-        q = q.filter(Log.user_id == user_id)
-    if action:
-        q = q.filter(Log.action == action)
-    if resource:
-        q = q.filter(Log.resource == resource)
-    if status:
-        q = q.filter(Log.status == status)
-    if from_:
-        q = q.filter(Log.ts >= from_)
-    if to:
-        q = q.filter(Log.ts <= to)
+# --- SCHEMATY (Tylko do odczytu) ---
+class LogResponse(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    action: str
+    resource: str
+    status: str
+    ip_address: Optional[str] = None
+    # ZMIANA: Używamy 'ts' do odczytu daty
+    ts: datetime 
+    meta: Optional[Any] = None # JSON field
 
-    total = q.count()
-    items = q.order_by(Log.ts.desc()).offset((page - 1) * page_size).limit(page_size).all()
-    return {"items": items, "total": total, "page": page, "page_size": page_size}
+    class Config:
+        from_attributes = True
+
+class LogPage(BaseModel):
+    items: List[LogResponse]
+    total: int
+    page: int
+    page_size: int
+
+# --- ENDPOINT ---
+@router.get("", response_model=LogPage)
+def get_logs(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    action: Optional[str] = Query(None, description="Filtruj po akcji"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # 1. Tylko Admin ma dostęp
+    if (current_user.role or "").upper() != "ADMIN":
+        raise HTTPException(status_code=403, detail="Tylko administrator może przeglądać logi.")
+
+    # 2. Budowanie zapytania
+    query = db.query(Log)
+
+    if action:
+        query = query.filter(Log.action.ilike(f"%{action}%"))
+
+    # 3. ZMIANA: Sortowanie po polu 'ts' (zamiast 'timestamp')
+    query = query.order_by(Log.ts.desc())
+
+    # 4. Paginacja
+    total = query.count()
+    logs = query.offset((page - 1) * page_size).limit(page_size).all()
+
+    return {
+        "items": logs,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }

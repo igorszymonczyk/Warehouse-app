@@ -1,3 +1,4 @@
+// frontend/src/components/Layout.tsx
 import { Outlet, useNavigate, NavLink } from "react-router-dom";
 import { useAuth } from "../store/auth";
 import { ShoppingCart, Building } from "lucide-react";
@@ -59,12 +60,20 @@ export default function Layout() {
             </>
           )}
           {role === "admin" && (
-            <NavLink
-              to="/users"
-              className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
-            >
-              Użytkownicy
-            </NavLink>
+            <>
+              <NavLink
+                to="/users"
+                className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
+              >
+                Użytkownicy
+              </NavLink>
+              <NavLink
+                  to="/logs"
+                  className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
+                >
+                  Logi
+              </NavLink>
+            </>
           )}
           {role === "warehouse" && (
             <>
@@ -121,8 +130,14 @@ export default function Layout() {
               )}
             </NavLink>
           )}
+          
+          {/* ZMIANA: Przycisk edycji danych firmy tylko dla Admina */}
           {role === "admin" && (
-            <button title="Dane firmy" onClick={() => setCompanyModalOpen(true)} className="px-2 py-1 rounded text-gray-600 hover:bg-gray-100">
+            <button 
+                title="Dane firmy" 
+                onClick={() => setCompanyModalOpen(true)} 
+                className="p-2 rounded text-gray-600 hover:bg-gray-100 hover:text-blue-600 transition"
+            >
               <Building size={20} />
             </button>
           )}
@@ -131,7 +146,10 @@ export default function Layout() {
             Wyloguj
           </button>
         </div>
+
+        {/* ZMIANA: Modal danych firmy */}
         <CompanyDataModal open={companyModalOpen} onClose={() => setCompanyModalOpen(false)} />
+        
       </header>
       <main className="p-6">
         <Outlet />
