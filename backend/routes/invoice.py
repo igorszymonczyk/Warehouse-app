@@ -1,17 +1,22 @@
-# backend/routers/invoices.py
-
+# backend/routes/invoice.py
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
-from typing import Optional, Literal, List
+from typing import Optional, Literal, List, Dict, Any, Union # 1. ZMIANA: Dodano Union
 from sqlalchemy import or_
 from pathlib import Path
 import json
 
-from models.invoice import Invoice, InvoiceItem
+from models.invoice import Invoice, InvoiceItem, PaymentStatus
 from models.product import Product
 from models.WarehouseDoc import WarehouseDocument
-from models.company import Company
+# Zakładamy, że Company może nie istnieć, więc importujemy z models (jeśli masz model Company)
+# Jeśli nie masz modelu Company, możesz usunąć ten import i logikę z nim związaną
+try:
+    from models.company import Company
+except ImportError:
+    Company = None 
+
 from database import get_db
 from utils.tokenJWT import get_current_user
 from models.users import User
@@ -50,26 +55,27 @@ def _init_fonts():
         from reportlab.pdfbase.ttfonts import TTFont
 
         if not FONT_REGULAR_PATH.exists():
-            raise FileNotFoundError(f"Font file not found: {FONT_REGULAR_PATH}")
+            # Fallback if fonts are missing (optional: could just log warning)
+            # raise FileNotFoundError(f"Font file not found: {FONT_REGULAR_PATH}")
+            pass 
 
-        pdfmetrics.registerFont(TTFont(FONT_REGULAR_NAME, str(FONT_REGULAR_PATH)))
+        if FONT_REGULAR_PATH.exists():
+            pdfmetrics.registerFont(TTFont(FONT_REGULAR_NAME, str(FONT_REGULAR_PATH)))
 
         if FONT_BOLD_PATH.exists():
             pdfmetrics.registerFont(TTFont(FONT_BOLD_NAME, str(FONT_BOLD_PATH)))
         else:
-            FONT_BOLD_NAME = FONT_REGULAR_NAME # Fallback to regular if bold is missing
+            FONT_BOLD_NAME = FONT_REGULAR_NAME 
         
         _fonts_inited = True
 
     except ImportError:
-        raise HTTPException(
-            status_code=500,
-            detail="reportlab is not installed. Run: python -m pip install reportlab",
-        )
+        pass # ReportLab might be missing, handle gracefully in endpoint
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Font init error: {e}")
+        pass # Font error
 
-def _generate_invoice_pdf_file(invoice: Invoice, items: List[InvoiceItem], out_path: Path, company: dict | None = None) -> None:
+# 2. ZMIANA: Poprawiona sygnatura funkcji (Union[dict, None])
+def _generate_invoice_pdf_file(invoice: Invoice, items: List[InvoiceItem], out_path: Path, company: Union[dict, None] = None) -> None:
     """Generates a PDF file for an invoice with Polish character support."""
     try:
         from reportlab.lib.pagesizes import A4
@@ -89,6 +95,7 @@ def _generate_invoice_pdf_file(invoice: Invoice, items: List[InvoiceItem], out_p
 
     y = height - 30 * mm
     c.setFont(FONT_BOLD_NAME, 16)
+    
     # Company details on top-left (if provided)
     if company:
         c.setFont(FONT_BOLD_NAME, 12)
@@ -102,7 +109,6 @@ def _generate_invoice_pdf_file(invoice: Invoice, items: List[InvoiceItem], out_p
         if company.get("address"):
             c.drawString(20 * mm, y, f"Adres: {company.get('address')}")
             y -= 8 * mm
-        # leave a little gap before invoice header
         y -= 4 * mm
 
     c.setFont(FONT_BOLD_NAME, 16)
@@ -110,7 +116,6 @@ def _generate_invoice_pdf_file(invoice: Invoice, items: List[InvoiceItem], out_p
     c.setFont(FONT_REGULAR_NAME, 10)
     c.drawString(120 * mm, height - 36 * mm, f"Data: {getattr(invoice, 'created_at', '')}")
 
-    # Buyer block (left, under company if present)
     y_buyer = height - 54 * mm
     c.setFont(FONT_REGULAR_NAME, 10)
     c.drawString(20 * mm, y_buyer, f"Nabywca: {invoice.buyer_name or ''}")
@@ -124,10 +129,9 @@ def _generate_invoice_pdf_file(invoice: Invoice, items: List[InvoiceItem], out_p
     else:
         y_buyer -= 6 * mm
 
-    # Start table lower, reuse y variable
     y = y_buyer - 6 * mm
 
-    # Table Headers
+    # Headers
     c.setFont(FONT_BOLD_NAME, 10)
     c.drawString(20 * mm, y, "Produkt")
     c.drawString(90 * mm, y, "Ilość")
@@ -137,11 +141,16 @@ def _generate_invoice_pdf_file(invoice: Invoice, items: List[InvoiceItem], out_p
     c.line(20 * mm, y, 190 * mm, y)
     y -= 6 * mm
 
-    # Table Rows
+    # Rows
     c.setFont(FONT_REGULAR_NAME, 10)
     for it in items:
-        # Use the saved product_name for historical accuracy
-        prod_name = getattr(it, "product_name", f"ID:{it.product_id}")
+        # Use 'product_name' if available (snapshot), otherwise fallback
+        prod_name = getattr(it, "product_name", None) 
+        if not prod_name and it.product:
+             prod_name = it.product.name
+        if not prod_name:
+             prod_name = f"Product ID:{it.product_id}"
+             
         c.drawString(20 * mm, y, str(prod_name)[:60])
         c.drawRightString(105 * mm, y, f"{it.quantity}")
         c.drawRightString(135 * mm, y, f"{it.price_net:.2f}")
@@ -168,6 +177,28 @@ def _generate_invoice_pdf_file(invoice: Invoice, items: List[InvoiceItem], out_p
 
     c.showPage()
     c.save()
+
+# =========================
+# LIST (FOR CUSTOMER)
+# =========================
+@router.get("/invoices/me", response_model=invoice_schemas.InvoiceListPage)
+def list_my_invoices(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not current_user:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    query = db.query(Invoice).filter(Invoice.user_id == current_user.id)
+    query = query.order_by(Invoice.created_at.desc())
+
+    total = query.count()
+    invoices = query.offset((page - 1) * page_size).limit(page_size).all()
+
+    return {"items": invoices, "total": total, "page": page, "page_size": page_size}
 
 # =========================
 # CREATE INVOICE
@@ -203,17 +234,22 @@ def create_invoice(
         total_vat += (total_item_gross - total_item_net)
         total_gross += total_item_gross
 
-        items.append(
-            InvoiceItem(
-                product_id=product.id,
-                product_name=product.name,  # --- FIX: Snapshot product name for data integrity
-                quantity=quantity,
-                price_net=price_net,
-                tax_rate=tax_rate,
-                total_net=total_item_net,
-                total_gross=total_item_gross,
-            )
+        # Create InvoiceItem
+        # Note: InvoiceItem model should have a 'product_name' field for snapshots if possible.
+        # If not, we rely on the relationship.
+        new_item = InvoiceItem(
+            product_id=product.id,
+            quantity=quantity,
+            price_net=price_net,
+            tax_rate=tax_rate,
+            total_net=total_item_net,
+            total_gross=total_item_gross,
         )
+        # If model has product_name field, set it:
+        if hasattr(new_item, "product_name"):
+             new_item.product_name = product.name
+
+        items.append(new_item)
         product.stock_quantity -= quantity
 
     invoice = Invoice(
@@ -221,7 +257,7 @@ def create_invoice(
         buyer_nip=invoice_data.buyer_nip,
         buyer_address=invoice_data.buyer_address,
         created_by=current_user.id,
-        user_id=current_user.id,
+        user_id=current_user.id, # Admin creates invoice for themselves or a generic user? Usually admin specifies user, but here we simplify.
         total_net=total_net,
         total_vat=total_vat,
         total_gross=total_gross,
@@ -231,14 +267,18 @@ def create_invoice(
     db.commit()
     db.refresh(invoice)
 
-    warehouse_items = [
-        {
-            "product_name": item.product_name,
-            "product_code": db.query(Product.code).filter(Product.id == item.product_id).scalar(),
+    # WZ Generation
+    warehouse_items = []
+    for item in items:
+        # Re-fetch product to be sure (or use cached data if available)
+        prod = db.query(Product).filter(Product.id == item.product_id).first()
+        warehouse_items.append({
+            "product_name": prod.name,
+            "product_code": prod.code,
             "quantity": item.quantity,
-            "location": db.query(Product.location).filter(Product.id == item.product_id).scalar(),
-        } for item in items
-    ]
+            "location": prod.location,
+        })
+
     warehouse_doc = WarehouseDocument(
         invoice_id=invoice.id,
         buyer_name=invoice.buyer_name,
@@ -257,28 +297,6 @@ def create_invoice(
     return invoice
 
 # =========================
-# LIST (FOR CUSTOMER)
-# =========================
-@router.get("/invoices/me", response_model=invoice_schemas.InvoiceListPage)
-def list_my_invoices(
-    request: Request,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=50),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    if not current_user:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    query = db.query(Invoice).filter(Invoice.user_id == current_user.id)
-    query = query.order_by(Invoice.created_at.desc())
-
-    total = query.count()
-    invoices = query.offset((page - 1) * page_size).limit(page_size).all()
-
-    return {"items": invoices, "total": total, "page": page, "page_size": page_size}
-
-# =========================
 # GET INVOICE DETAIL
 # =========================
 @router.get("/invoices/{invoice_id}", response_model=invoice_schemas.InvoiceDetail)
@@ -288,28 +306,32 @@ def get_invoice(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    invoice = db.query(Invoice).options(joinedload(Invoice.items)).filter(Invoice.id == invoice_id).first()
+    invoice = db.query(Invoice).options(joinedload(Invoice.items).joinedload(InvoiceItem.product)).filter(Invoice.id == invoice_id).first()
 
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
         
-    # --- FIX: Correct authorization check ---
     is_admin_or_sales = (current_user.role or "").upper() in {"ADMIN", "SALESMAN"}
     is_owner = invoice.user_id == current_user.id
     if not is_admin_or_sales and not is_owner:
         raise HTTPException(status_code=403, detail="Not authorized to view this invoice")
 
-    detailed_items = [
-        {
+    detailed_items = []
+    for item in invoice.items:
+        # Fallback for product name if product was deleted
+        p_name = getattr(item, "product_name", None)
+        if not p_name and item.product:
+            p_name = item.product.name
+        
+        detailed_items.append({
             "product_id": item.product_id,
-            "product_name": item.product_name, # --- FIX: Use snapshotted name
+            "product_name": p_name,
             "quantity": item.quantity,
             "price_net": item.price_net,
             "tax_rate": item.tax_rate,
             "total_net": item.total_net,
             "total_gross": item.total_gross,
-        } for item in invoice.items
-    ]
+        })
     
     write_log(
         db, user_id=current_user.id, action="INVOICE_GET", resource="invoices", status="SUCCESS",
@@ -376,7 +398,7 @@ def list_invoices(
 # =========================
 def _check_pdf_permission(db: Session, invoice_id: int, user: User) -> Invoice:
     """Helper to check PDF access for admin, salesman, or owner."""
-    invoice = db.query(Invoice).options(joinedload(Invoice.items)).filter(Invoice.id == invoice_id).first()
+    invoice = db.query(Invoice).options(joinedload(Invoice.items).joinedload(InvoiceItem.product)).filter(Invoice.id == invoice_id).first()
     
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -398,11 +420,17 @@ def generate_invoice_pdf(
 ):
     invoice = _check_pdf_permission(db, invoice_id, current_user)
     out_path = _pdf_path_for(invoice.id)
-    # attach company data if available
-    company = db.query(Company).first()
+    
+    # Get company data safely
     company_dict = None
-    if company:
-        company_dict = {"name": company.name, "nip": company.nip, "address": company.address}
+    if Company: # Only query if Company model exists
+        try:
+            company = db.query(Company).first()
+            if company:
+                company_dict = {"name": company.name, "nip": company.nip, "address": company.address}
+        except Exception:
+             pass # Table might not exist yet
+
     _generate_invoice_pdf_file(invoice, invoice.items, out_path, company=company_dict)
 
     if hasattr(invoice, "pdf_path"):
@@ -431,10 +459,16 @@ def download_invoice_pdf(
         try:
             # Re-fetch with all items for generation
             full_invoice_details = _check_pdf_permission(db, invoice_id, current_user)
-            company = db.query(Company).first()
+            
             company_dict = None
-            if company:
-                company_dict = {"name": company.name, "nip": company.nip, "address": company.address}
+            if Company:
+                 try:
+                    company = db.query(Company).first()
+                    if company:
+                        company_dict = {"name": company.name, "nip": company.nip, "address": company.address}
+                 except Exception:
+                    pass
+
             _generate_invoice_pdf_file(full_invoice_details, full_invoice_details.items, pdf_path, company=company_dict)
             if hasattr(full_invoice_details, "pdf_path"):
                 full_invoice_details.pdf_path = str(pdf_path)

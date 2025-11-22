@@ -1,13 +1,10 @@
-// src/pages/CreateInvoice.tsx
-
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { Trash2 } from "lucide-react";
 import { useForm, useFieldArray, type SubmitHandler } from "react-hook-form";
-import toast from "react-hot-toast"; // 1. Zaimportuj toast
+import toast from "react-hot-toast"; 
 
-// Definicja typu produktu (zostaje bez zmian)
 type Product = {
   id: number;
   name: string;
@@ -17,7 +14,6 @@ type Product = {
   stock_quantity: number;
 };
 
-// Definicja typu pozycji faktury
 type InvoiceItem = {
   product_id: number;
   name: string;
@@ -26,7 +22,6 @@ type InvoiceItem = {
   tax_rate: number;
 };
 
-// Definicja typów dla react-hook-form
 type InvoiceFormInputs = {
   buyer_name: string;
   buyer_nip: string;
@@ -37,17 +32,14 @@ type InvoiceFormInputs = {
 export default function CreateInvoice() {
   const navigate = useNavigate();
 
-  // --- Stany, które zostają ---
-  const [products, setProducts] = useState<Product[]>([]);
+  // --- ZMIANA 1: Zamiast pełnej listy produktów, mamy wyniki wyszukiwania ---
+  const [searchResults, setSearchResults] = useState<Product[]>([]); // Wyniki z backendu
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState(""); // Do opóźniania zapytań
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 2. Usuwamy stan `submitError` - toasty zajmą się błędami
-  // const [submitError, setSubmitError] = useState<string | null>(null);
-
-  // --- SETUP REACT-HOOK-FORM ---
   const {
     register,
     control,
@@ -63,31 +55,51 @@ export default function CreateInvoice() {
     },
   });
 
-  // --- SETUP USEFIELDARRAY ---
   const { fields, append, remove } = useFieldArray({
     control,
     name: "items",
     keyName: "keyId",
   });
 
-  // --- POBIERANIE PRODUKTÓW ---
+  // --- ZMIANA 2: Logika Debounce (Opóźnienie) ---
   useEffect(() => {
-    const loadProducts = async () => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300); // Czekamy 300ms po ostatnim naciśnięciu klawisza
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // --- ZMIANA 3: Wyszukiwanie po stronie serwera ---
+  useEffect(() => {
+    // Jeśli fraza jest za krótka, czyścimy wyniki i nie pytamy API
+    if (!debouncedSearch || debouncedSearch.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const fetchProducts = async () => {
       try {
-        const res = await api.get("/products");
+        // Pytamy backend o produkty pasujące do frazy 'q'
+        const res = await api.get("/products", {
+          params: { q: debouncedSearch, page_size: 20 } // Pobieramy max 20 wyników
+        });
+        
+        // Obsługa różnych formatów odpowiedzi (paginowana lub lista)
         const data = res.data;
         const list = Array.isArray(data) ? data : data.items || [];
-        setProducts(list);
+        setSearchResults(list);
       } catch (err) {
-        console.error(err);
-        toast.error("Nie udało się pobrać listy produktów"); // Możemy też tutaj!
-        setProducts([]);
+        console.error("Błąd wyszukiwania:", err);
+        // Nie wyświetlamy toasta przy każdym błędzie wyszukiwania, żeby nie irytować usera
+        setSearchResults([]);
       }
     };
-    loadProducts();
-  }, []);
 
-  // --- UŻYCIE 'WATCH' DO PRZELICZANIA SUM ---
+    fetchProducts();
+  }, [debouncedSearch]);
+
+
   const watchedItems = watch("items");
   const totalNet = watchedItems.reduce((sum, i) => sum + i.price_net * i.quantity, 0);
   const totalVat = watchedItems.reduce(
@@ -96,15 +108,12 @@ export default function CreateInvoice() {
   );
   const totalGross = totalNet + totalVat;
 
-  // --- FILTR PRODUKTÓW ---
-  const filteredProducts = products.filter(
-    (p) =>
-      (p.name.toLowerCase().includes(search.toLowerCase()) ||
-        p.code.toLowerCase().includes(search.toLowerCase())) &&
-      !watchedItems.some((item) => item.product_id === p.id)
+  // --- ZMIANA 4: Filtrowanie wyników (tylko te, których nie ma na fakturze) ---
+  // Teraz filtrujemy 'searchResults' (małą listę z API), a nie 'products' (całą bazę)
+  const filteredProducts = searchResults.filter(
+    (p) => !watchedItems.some((item) => item.product_id === p.id)
   );
 
-  // --- NOWA FUNKCJA DODAWANIA POZYCJI ---
   const handleAddProduct = (product: Product) => {
     append({
       product_id: product.id,
@@ -113,12 +122,12 @@ export default function CreateInvoice() {
       price_net: product.sell_price_net,
       tax_rate: product.tax_rate ?? 23,
     });
-    setSearch("");
+    setSearch(""); // Czyścimy pole wyszukiwania
+    setSearchResults([]); // Czyścimy wyniki po dodaniu
     setFocused(false);
     inputRef.current?.blur();
   };
 
-  // --- 3. ZAKTUALIZOWANA FUNKCJA SUBMIT ---
   const onSubmit: SubmitHandler<InvoiceFormInputs> = async (data) => {
     if (data.items.length === 0) {
       toast.error("Dodaj przynajmniej jeden produkt do faktury.");
@@ -129,11 +138,11 @@ export default function CreateInvoice() {
     
     try {
       await api.post("/invoices", data);
-      toast.success("Faktura została utworzona"); // Zamiast alert()
+      toast.success("Faktura została utworzona");
       navigate("/invoices");
     } catch (err) {
       console.error(err);
-      toast.error("Błąd przy tworzeniu faktury. Spróbuj ponownie."); // Zamiast setSubmitError
+      toast.error("Błąd przy tworzeniu faktury. Spróbuj ponownie.");
     } finally {
       setIsSubmitting(false);
     }
@@ -149,15 +158,10 @@ export default function CreateInvoice() {
     }
   };
 
-  // --- RENDER ---
   return (
     <form className="p-6" onSubmit={handleSubmit(onSubmit)}>
       <h1 className="text-2xl font-semibold mb-4">Nowa faktura</h1>
 
-      {/* 4. Usuwamy wyświetlanie błędu - toasty są globalne */}
-      {/* {submitError && <p className="text-red-500 mb-3">{submitError}</p>} */}
-
-      {/* --- SEKCJA NABYWCY --- */}
       <div className="grid gap-4 max-w-2xl mb-6">
         <div>
           <input
@@ -190,33 +194,42 @@ export default function CreateInvoice() {
         <input
           ref={inputRef}
           className="border rounded p-2 w-full"
-          placeholder="Wpisz nazwę lub kod produktu..."
+          placeholder="Wpisz min. 2 znaki nazwy lub kodu..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setTimeout(() => setFocused(false), 150)}
         />
-        {focused && search && (
+        {focused && search.length >= 2 && (
           <ul className="absolute z-10 bg-white border rounded mt-1 shadow max-h-60 overflow-auto w-full">
             {filteredProducts.length > 0 ? (
-              filteredProducts.slice(0, 10).map((p) => (
+              filteredProducts.map((p) => (
                 <li
                   key={p.id}
                   onMouseDown={() => handleAddProduct(p)}
-                  className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex justify-between"
+                  className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center border-b last:border-none"
                 >
-                  <span>
-                    {p.name} <span className="text-gray-500">({p.code})</span>
-                  </span>
-                  <span className="text-gray-600 text-sm">
-                    {p.sell_price_net.toFixed(2)} zł
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{p.name}</span>
+                    <span className="text-gray-500 text-xs">Kod: {p.code}</span>
+                  </div>
+                  <div className="text-right">
+                     <span className="text-gray-800 font-semibold text-sm">
+                        {p.sell_price_net.toFixed(2)} zł
+                     </span>
+                     <div className="text-xs text-gray-400">Stan: {p.stock_quantity}</div>
+                  </div>
                 </li>
               ))
             ) : (
               <li className="px-3 py-2 text-gray-500">Brak pasujących produktów</li>
             )}
           </ul>
+        )}
+        {focused && search && search.length < 2 && (
+             <div className="absolute z-10 bg-white border rounded mt-1 shadow w-full px-3 py-2 text-gray-400 text-sm">
+                 Wpisz więcej znaków...
+             </div>
         )}
       </div>
 
@@ -294,7 +307,7 @@ export default function CreateInvoice() {
           {fields.length === 0 && (
             <tr>
               <td colSpan={6} className="text-center text-gray-500 p-3">
-                Brak pozycji
+                Brak pozycji. Wyszukaj i dodaj produkt powyżej.
               </td>
             </tr>
           )}
