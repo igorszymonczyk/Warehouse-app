@@ -20,6 +20,7 @@ import CheckoutPage from "./pages/Checkout";
 import MyOrdersPage from "./pages/MyOrders";
 import MyInvoicesPage from "./pages/MyInvoices";
 import InvoiceDetailPage from "./pages/InvoiceDetail";
+import LogsPage from "./pages/Logs"; // Import już tu był, teraz użyjemy go w routerze
 
 
 const router = createBrowserRouter([
@@ -34,7 +35,8 @@ const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Dashboard /> },
-      // ... (trasy admina/sprzedawcy/magazyniera bez zmian)
+      
+      // --- Trasy Admina i Sprzedawcy ---
       {
         path: "invoices",
         element: (
@@ -43,7 +45,6 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
-
       {
         path: "invoices/:id",
         element: (
@@ -60,6 +61,8 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
+      
+      // --- Trasy Magazyniera (i Admin/Salesman) ---
       {
         path: "wz",
         element: (
@@ -68,7 +71,6 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
-  
       {
         path: "products",
         element: (
@@ -77,6 +79,8 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
+
+      // --- Trasy Tylko dla Admina ---
       {
         path: "users",
         element: (
@@ -85,8 +89,17 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
+      // 1. ZMIANA: Dodano trasę do logów
+      {
+        path: "logs",
+        element: (
+          <Protected allowedRoles={["admin"]}>
+            <LogsPage />
+          </Protected>
+        ),
+      },
 
-      // Trasy Klienta
+      // --- Trasy Klienta ---
       {
         path: "cart",
         element: (
@@ -111,8 +124,6 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
-      
-      // 2. ZMIANA: Dodanie trasy /my-invoices
       {
         path: "my-invoices",
         element: (
