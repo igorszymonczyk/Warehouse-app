@@ -1,47 +1,64 @@
 # backend/routes/salesman.py
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
-import json
+from typing import List
+from pydantic import BaseModel
 
-from database import get_db, SessionLocal
-from utils.tokenJWT import get_current_user
+from database import get_db
 from models.users import User
-from utils.recommender import generate_recommendations # Import naszego modelu!
+from utils.tokenJWT import get_current_user
 
-router = APIRouter(prefix="/salesman", tags=["Salesman AI"])
+# Importujemy funkcję z recommender.py
+try:
+    from utils.recommender import generate_recommendations
+except ImportError:
+    # Fallback, żeby aplikacja nie padła bez bibliotek ML
+    def generate_recommendations(**kwargs):
+        import pandas as pd
+        return pd.DataFrame()
 
-# ZMIANA: Nowa funkcja sprawdzająca uprawnienia (teraz dla wszystkich, którzy potrzebują AI)
-def _is_authorized_to_view_ai(user: User):
-    if (user.role or "").upper() not in {"ADMIN", "SALESMAN", "CUSTOMER"}: # <-- DODANO 'CUSTOMER'
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
+router = APIRouter(prefix="/salesman", tags=["Salesman"])
 
-@router.get("/recommendations", response_model=List[Dict[str, Any]])
-def get_recommendations(
+class RecommendationRuleSchema(BaseModel):
+    product_in: List[str]
+    product_out: List[str]
+    confidence: str
+    lift: str
+
+@router.get("/recommendations", response_model=List[RecommendationRuleSchema])
+def get_sales_recommendations(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
-    Zwraca rekomendacje produktowe dla wsparcia Salesmana i Klienta (Cross-selling).
+    Zwraca reguły asocjacyjne dla frontendu (koszyk / faktura).
     """
-    _is_authorized_to_view_ai(current_user) # <-- Używamy nowej funkcji sprawdzającej
-    
-    # Generowanie rekomendacji
-    # Progi na skrajnie liberalne (0.0005, 0.3)
-    rules_df = generate_recommendations(min_support=0.0005, min_confidence=0.3) 
-    
-    if rules_df.empty:
-        return [{"message": "Brak wystarczającej liczby danych do wygenerowania reguł."}]
-        
-    # Konwersja zestawów (frozensets) na listy stringów i formatowanie do JSON
-    rules_list = []
-    for index, row in rules_df.head(10).iterrows(): # Zwracamy Top 10
-        rules_list.append({
-            "product_in": list(row['antecedents']), # Co kupił klient
-            "product_out": list(row['consequents']), # Co możemy mu polecić
-            "confidence": f"{row['confidence']:.2f}",
-            "lift": f"{row['lift']:.2f}"
-        })
+    # Dostęp dla Admina i Sprzedawcy (Magazynier raczej nie potrzebuje, ale można dodać)
+    if (current_user.role or "").lower() not in ["admin", "salesman", "customer"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
 
-    return rules_list
+    try:
+        # Generujemy reguły
+        rules_df = generate_recommendations(min_support=0.01, min_confidence=0.2)
+        
+        if rules_df.empty:
+            return []
+
+        results = []
+        for _, row in rules_df.iterrows():
+            # Konwersja frozenset -> list
+            ants = list(row['antecedents'])
+            cons = list(row['consequents'])
+            
+            results.append({
+                "product_in": ants,
+                "product_out": cons,
+                "confidence": f"{row['confidence']:.2f}",
+                "lift": f"{row['lift']:.2f}",
+            })
+            
+        return results
+
+    except Exception as e:
+        print(f"Salesman Recommendation Error: {e}")
+        return []

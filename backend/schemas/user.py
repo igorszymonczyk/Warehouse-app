@@ -9,16 +9,18 @@ class UserLogin(UserBase):
 
 class UserCreate(UserBase):
     password: str
-    imie: str
-    nazwisko: str
+    first_name: str
+    last_name: str
     role: str = "customer"  # default role
 
 class UserResponse(UserBase):
     id: int
     role: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
    
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Token (JWT)
 class Token(BaseModel):

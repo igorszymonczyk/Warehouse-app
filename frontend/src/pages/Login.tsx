@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { toMessage } from "../lib/error";
 import { useAuth } from "../store/auth";
 import { Link } from "react-router-dom";
-// 1. Zaimportuj ikony
+// Zaimportuj ikony
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 export default function LoginPage() {
@@ -12,7 +12,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("Admin123!");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
-  // 2. Dodaj stan do pokazywania/ukrywania hasła
+  // 2Dodaj stan do pokazywania/ukrywania hasła
   const [showPassword, setShowPassword] = useState(false);
 
   const navigate = useNavigate();
@@ -47,7 +47,7 @@ export default function LoginPage() {
           placeholder="E-mail"
         />
 
-        {/* 3. Zmodyfikuj sekcję z hasłem */}
+    
         <div className="relative mb-4">
           <input
             className="border rounded w-full p-2 pr-10" // Dodany padding po prawej (pr-10)

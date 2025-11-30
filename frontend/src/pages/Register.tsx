@@ -9,8 +9,8 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [imie, setImie] = useState("");
-  const [nazwisko, setNazwisko] = useState("");
+  const [first_name, setFirst_name] = useState("");
+  const [last_name, setLast_name] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
@@ -22,26 +22,25 @@ export default function RegisterPage() {
     e.preventDefault();
     setLoading(true);
 
-    // --- SEKCJA WALIDACJI ---
+    // Walidacja hasła
 
     if (password.length < 8) {
       toast.error("Hasło musi mieć co najmniej 8 znaków.");
       setLoading(false);
       return;
     }
-    // 1. ZMIANA: Sprawdzenie dużej litery
+   
     if (!/[A-Z]/.test(password)) {
       toast.error("Hasło musi zawierać co najmniej jedną dużą literę.");
       setLoading(false);
       return;
     }
-    // 2. ZMIANA: Sprawdzenie cyfry
+    
     if (!/[0-9]/.test(password)) {
       toast.error("Hasło musi zawierać co najmniej jedną cyfrę.");
       setLoading(false);
       return;
     }
-    // 3. ZMIANA: Sprawdzenie znaku specjalnego
     if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
       toast.error("Hasło musi zawierać co najmniej jeden znak specjalny (np. !@#$).");
       setLoading(false);
@@ -52,14 +51,14 @@ export default function RegisterPage() {
       setLoading(false);
       return;
     }
-    // --- KONIEC WALIDACJI ---
+
 
     try {
       await api.post("/register", {
         email,
         password,
-        imie,
-        nazwisko,
+        first_name,
+        last_name,
       });
       toast.success("Rejestracja zakończona sukcesem! Możesz się teraz zalogować.");
       navigate("/login");
@@ -77,15 +76,15 @@ export default function RegisterPage() {
 
         <input
           className="border rounded w-full p-2 mb-3"
-          value={imie}
-          onChange={(e) => setImie(e.target.value)}
+          value={first_name}
+          onChange={(e) => setFirst_name(e.target.value)}
           placeholder="Imię"
           required
         />
         <input
           className="border rounded w-full p-2 mb-3"
-          value={nazwisko}
-          onChange={(e) => setNazwisko(e.target.value)}
+          value={last_name}
+          onChange={(e) => setLast_name(e.target.value)}
           placeholder="Nazwisko"
           required
         />
@@ -105,7 +104,6 @@ export default function RegisterPage() {
             type={showPassword ? "text" : "password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            // 4. ZMIANA: Zaktualizowany placeholder
             placeholder="Hasło (min. 8 znaków, A-Z, 0-9, !@#)"
             required
           />

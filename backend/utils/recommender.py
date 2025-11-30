@@ -1,34 +1,20 @@
 # backend/utils/recommender.py
 
 import pandas as pd
-from sqlalchemy.orm import Session
 from sqlalchemy import create_engine
 from mlxtend.frequent_patterns import apriori, association_rules
 import os
 import sys
 
-# Dodajemy folder 'backend' do ścieżki, aby zaimportować models
+# Konfiguracja ścieżek
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from database import SessionLocal
-from models.order import Order, OrderItem
-from models.product import Product
-
-# Używamy ścieżki do bazy danych, aby utworzyć silnik, który jest potrzebny pandas
-# (Zakładamy, że database.py definiuje SessionLocal)
-DATABASE_URL = "sqlite:///./database_warehouseapp.db" # Użyj właściwej ścieżki do Twojej bazy!
+# Konfiguracja bazy
+DATABASE_URL = "sqlite:///./database_warehouseapp.db"
 engine = create_engine(DATABASE_URL)
 
-
-def get_transaction_data(session: Session = None) -> pd.DataFrame:
-    """
-    Pobiera dane zamówień i konwertuje je do formatu Transakcje (One-Hot Encoded).
-    Filtruje transakcje z pojedynczymi produktami.
-    """
-    if session is None:
-        session = SessionLocal()
-
-    # Optymalne zapytanie SQL (bez zmian)
+def get_transaction_data() -> pd.DataFrame:
+    """Pobiera dane i tworzy koszyk One-Hot."""
     query = """
     SELECT 
         oi.order_id, 
@@ -37,53 +23,49 @@ def get_transaction_data(session: Session = None) -> pd.DataFrame:
     JOIN "products" p ON oi.product_id = p.id
     ORDER BY oi.order_id
     """
-    
     try:
         data = pd.read_sql(query, engine)
+        if data.empty:
+            return pd.DataFrame()
     except Exception as e:
-        print(f"Błąd podczas odczytu danych z bazy: {e}")
+        print(f"Recommender DB Error: {e}")
         return pd.DataFrame()
-    finally:
-        session.close()
 
-    # 1. Konwersja do formatu One-Hot (gdzie 1=kupiono)
+    # One-Hot Encoding
+    # applymap jest deprecated w nowszych pandas, używamy map lub starych metod w zależności od wersji
+    # tutaj bezpieczniejsza wersja:
     basket = (data.groupby(['order_id', 'product_name'])['product_name']
-                .count().unstack().fillna(0).applymap(lambda x: 1 if x > 0 else 0))
+                .count().unstack().fillna(0))
     
-    # 2. ZMIANA: Dodanie kolumny sumującej, aby usunąć zamówienia pojedyncze
-    basket['__Total_Items'] = basket.sum(axis=1)
+    # Konwersja na 0/1
+    basket = basket.apply(lambda x: x.map(lambda y: 1 if y > 0 else 0))
     
-    # 3. Filtrowanie: zostawiamy tylko koszyki z 2 lub więcej unikalnymi pozycjami
-    basket = basket[basket['__Total_Items'] >= 2]
-    
-    # 4. Usunięcie kolumny pomocniczej
-    basket.drop(columns=['__Total_Items'], inplace=True) 
+    # Filtrujemy zamówienia z mniej niż 2 produktami (nie dają reguł)
+    basket['__Total'] = basket.sum(axis=1)
+    basket = basket[basket['__Total'] >= 2]
+    basket.drop(columns=['__Total'], inplace=True)
     
     return basket
 
-def generate_recommendations(min_support: float = 0.01, min_confidence: float = 0.5) -> pd.DataFrame:
+def generate_recommendations(min_support: float = 0.01, min_confidence: float = 0.2) -> pd.DataFrame:
     """
-    Generuje reguły asocjacyjne przy użyciu algorytmu Apriori.
-    
-    :param min_support: Minimalna częstotliwość występowania zestawu produktów (np. 1%).
-    :param min_confidence: Minimalna pewność reguły (np. 50%).
-    :return: DataFrame z regułami rekomendacyjnymi.
+    Generuje reguły asocjacyjne.
+    Nazwa funkcji ujednolicona z 'salesman.py'.
     """
-    basket_sets = get_transaction_data()
-    
-    if basket_sets.empty:
+    basket = get_transaction_data()
+    if basket.empty:
         return pd.DataFrame()
         
-    # 1. Znajdowanie często występujących zestawów produktów
-    frequent_itemsets = apriori(basket_sets, min_support=min_support, use_colnames=True)
+    # 1. Częste zbiory
+    frequent_itemsets = apriori(basket, min_support=min_support, use_colnames=True)
     
-    # 2. Generowanie reguł asocjacyjnych
+    if frequent_itemsets.empty:
+        return pd.DataFrame()
+
+    # 2. Reguły
     rules = association_rules(frequent_itemsets, metric="lift", min_threshold=1.0)
     
-    # Sortowanie po wskaźniku lift (jak bardzo zestaw jest bardziej prawdopodobny niż losowy)
+    # Sortowanie dla lepszej jakości
     rules.sort_values('lift', ascending=False, inplace=True)
     
-    # Opcjonalne filtrowanie po minimalnym zaufaniu (confidence)
-    rules = rules[rules['confidence'] >= min_confidence]
-    
-    return rules[['antecedents', 'consequents', 'support', 'confidence', 'lift']]
+    return rules

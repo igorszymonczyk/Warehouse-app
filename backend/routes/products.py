@@ -22,6 +22,12 @@ from models.product import Product
 import schemas.product as product_schemas
 from urllib.parse import urljoin
 
+# Import systemu rekomendacji (z fallbackiem)
+try:
+    from utils.recommender import get_recommendations
+except ImportError:
+    def get_recommendations(products, rules=None): return []
+
 class ProductNameList(BaseModel):
     product_names: List[str]
 
@@ -32,10 +38,12 @@ def _full_url(request: Request, path: Union[str, None]) -> Union[str, None]:
 
 router = APIRouter(tags=["Products"])
 
+# Ścieżka do zapisu plików
 UPLOAD_DIR = Path("static/uploads")
 
-# ---- helpers ----
+# ---- HELPERS ----
 def _role_ok(user: User) -> bool:
+    """Zezwól na dostęp dla ADMIN/SALESMAN."""
     role = (user.role or "").upper()
     return role in {"ADMIN", "SALESMAN"}
 
@@ -43,6 +51,7 @@ def _can_edit(user: User) -> bool:
     return _role_ok(user)
 
 def _can_manage_stock(user: User) -> bool:
+    """Zezwól na dostęp dla ADMIN/SALESMAN/WAREHOUSE."""
     role = (user.role or "").upper()
     return role in {"ADMIN", "SALESMAN", "WAREHOUSE"}
 
@@ -55,6 +64,41 @@ def _norm_code(code: Optional[str]) -> Optional[str]:
 def _get_unique_values(db: Session, column: ColumnElement) -> List[str]:
     values = db.query(column).distinct().filter(column != None, column != "").all()
     return [v[0] for v in values]
+
+
+# ==========================================
+#  REKOMENDACJE
+# ==========================================
+@router.post("/products/recommend", response_model=List[product_schemas.ProductResponse])
+def recommend_products_endpoint(
+    payload: ProductNameList,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Zwraca listę sugerowanych produktów na podstawie nazw już wybranych."""
+    if not payload.product_names:
+        return []
+
+    # 1. Pobierz nazwy rekomendowanych produktów
+    suggested_names = get_recommendations(payload.product_names)
+
+    if not suggested_names:
+        return []
+
+    # 2. Pobierz obiekty z bazy
+    suggested_products = db.query(Product).filter(
+        Product.name.in_(suggested_names),
+        Product.stock_quantity > 0
+    ).limit(5).all()
+
+    # Serializacja
+    product_fields = list(product_schemas.ProductResponse.model_fields.keys())
+    serialized = []
+    for p in suggested_products:
+        data = {f: getattr(p, f) for f in product_fields if hasattr(p, f)}
+        serialized.append(product_schemas.ProductResponse.model_validate(data))
+
+    return serialized
 
 
 # =========================
@@ -70,6 +114,7 @@ def list_products(
     location: Optional[str] = Query(None),
     
     page: int = Query(1, ge=1),
+    # ZWIĘKSZONY LIMIT DLA WYSZUKIWANIA FRONTENDOWEGO
     page_size: int = Query(10, ge=1, le=10000), 
     sort_by: str = Query("id"),
     order: str = Query("asc", regex="^(asc|desc)$"),
@@ -105,6 +150,12 @@ def list_products(
     for p in items:
         data = {f: getattr(p, f) for f in product_fields if hasattr(p, f)}
         serialized.append(product_schemas.ProductResponse.model_validate(data))
+
+    write_log(
+        db, user_id=current_user.id, action="PRODUCTS_LIST", resource="products",
+        status="SUCCESS", ip=request.client.host if request.client else None,
+        meta={"page": page, "returned": len(items)},
+    )
 
     return {"items": serialized, "total": total, "page": page, "page_size": page_size}
 
@@ -167,7 +218,7 @@ def add_product(
     comment: Optional[str] = Form(None)
 ):
     if not _can_manage_stock(current_user):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise HTTPException(status_code=403, detail="Not authorized to add products")
 
     norm_code = _norm_code(code)
     exists = db.query(Product).filter(Product.code == norm_code).first()
@@ -245,7 +296,7 @@ def update_product(
 
 
 # =========================
-# CZĘŚCIOWA EDYCJA PRODUKTU (PATCH) - ZMODYFIKOWANA
+# CZĘŚCIOWA EDYCJA PRODUKTU (PATCH) - NAPRAWIONA (Form + File)
 # =========================
 @router.patch("/products/{product_id}/edit", response_model=product_schemas.ProductOut)
 def edit_product(
@@ -253,7 +304,7 @@ def edit_product(
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    # Zmieniamy parametry na Form + File
+    # ZMIANA: Parametry jako Form(...) i File(...) aby obsłużyć multipart/form-data
     file: Optional[UploadFile] = File(None),
     name: Optional[str] = Form(None),
     code: Optional[str] = Form(None),
@@ -267,17 +318,14 @@ def edit_product(
     location: Optional[str] = Form(None),
     comment: Optional[str] = Form(None)
 ):
-    """
-    Edycja produktu z obsługą plików (Multipart Form Data).
-    """
     if not _can_manage_stock(current_user):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    p: Product = db.query(Product).filter(Product.id == product_id).first()
+    p = db.query(Product).filter(Product.id == product_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # Logika zapisu pliku (jeśli przesłano nowy)
+    # Obsługa pliku
     if file:
         if file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
             raise HTTPException(status_code=400, detail="Invalid file type")
@@ -288,26 +336,24 @@ def edit_product(
         file_url = f"/uploads/{unique_filename}"
         
         try:
-            # Opcjonalnie: Usuń stary plik jeśli istnieje
             if p.image_url:
                 old_path = Path(".") / "static" / p.image_url.lstrip("/") 
-                if old_path.exists() and "uploads" in str(old_path): # Basic safety check
+                if old_path.exists() and "uploads" in str(old_path):
                     os.remove(old_path)
 
             with open(save_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
             
-            p.image_url = file_url # Aktualizacja ścieżki w bazie
+            p.image_url = file_url
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"File save error: {e}")
         finally:
             file.file.close()
 
-    # Logika aktualizacji pól (tylko jeśli nie są None)
+    # Aktualizacja pól (jeśli przesłane)
     if name is not None: p.name = name
     if code is not None:
         c = _norm_code(code)
-        # Sprawdzenie unikalności jeśli kod się zmienił
         if c != p.code:
             conflict = db.query(Product).filter(Product.code == c, Product.id != p.id).first()
             if conflict: raise HTTPException(409, "Product code already exists")
@@ -339,7 +385,9 @@ def edit_product(
     return product_schemas.ProductOut.model_validate(out)
 
 
-# ... (Reszta bez zmian: get_products_by_names, delete_product) ...
+# =========================
+# MASOWE SZCZEGÓŁY
+# =========================
 @router.post("/products/details", response_model=List[product_schemas.ProductResponse])
 def get_products_by_names(
     payload: ProductNameList, request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
@@ -354,6 +402,10 @@ def get_products_by_names(
         serialized.append(product_schemas.ProductResponse.model_validate(data))
     return serialized
 
+
+# =========================
+# USUWANIE
+# =========================
 @router.delete("/products/{product_id}")
 def delete_product(
     product_id: int, request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user),

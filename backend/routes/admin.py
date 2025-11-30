@@ -30,10 +30,11 @@ class PaginatedUsersResponse(BaseModel):
 def get_all_users(
     request: Request,
     q: Optional[str] = Query(None, description="Szukaj po e-mailu"),
+    last_name: Optional[str] = Query(None, description="Szukaj po nazwisku"),
     role: Optional[str] = Query(None, description="Filtruj po roli"),
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
-    sort_by: Literal["id", "email", "role"] = "id",
+    sort_by: Literal["id", "email", "role","first_name","last_name"] = "id",
     order: Literal["asc", "desc"] = "asc",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -53,11 +54,17 @@ def get_all_users(
     if role:
         query = query.filter(User.role.ilike(role))
 
+    # Filtrowanie po nazwisku
+    if last_name:
+        query = query.filter(User.last_name.ilike(f"%{last_name}%"))
+
     # Sortowanie po wybranym polu.
     sort_map = {
         "id": User.id,
         "email": User.email,
         "role": User.role,
+        "first_name": User.first_name,
+        "last_name": User.last_name,
     }
     col = sort_map.get(sort_by, User.id)
     query = query.order_by(col.asc() if order == "asc" else col.desc())

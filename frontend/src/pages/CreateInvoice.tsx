@@ -1,9 +1,17 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
-import { Trash2 } from "lucide-react";
+import { Trash2, Plus, ArrowLeft, Save, Search, Sparkles } from "lucide-react";
 import { useForm, useFieldArray, type SubmitHandler } from "react-hook-form";
 import toast from "react-hot-toast"; 
+
+// --- TYPY ---
+type RecommendationRule = {
+    product_in: string[];
+    product_out: string[];
+    confidence: string;
+    lift: string;
+};
 
 type Product = {
   id: number;
@@ -12,6 +20,7 @@ type Product = {
   sell_price_net: number;
   tax_rate: number;
   stock_quantity: number;
+  image_url?: string;
 };
 
 type InvoiceItem = {
@@ -32,12 +41,15 @@ type InvoiceFormInputs = {
 export default function CreateInvoice() {
   const navigate = useNavigate();
 
-  // --- ZMIANA 1: Przechowujemy WSZYSTKIE produkty do filtrowania lokalnego ---
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Stan rekomendacji
+  const [recommendations, setRecommendations] = useState<Product[]>([]);
+  const [loadingRecs, setLoadingRecs] = useState(false);
 
   const {
     register,
@@ -60,7 +72,10 @@ export default function CreateInvoice() {
     keyName: "keyId",
   });
 
-  // --- ZMIANA 2: Pobieramy produkty raz przy załadowaniu (limit 10000) ---
+  const watchedItems = watch("items");
+  const itemNamesJson = JSON.stringify(watchedItems.map(i => i.name));
+
+  // 1. Ładowanie produktów do wyszukiwarki
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -69,36 +84,77 @@ export default function CreateInvoice() {
         setAllProducts(list);
       } catch (err) {
         console.error("Błąd pobierania produktów:", err);
-        toast.error("Nie udało się załadować listy produktów");
       }
     };
-
     fetchProducts();
   }, []);
 
-  const watchedItems = watch("items");
-  const totalNet = watchedItems.reduce((sum, i) => sum + i.price_net * i.quantity, 0);
-  const totalVat = watchedItems.reduce(
-    (sum, i) => sum + i.price_net * i.quantity * (i.tax_rate / 100),
-    0
-  );
-  const totalGross = totalNet + totalVat;
+  // 2. LOGIKA REKOMENDACJI
+  useEffect(() => {
+    const currentNames: string[] = itemNamesJson ? JSON.parse(itemNamesJson) : [];
 
-  // --- ZMIANA 3: Filtrowanie lokalne (Search w React) ---
-  // Filtrujemy 'allProducts' na podstawie wpisanego tekstu ORAZ usuwamy te już dodane
+    if (currentNames.length === 0) {
+        setRecommendations([]);
+        return;
+    }
+
+    const loadRecommendations = async () => {
+      setLoadingRecs(true);
+      try {
+        // Krok A: Reguły
+        const recsRes = await api.get<RecommendationRule[]>("/salesman/recommendations");
+        
+        // Krok B: Dopasowanie
+        const relevantRecs = recsRes.data.filter(rule => 
+            rule.product_in.some(name => currentNames.includes(name))
+        );
+        
+        // Krok C: Unikalne nazwy
+        const productsToSuggest = new Set<string>();
+        relevantRecs.forEach(rule => {
+            rule.product_out.forEach(name => productsToSuggest.add(name));
+        });
+
+        if (productsToSuggest.size > 0) {
+            // Krok D: Detale z bazy
+            const detailsRes = await api.post("/products/details", { 
+                product_names: Array.from(productsToSuggest) 
+            });
+            
+            // Krok E: Filtracja (bez tych co już są)
+            const currentNameSet = new Set(currentNames);
+            const filteredDetails = detailsRes.data.filter((p: Product) => !currentNameSet.has(p.name));
+            
+            setRecommendations(filteredDetails);
+        } else {
+            setRecommendations([]);
+        }
+      } catch (err) {
+        console.error("Błąd ładowania rekomendacji:", err);
+      } finally {
+        setLoadingRecs(false);
+      }
+    };
+
+    const timer = setTimeout(loadRecommendations, 300);
+    return () => clearTimeout(timer);
+
+  }, [itemNamesJson]); 
+
+
   const filteredProducts = allProducts.filter((p) => {
-    // 1. Warunek wyszukiwania (nazwa lub kod)
     const matchesSearch = 
       p.name.toLowerCase().includes(search.toLowerCase()) || 
       p.code.toLowerCase().includes(search.toLowerCase());
-    
-    // 2. Warunek: nie ma go jeszcze na liście
     const notAdded = !watchedItems.some((item) => item.product_id === p.id);
-
     return matchesSearch && notAdded;
   });
 
   const handleAddProduct = (product: Product) => {
+    if (product.stock_quantity <= 0) {
+        toast.error("Brak towaru w magazynie!");
+        return;
+    }
     append({
       product_id: product.id,
       name: product.name,
@@ -106,7 +162,7 @@ export default function CreateInvoice() {
       price_net: product.sell_price_net,
       tax_rate: product.tax_rate ?? 23,
     });
-    setSearch(""); // Czyścimy pole wyszukiwania
+    setSearch(""); 
     setFocused(false);
     inputRef.current?.blur();
   };
@@ -116,16 +172,14 @@ export default function CreateInvoice() {
       toast.error("Dodaj przynajmniej jeden produkt do faktury.");
       return;
     }
-
     setIsSubmitting(true);
-    
     try {
       await api.post("/invoices", data);
       toast.success("Faktura została utworzona");
       navigate("/invoices");
     } catch (err) {
       console.error(err);
-      toast.error("Błąd przy tworzeniu faktury. Spróbuj ponownie.");
+      toast.error("Błąd przy tworzeniu faktury.");
     } finally {
       setIsSubmitting(false);
     }
@@ -133,196 +187,197 @@ export default function CreateInvoice() {
 
   const handleCancel = () => {
     if (watchedItems.length > 0 || watch("buyer_name")) {
-      if (confirm("Czy na pewno chcesz anulować? Wprowadzone zmiany zostaną utracone.")) {
-        navigate("/invoices");
-      }
+      if (confirm("Anulować? Zmiany zostaną utracone.")) navigate("/invoices");
     } else {
       navigate("/invoices");
     }
   };
 
+  const totalNet = watchedItems.reduce((sum, i) => sum + i.price_net * i.quantity, 0);
+  const totalVat = watchedItems.reduce((sum, i) => sum + i.price_net * i.quantity * (i.tax_rate / 100), 0);
+  const totalGross = totalNet + totalVat;
+
   return (
-    <form className="p-6" onSubmit={handleSubmit(onSubmit)}>
-      <h1 className="text-2xl font-semibold mb-4">Nowa faktura</h1>
+    <div className="p-6 max-w-7xl mx-auto flex gap-6 items-start">
+      
+      {/* LEWA KOLUMNA: Formularz */}
+      <div className="flex-1 min-w-0">
+        <form onSubmit={handleSubmit(onSubmit)}>
+            <div className="flex items-center justify-between mb-4">
+                <h1 className="text-2xl font-semibold">Nowa faktura</h1>
+                <button type="button" onClick={() => navigate("/invoices")} className="text-gray-500 hover:text-black flex items-center">
+                    <ArrowLeft size={18} className="mr-1" /> Powrót
+                </button>
+            </div>
 
-      <div className="grid gap-4 max-w-2xl mb-6">
-        <div>
-          <input
-            className={`border rounded p-2 w-full ${errors.buyer_name ? 'border-red-500' : ''}`}
-            placeholder="Nazwa nabywcy *"
-            {...register("buyer_name", {
-              required: "Nazwa nabywcy jest wymagana",
-            })}
-          />
-          {errors.buyer_name && (
-            <p className="text-red-500 text-sm mt-1">{errors.buyer_name.message}</p>
-          )}
-        </div>
-        <input
-          className="border rounded p-2 w-full"
-          placeholder="NIP nabywcy (opcjonalnie)"
-          {...register("buyer_nip")}
-        />
-        <input
-          className="border rounded p-2 w-full"
-          placeholder="Adres nabywcy"
-          {...register("buyer_address")}
-        />
+            <div className="bg-white p-6 rounded shadow-sm border mb-6 grid gap-4">
+                <h2 className="font-medium border-b pb-2 text-gray-700">Dane Nabywcy</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-sm text-gray-600 block mb-1">Nazwa *</label>
+                        <input
+                            className={`border rounded p-2 w-full ${errors.buyer_name ? 'border-red-500' : ''}`}
+                            {...register("buyer_name", { required: "Wymagane" })}
+                        />
+                        {errors.buyer_name && <p className="text-red-500 text-xs">{errors.buyer_name.message}</p>}
+                    </div>
+                    <div>
+                        <label className="text-sm text-gray-600 block mb-1">NIP</label>
+                        <input className="border rounded p-2 w-full" {...register("buyer_nip")} />
+                    </div>
+                    <div className="md:col-span-2">
+                        <label className="text-sm text-gray-600 block mb-1">Adres</label>
+                        <input className="border rounded p-2 w-full" {...register("buyer_address")} />
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-white p-6 rounded shadow-sm border mb-6">
+                <h2 className="font-medium border-b pb-2 text-gray-700 mb-4">Pozycje faktury</h2>
+
+                <div className="relative mb-6">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                        <input
+                            ref={inputRef}
+                            className="border rounded p-2 pl-10 w-full focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="Wpisz nazwę lub kod produktu..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            onFocus={() => setFocused(true)}
+                            onBlur={() => setTimeout(() => setFocused(false), 200)}
+                        />
+                    </div>
+                    {focused && search.length >= 1 && (
+                        <ul className="absolute z-20 bg-white border rounded mt-1 shadow-xl max-h-60 overflow-auto w-full">
+                            {filteredProducts.length > 0 ? (
+                                filteredProducts.slice(0, 20).map((p) => (
+                                    <li
+                                        key={p.id}
+                                        onMouseDown={() => handleAddProduct(p)}
+                                        className={`px-4 py-2 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b last:border-none ${p.stock_quantity <= 0 ? 'opacity-50' : ''}`}
+                                    >
+                                        <div>
+                                            <div className="font-medium text-gray-800">{p.name}</div>
+                                            <div className="text-xs text-gray-500">{p.code}</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="font-bold text-gray-700">{p.sell_price_net.toFixed(2)} zł</div>
+                                            <div className={`text-xs ${p.stock_quantity > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                Stan: {p.stock_quantity}
+                                            </div>
+                                        </div>
+                                    </li>
+                                ))
+                            ) : (
+                                <li className="px-4 py-3 text-gray-500 text-center">Brak wyników</li>
+                            )}
+                        </ul>
+                    )}
+                </div>
+
+                <table className="min-w-full text-sm mb-4">
+                    <thead className="bg-gray-50 text-gray-500">
+                        <tr>
+                            <th className="p-3 text-left font-normal">Produkt</th>
+                            <th className="p-3 text-right font-normal w-24">Cena</th>
+                            <th className="p-3 text-right font-normal w-20">Ilość</th>
+                            <th className="p-3 text-right font-normal w-20">VAT</th>
+                            <th className="p-3 text-right font-normal">Wartość</th>
+                            <th className="p-3 text-center w-10"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {fields.map((item, index) => {
+                            const price = watch(`items.${index}.price_net`);
+                            const qty = watch(`items.${index}.quantity`);
+                            const tax = watch(`items.${index}.tax_rate`);
+                            const val = (price * qty * (1 + tax / 100)) || 0;
+
+                            return (
+                                <tr key={item.keyId} className="border-b last:border-none hover:bg-gray-50">
+                                    <td className="p-3 font-medium">{item.name}</td>
+                                    <td className="p-3 text-right">
+                                        <input type="number" step="0.01" className="w-20 text-right border rounded p-1" {...register(`items.${index}.price_net`, { valueAsNumber: true })} />
+                                    </td>
+                                    <td className="p-3 text-right">
+                                        <input type="number" className="w-16 text-right border rounded p-1" {...register(`items.${index}.quantity`, { valueAsNumber: true })} />
+                                    </td>
+                                    <td className="p-3 text-right">
+                                        <input type="number" className="w-16 text-right border rounded p-1" {...register(`items.${index}.tax_rate`, { valueAsNumber: true })} />
+                                    </td>
+                                    <td className="p-3 text-right font-bold">{val.toFixed(2)}</td>
+                                    <td className="p-3 text-center">
+                                        <button type="button" onClick={() => remove(index)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={16}/></button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        {fields.length === 0 && (
+                            <tr><td colSpan={6} className="p-8 text-center text-gray-400 border-dashed border-2 rounded">Dodaj produkty powyżej</td></tr>
+                        )}
+                    </tbody>
+                </table>
+
+                <div className="flex justify-end pt-4 border-t">
+                    <div className="text-right w-48">
+                        <div className="flex justify-between text-gray-600 mb-1"><span>Netto:</span> <span>{totalNet.toFixed(2)} zł</span></div>
+                        <div className="flex justify-between text-gray-600 mb-2"><span>VAT:</span> <span>{totalVat.toFixed(2)} zł</span></div>
+                        <div className="flex justify-between text-xl font-bold text-gray-800 pt-2 border-t"><span>Razem:</span> <span>{totalGross.toFixed(2)} zł</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex justify-end gap-4">
+                <button type="button" onClick={handleCancel} className="px-6 py-2 border rounded hover:bg-gray-50 text-gray-700">Anuluj</button>
+                <button type="submit" disabled={isSubmitting} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded shadow-md disabled:opacity-50 flex items-center gap-2">
+                    <Save size={18}/> {isSubmitting ? "Zapisywanie..." : "Wystaw Fakturę"}
+                </button>
+            </div>
+        </form>
       </div>
 
-      <h2 className="text-lg font-semibold mt-6 mb-2">Produkty</h2>
-
-      {/* --- AUTOCOMPLETE --- */}
-      <div className="relative mb-4 max-w-md">
-        <input
-          ref={inputRef}
-          className="border rounded p-2 w-full"
-          placeholder="Wpisz min. 2 znaki nazwy lub kodu..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setTimeout(() => setFocused(false), 150)}
-        />
-        {focused && search.length >= 2 && (
-          <ul className="absolute z-10 bg-white border rounded mt-1 shadow max-h-60 overflow-auto w-full">
-            {filteredProducts.length > 0 ? (
-              filteredProducts.slice(0, 50).map((p) => ( // Limit wyświetlania w drop-downie dla wydajności
-                <li
-                  key={p.id}
-                  onMouseDown={() => handleAddProduct(p)}
-                  className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center border-b last:border-none"
-                >
-                  <div className="flex flex-col">
-                    <span className="font-medium">{p.name}</span>
-                    <span className="text-gray-500 text-xs">Kod: {p.code}</span>
-                  </div>
-                  <div className="text-right">
-                     <span className="text-gray-800 font-semibold text-sm">
-                        {p.sell_price_net.toFixed(2)} zł
-                     </span>
-                     <div className="text-xs text-gray-400">Stan: {p.stock_quantity}</div>
-                  </div>
-                </li>
-              ))
+      {/* PRAWA KOLUMNA: Rekomendacje */}
+      <div className="w-80 shrink-0">
+        <div className="bg-gradient-to-br from-blue-50 to-white border border-blue-100 p-4 rounded-lg shadow-sm sticky top-6">
+            <h3 className="font-semibold text-blue-800 flex items-center gap-2 mb-3">
+                <Sparkles size={18} />
+                Sugerowane produkty
+            </h3>
+            
+            {loadingRecs ? (
+                <div className="text-center py-8 text-blue-400 text-sm animate-pulse">Szukam propozycji...</div>
+            ) : recommendations.length > 0 ? (
+                <div className="space-y-3">
+                    {recommendations.map(rec => (
+                        <div key={rec.id} className="bg-white p-3 rounded border border-blue-100 hover:shadow-md transition-shadow group relative">
+                            {/* ZMIANA: Usunięto sekcję obrazka */}
+                            <div className="text-sm font-medium text-gray-800 leading-tight mb-1">{rec.name}</div>
+                            <div className="text-xs text-gray-500 mb-2">{rec.code}</div>
+                            <div className="flex justify-between items-center">
+                                <span className="font-bold text-gray-700">{rec.sell_price_net.toFixed(2)} zł</span>
+                                <button 
+                                    type="button" 
+                                    onClick={() => handleAddProduct(rec)}
+                                    disabled={rec.stock_quantity <= 0}
+                                    className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <Plus size={12}/> {rec.stock_quantity > 0 ? 'Dodaj' : 'Brak'}
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             ) : (
-              <li className="px-3 py-2 text-gray-500">Brak pasujących produktów</li>
+                <div className="text-center py-8 text-gray-400 text-sm italic">
+                    {watchedItems.length === 0 
+                        ? "Dodaj produkty, aby zobaczyć sugestie." 
+                        : "Brak dodatkowych sugestii."}
+                </div>
             )}
-          </ul>
-        )}
-        {focused && search && search.length < 2 && (
-             <div className="absolute z-10 bg-white border rounded mt-1 shadow w-full px-3 py-2 text-gray-400 text-sm">
-                 Wpisz więcej znaków...
-             </div>
-        )}
+        </div>
       </div>
 
-      {/* --- TABELA POZYCJI --- */}
-      <table className="min-w-full border bg-white text-sm mb-4">
-        <thead className="bg-gray-100">
-          <tr>
-            <th className="p-2 border text-left">Produkt</th>
-            <th className="p-2 border text-right">Cena netto</th>
-            <th className="p-2 border text-right">Ilość</th>
-            <th className="p-2 border text-right">VAT %</th>
-            <th className="p-2 border text-right">Wartość brutto</th>
-            <th className="p-2 border text-center">Usuń</th>
-          </tr>
-        </thead>
-        <tbody>
-          {fields.map((item, index) => {
-            const price = watch(`items.${index}.price_net`);
-            const qty = watch(`items.${index}.quantity`);
-            const tax = watch(`items.${index}.tax_rate`);
-            const rowGross = (price * qty * (1 + tax / 100)) || 0;
-
-            return (
-              <tr key={item.keyId}>
-                <td className="p-2 border">{item.name}</td>
-                <td className="p-2 border text-right">
-                  <input
-                    type="number"
-                    className="border rounded p-1 w-24 text-right"
-                    min={0}
-                    step={0.01}
-                    {...register(`items.${index}.price_net`, {
-                      valueAsNumber: true,
-                      min: { value: 0.01, message: "Cena > 0" },
-                    })}
-                  />
-                </td>
-                <td className="p-2 border text-right">
-                  <input
-                    type="number"
-                    className="border rounded p-1 w-20 text-right"
-                    min={1}
-                    step={1}
-                    {...register(`items.${index}.quantity`, {
-                      valueAsNumber: true,
-                      min: { value: 1, message: "Ilość > 0" },
-                    })}
-                  />
-                </td>
-                <td className="p-2 border text-right">
-                  <input
-                    type="number"
-                    className="border rounded p-1 w-20 text-right"
-                    min={0}
-                    step={1}
-                    {...register(`items.${index}.tax_rate`, {
-                      valueAsNumber: true,
-                      min: { value: 0, message: "VAT >= 0" },
-                    })}
-                  />
-                </td>
-                <td className="p-2 border text-right">{rowGross.toFixed(2)}</td>
-                <td className="p-2 border text-center">
-                  <button
-                    type="button"
-                    className="text-red-500 hover:text-red-700"
-                    onClick={() => remove(index)}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-          {fields.length === 0 && (
-            <tr>
-              <td colSpan={6} className="text-center text-gray-500 p-3">
-                Brak pozycji. Wyszukaj i dodaj produkt powyżej.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-
-      {/* --- PODSUMOWANIE --- */}
-      <div className="text-right mb-6 max-w-xs ml-auto p-4 bg-gray-50 rounded">
-        <p>Suma netto: <strong>{totalNet.toFixed(2)} zł</strong></p>
-        <p>VAT: <strong>{totalVat.toFixed(2)} zł</strong></p>
-        <hr className="my-1" />
-        <p className="text-lg">Suma brutto: <strong>{totalGross.toFixed(2)} zł</strong></p>
-      </div>
-
-      {/* --- PRZYCISKI --- */}
-      <div className="flex gap-3">
-        {/* Zmieniony kolor przycisku na zielony */}
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-        >
-          {isSubmitting ? "Zapisywanie..." : "Utwórz fakturę"}
-        </button>
-        <button
-          type="button"
-          onClick={handleCancel}
-          className="px-4 py-2 border rounded hover:bg-gray-100"
-        >
-          Anuluj
-        </button>
-      </div>
-    </form>
+    </div>
   );
 }

@@ -42,7 +42,7 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db), request: R
 
     # Tworzenie nowego użytkownika i zapis w bazie
     hashed_password = get_password_hash(user.password)
-    new_user = models.User(email=normalized_email, password_hash=hashed_password, role="customer")
+    new_user = models.User(email=normalized_email, password_hash=hashed_password, role="customer", first_name=user.first_name, last_name=user.last_name)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
