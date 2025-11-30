@@ -4,6 +4,7 @@ import { ArrowUp, ArrowDown, Trash2, Edit, X, Upload } from "lucide-react";
 import axios, { type AxiosError } from "axios";
 import toast from "react-hot-toast";
 import { useSearchParams } from "react-router-dom";
+import { useAuth } from "../store/auth"; 
 
 type Product = {
   id: number;
@@ -12,7 +13,7 @@ type Product = {
   description?: string;
   category?: string;
   supplier?: string;
-  buy_price?: number; // Jest tutaj
+  buy_price?: number;
   sell_price_net: number;
   tax_rate?: number;
   stock_quantity: number;
@@ -137,6 +138,8 @@ const ConfirmationModal = ({
 };
 
 export default function ProductsPage() {
+  const { role } = useAuth(); // 2. POBIERAMY ROLĘ
+  
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -407,7 +410,8 @@ export default function ProductsPage() {
       toast.error("Wymagane: nazwa i kod");
       return;
     }
-    if (addForm.sell_price_net <= 0) {
+    // Walidacja ceny tylko jeśli to nie jest magazynier
+    if (role !== "warehouse" && addForm.sell_price_net <= 0) {
       toast.error("Cena musi być większa od 0");
       return;
     }
@@ -460,6 +464,7 @@ export default function ProductsPage() {
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-4">Zarządzanie Produktami</h1>
       <div className="flex flex-wrap items-center gap-3 mb-4">
+        
         <input
           type="text"
           placeholder="Filtruj po nazwie"
@@ -528,9 +533,18 @@ export default function ProductsPage() {
                   <th className="p-2 border text-left cursor-pointer" onClick={() => toggleSort("code")}>
                     Kod {renderSortIcon("code")}
                   </th>
-                  <th className="p-2 border text-right cursor-pointer" onClick={() => toggleSort("sell_price_net")}>
-                    Cena Netto {renderSortIcon("sell_price_net")}
-                  </th>
+                  
+                  {/* WARUNKOWE WYŚWIETLANIE KOLUMN W TABELI */}
+                  {role !== "warehouse" ? (
+                    <th className="p-2 border text-right cursor-pointer" onClick={() => toggleSort("sell_price_net")}>
+                      Cena Netto {renderSortIcon("sell_price_net")}
+                    </th>
+                  ) : (
+                    <th className="p-2 border text-right">
+                      Lokalizacja
+                    </th>
+                  )}
+
                   <th className="p-2 border text-right cursor-pointer" onClick={() => toggleSort("stock_quantity")}>
                     Stan {renderSortIcon("stock_quantity")}
                   </th>
@@ -548,7 +562,14 @@ export default function ProductsPage() {
                       <td className="p-2 border">{p.id}</td>
                       <td className="p-2 border font-medium">{p.name}</td>
                       <td className="p-2 border">{p.code}</td>
-                      <td className="p-2 border text-right">{p.sell_price_net.toFixed(2)} zł</td>
+                      
+                      {/*WARUNKOWA ZAWARTOŚĆ TABELI */}
+                      {role !== "warehouse" ? (
+                        <td className="p-2 border text-right">{p.sell_price_net.toFixed(2)} zł</td>
+                      ) : (
+                        <td className="p-2 border text-right">{p.location || "-"}</td>
+                      )}
+
                       <td className="p-2 border text-right">{p.stock_quantity}</td>
                       <td className="p-2 border text-center" onClick={(e) => e.stopPropagation()}>
                         <button
@@ -632,35 +653,41 @@ export default function ProductsPage() {
                     }
                   />
                 </label>
-                <label className="block mb-2">
-                  Cena Netto:
-                  <input
-                    type="number"
-                    className="border w-full p-2 rounded mt-1"
-                    value={editData.sell_price_net ?? ""}
-                    onChange={(e) =>
-                      setEditData({
-                        ...editData,
-                        sell_price_net: parseFloat(e.target.value),
-                      })
-                    }
-                  />
-                </label>
-                {/* NOWE POLE EDYCJI CENY ZAKUPU */}
-                <label className="block mb-2">
-                  Cena Zakupu:
-                  <input
-                    type="number"
-                    className="border w-full p-2 rounded mt-1"
-                    value={editData.buy_price ?? 0}
-                    onChange={(e) =>
-                      setEditData({
-                        ...editData,
-                        buy_price: parseFloat(e.target.value),
-                      })
-                    }
-                  />
-                </label>
+                
+                {/*UKRYWANIE PÓL CENOWYCH PRZY EDYCJI DLA MAGAZYNIERA */}
+                {role !== "warehouse" && (
+                  <>
+                    <label className="block mb-2">
+                      Cena Netto:
+                      <input
+                        type="number"
+                        className="border w-full p-2 rounded mt-1"
+                        value={editData.sell_price_net ?? ""}
+                        onChange={(e) =>
+                          setEditData({
+                            ...editData,
+                            sell_price_net: parseFloat(e.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="block mb-2">
+                      Cena Zakupu:
+                      <input
+                        type="number"
+                        className="border w-full p-2 rounded mt-1"
+                        value={editData.buy_price ?? 0}
+                        onChange={(e) =>
+                          setEditData({
+                            ...editData,
+                            buy_price: parseFloat(e.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                  </>
+                )}
+
                 <label className="block mb-2">
                   Stan Magazynowy:
                   <input
@@ -757,8 +784,15 @@ export default function ProductsPage() {
                 <p><strong>ID:</strong> {selected.id}</p>
                 <p><strong>Nazwa:</strong> {selected.name}</p>
                 <p><strong>Kod:</strong> {selected.code}</p>
-                <p><strong>Cena Netto:</strong> {selected.sell_price_net.toFixed(2)} zł</p>
-                <p><strong>Cena Zakupu:</strong> {selected.buy_price ? selected.buy_price.toFixed(2) : "0.00"} zł</p>
+                
+                {/*UKRYWANIE PÓL CENOWYCH W SZCZEGÓŁACH DLA MAGAZYNIERA */}
+                {role !== "warehouse" && (
+                  <>
+                    <p><strong>Cena Netto:</strong> {selected.sell_price_net.toFixed(2)} zł</p>
+                    <p><strong>Cena Zakupu:</strong> {selected.buy_price ? selected.buy_price.toFixed(2) : "0.00"} zł</p>
+                  </>
+                )}
+
                 <p><strong>Stan:</strong> {selected.stock_quantity}</p>
                 <p><strong>Dostawca:</strong> {selected.supplier || "Brak"}</p>
                 <p><strong>Kategoria:</strong> {selected.category || "Brak"}</p>
@@ -805,32 +839,37 @@ export default function ProductsPage() {
                   }
                 />
               </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-sm">Cena Netto *</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="border w-full p-2 rounded mt-1"
-                    value={addForm.sell_price_net}
-                    onChange={(e) =>
-                      setAddForm({ ...addForm, sell_price_net: Number(e.target.value) })
-                    }
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-sm">Cena Zakupu</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="border w-full p-2 rounded mt-1"
-                    value={addForm.buy_price ?? 0}
-                    onChange={(e) =>
-                      setAddForm({ ...addForm, buy_price: Number(e.target.value) })
-                    }
-                  />
-                </label>
-              </div>
+              
+              {/*UKRYWANIE PÓL CENOWYCH PRZY DODAWANIU DLA MAGAZYNIERA */}
+              {role !== "warehouse" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="text-sm">Cena Netto *</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="border w-full p-2 rounded mt-1"
+                      value={addForm.sell_price_net}
+                      onChange={(e) =>
+                        setAddForm({ ...addForm, sell_price_net: Number(e.target.value) })
+                      }
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm">Cena Zakupu</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="border w-full p-2 rounded mt-1"
+                      value={addForm.buy_price ?? 0}
+                      onChange={(e) =>
+                        setAddForm({ ...addForm, buy_price: Number(e.target.value) })
+                      }
+                    />
+                  </label>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className="text-sm">Stan *</span>

@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import toast from "react-hot-toast";
 import { useAuth } from "../store/auth";
 import CustomerShop from "./CustomerShop";
+import WZPage from "./WZ"; // <--- 1. IMPORTUJEMY STRONĘ WZ
 
 import {
   DollarSign,
@@ -11,8 +12,6 @@ import {
   PackageX,
   Archive,
   TrendingUp,
-  Package,
-  ListOrdered,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -26,13 +25,6 @@ import {
 } from "recharts";
 
 // === TYPY DANYCH ===
-type WzDoc = {
-    id: number;
-    buyer_name: string;
-    status: 'NEW' | 'IN_PROGRESS' | 'RELEASED' | 'CANCELLED';
-    created_at: string;
-};
-
 type StatsData = {
   total_revenue: number;
   total_invoices: number;
@@ -152,87 +144,6 @@ function TopProductsList({ products }: { products: TopProduct[] }) {
   );
 }
 
-// === PULPIT DLA MAGAZYNIERA ===
-function WarehouseDashboard() {
-    const [wzPending, setWzPending] = useState<WzDoc[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        const loadWzData = async () => {
-            try {
-                setLoading(true);
-                // Pobieramy dokumenty WZ ze statusami NEW lub IN_PROGRESS
-                const res = await api.get<{ items: WzDoc[], total: number }>("/warehouse-documents", {
-                    params: {
-                        status: ["NEW", "IN_PROGRESS"], // Filtr po wielu statusach
-                        page_size: 20,
-                    }
-                });
-                setWzPending(res.data.items);
-            } catch (err) {
-                console.error(err);
-                setError("Nie udało się załadować listy WZ.");
-            } finally {
-                setLoading(false);
-            }
-        };
-        loadWzData();
-    }, []);
-
-    if (loading) return <p>Ładowanie pulpitu magazynu...</p>;
-    if (error) return <p className="text-red-500">{error}</p>;
-
-    const wzCount = wzPending.length;
-
-    return (
-        <>
-            <dl className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <StatCard
-                    title="WZ Oczekujące / W Trakcie"
-                    value={wzCount}
-                    icon={<ListOrdered size={24} />}
-                    colorClass={wzCount > 0 ? "bg-red-600" : "bg-green-600"}
-                    to="/wz"
-                />
-                <StatCard
-                    title="Przejdź do listy WZ"
-                    value={"→"} 
-                    icon={<Archive size={24} />}
-                    colorClass={"bg-gray-500"}
-                    to="/wz"
-                />
-            </dl>
-
-            <div className="mt-6">
-                <h2 className="text-xl font-semibold mb-3 flex items-center">
-                    <Package size={20} className="mr-2 text-red-600" /> 
-                    WZ do realizacji ({wzCount})
-                </h2>
-                {wzCount === 0 ? (
-                    <div className="bg-green-100 p-4 rounded-lg text-green-700">Brak dokumentów do wydania.</div>
-                ) : (
-                    <div className="bg-white p-4 rounded-lg shadow-md">
-                        {wzPending.map(doc => (
-                            <Link 
-                                to={`/wz?doc_id=${doc.id}`}
-                                key={doc.id} 
-                                className="block border-b p-2 hover:bg-gray-50 transition"
-                            >
-                                <div className="flex justify-between text-sm">
-                                    <span className="font-medium text-gray-800">WZ #{doc.id} ({doc.status})</span>
-                                    <span className="text-gray-600">{doc.buyer_name}</span>
-                                </div>
-                            </Link>
-                        ))}
-                    </div>
-                )}
-            </div>
-        </>
-    );
-}
-
-
 // === PULPIT DLA ADMINA / SPRZEDAWCY ===
 function AdminSalesmanDashboard() {
   const [stats, setStats] = useState<StatsData | null>(null);
@@ -349,14 +260,17 @@ function CustomerDashboard() {
 export default function Dashboard() {
   const { role } = useAuth();
 
+  // 2. ZMIANA: Dla magazyniera wyświetlamy od razu stronę WZ
+  if (role === "warehouse") {
+      return <WZPage />;
+  }
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-4">Pulpit</h1>
       
       {role === "admin" || role === "salesman" ? (
         <AdminSalesmanDashboard />
-      ) : role === "warehouse" ? (
-        <WarehouseDashboard /> 
       ) : (
         <CustomerDashboard />
       )}

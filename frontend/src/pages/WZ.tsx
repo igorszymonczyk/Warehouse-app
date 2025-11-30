@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../lib/api";
-import { ArrowUpDown, ArrowLeft, Loader2, Download } from "lucide-react"; 
+import { ArrowUpDown, ArrowLeft, Loader2, Download, Package } from "lucide-react"; 
 import { useSearchParams } from "react-router-dom"; 
 import toast from "react-hot-toast";
 
@@ -165,6 +165,9 @@ export default function WZPage() {
 
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
+  // Stan dla licznika oczekujących
+  const [activeCount, setActiveCount] = useState(0);
+
   const [buyer, setBuyer] = useState("");
   const [status, setStatus] = useState("");
   const [fromDt, setFromDt] = useState("");
@@ -187,6 +190,8 @@ export default function WZPage() {
   
   const handleCloseDetail = useCallback(() => {
       setSearchParams({});
+      load(); // Odśwież listę po powrocie
+      fetchActiveCount(); // Odśwież licznik po powrocie
   }, [setSearchParams]);
 
   const toggleSort = (field: typeof sortBy) => {
@@ -197,6 +202,7 @@ export default function WZPage() {
     }
   };
 
+  // Funkcja pobierająca listę (tabela)
   const load = useCallback(async () => {
     if (fromDt && toDt && new Date(toDt) < new Date(fromDt)) {
       setError("Data 'do' nie może być wcześniejsza niż 'od'");
@@ -230,6 +236,22 @@ export default function WZPage() {
     }
   }, [buyer, status, fromDt, toDt, sortBy, order, page, currentDocId]);
 
+  // Funkcja pobierająca licznik zadań
+  const fetchActiveCount = async () => {
+      try {
+          const res = await api.get<{ total: number }>("/warehouse-documents", {
+              params: {
+                  status: ["NEW", "IN_PROGRESS"],
+                  page_size: 1, // Pobieramy cokolwiek, interesuje nas tylko 'total'
+              }
+          });
+          setActiveCount(res.data.total);
+      } catch (err) {
+          console.error("Błąd pobierania licznika WZ", err);
+      }
+  };
+
+  // Ładowanie listy
   useEffect(() => {
     const timeout = setTimeout(() => {
       setPage(1);
@@ -239,12 +261,18 @@ export default function WZPage() {
   }, [buyer, status, fromDt, toDt, sortBy, order]);
 
   useEffect(() => { load(); }, [page]);
+
+  // Ładowanie licznika przy starcie
+  useEffect(() => {
+      fetchActiveCount();
+  }, []);
   
   const changeStatus = async (id: number, newStatus: WZStatus) => {
     try {
       await api.patch(`/warehouse-documents/${id}/status`, { status: newStatus });
       toast.success(`Status WZ ${id} zmieniony na ${newStatus}`);
       setRows((r) => r.map((x) => (x.id === id ? { ...x, status: newStatus } : x)));
+      fetchActiveCount(); // Odśwież licznik po zmianie statusu
     } catch {
       toast.error("Nie udało się zmienić statusu");
       throw new Error("Błąd"); 
@@ -291,6 +319,32 @@ export default function WZPage() {
   return (
     <div className="p-6">
       <h1 className="text-xl font-semibold mb-4">Wydania zewnętrzne (WZ)</h1>
+
+      {/* --- NOWY LICZNIK ZADAŃ --- */}
+      <div className={`mb-6 p-4 rounded-lg shadow-sm border flex items-center justify-between ${activeCount > 0 ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'}`}>
+          <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-full ${activeCount > 0 ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                  <Package size={24} />
+              </div>
+              <div>
+                  <h3 className="font-semibold text-lg text-gray-800">
+                      {activeCount > 0 ? "Wymagana akcja magazynu" : "Brak zaległości"}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                      Dokumenty WZ oczekujące lub w trakcie realizacji: <span className="font-bold text-lg ml-1">{activeCount}</span>
+                  </p>
+              </div>
+          </div>
+          {activeCount > 0 && (
+              <button 
+                onClick={() => { setStatus("NEW"); setPage(1); }}
+                className="px-4 py-2 bg-white border border-orange-300 text-orange-700 font-medium rounded hover:bg-orange-50 transition"
+              >
+                  Pokaż nowe
+              </button>
+          )}
+      </div>
+      {/* -------------------------- */}
 
       {/* FILTRY */}
       <div className="flex flex-wrap items-end gap-3 mb-4">
@@ -374,13 +428,12 @@ export default function WZPage() {
                 className="hover:bg-gray-50 border-b transition-colors cursor-pointer"
                 onClick={() => handleViewDetail(r.id)} 
               >
-                {/* ZMIANA KOLORU NA CZARNY (text-gray-900) */}
                 <td className="p-3 border-r text-gray-900 font-medium">
                     WZ-{r.id}
                 </td>
                 <td className="p-3 border-r text-gray-800">{r.buyer_name ?? "-"}</td>
                 <td className="p-3 border-r">
-                  <div onClick={(e) => e.stopPropagation()}> {/* Zabezpieczenie przed kliknięciem wiersza */}
+                  <div onClick={(e) => e.stopPropagation()}> 
                       <select
                         className={`border rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500
                             ${r.status === 'RELEASED' ? 'bg-green-50 text-green-700 border-green-200' : ''}
@@ -406,7 +459,7 @@ export default function WZPage() {
                 <td className="p-3 border-r text-center">
                     <button
                         onClick={(e) => {
-                            e.stopPropagation(); // Zabezpieczenie przed kliknięciem wiersza
+                            e.stopPropagation(); 
                             downloadPdf(r.id);
                         }}
                         disabled={downloadingId === r.id}

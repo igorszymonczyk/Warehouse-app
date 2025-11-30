@@ -27,16 +27,19 @@ export default function Layout() {
     <div className="min-h-screen bg-gray-50">
       <header className="flex items-center justify-between p-4 border-b bg-white">
         <nav className="flex items-center space-x-2">
-          {/* ----- Wspólne dla wszystkich ----- */}
-          <NavLink
-            to="/"
-            end
-            className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
-          >
-            Pulpit
-          </NavLink>
           
-          {/* ... (trasy admina/sprzedawcy/magazyniera bez zmian) ... */}
+          {/* 1. ZMIANA: Ukrywamy "Pulpit" dla Magazyniera, bo dla niego stroną startową jest WZ */}
+          {role !== "warehouse" && (
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
+            >
+              Pulpit
+            </NavLink>
+          )}
+          
+          {/* ----- Admin / Sprzedawca ----- */}
           {(role === "admin" || role === "salesman") && (
             <>
               <NavLink
@@ -59,6 +62,8 @@ export default function Layout() {
               </NavLink>
             </>
           )}
+
+          {/* ----- Admin ----- */}
           {role === "admin" && (
             <>
               <NavLink
@@ -75,8 +80,11 @@ export default function Layout() {
               </NavLink>
             </>
           )}
+
+          {/* ----- Magazynier ----- */}
           {role === "warehouse" && (
             <>
+              {/* Magazynier ma WZ jako główną zakładkę */}
               <NavLink
                 to="/wz"
                 className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
@@ -92,7 +100,7 @@ export default function Layout() {
             </>
           )}
 
-          {/* ----- Tylko dla Klienta ----- */}
+          {/* ----- Klient ----- */}
           {role === "customer" && (
             <>
               <NavLink
@@ -101,8 +109,6 @@ export default function Layout() {
               >
                 Moje zamówienia
               </NavLink>
-              
-              {/* ZMIANA: Dodany link */}
               <NavLink
                 to="/my-invoices"
                 className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
@@ -131,7 +137,6 @@ export default function Layout() {
             </NavLink>
           )}
           
-          {/* ZMIANA: Przycisk edycji danych firmy tylko dla Admina */}
           {role === "admin" && (
             <button 
                 title="Dane firmy" 
@@ -147,7 +152,6 @@ export default function Layout() {
           </button>
         </div>
 
-        {/* ZMIANA: Modal danych firmy */}
         <CompanyDataModal open={companyModalOpen} onClose={() => setCompanyModalOpen(false)} />
         
       </header>
