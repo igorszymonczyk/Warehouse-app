@@ -32,10 +32,9 @@ type InvoiceFormInputs = {
 export default function CreateInvoice() {
   const navigate = useNavigate();
 
-  // --- ZMIANA 1: Zamiast pełnej listy produktów, mamy wyniki wyszukiwania ---
-  const [searchResults, setSearchResults] = useState<Product[]>([]); // Wyniki z backendu
+  // --- ZMIANA 1: Przechowujemy WSZYSTKIE produkty do filtrowania lokalnego ---
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState(""); // Do opóźniania zapytań
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -61,44 +60,21 @@ export default function CreateInvoice() {
     keyName: "keyId",
   });
 
-  // --- ZMIANA 2: Logika Debounce (Opóźnienie) ---
+  // --- ZMIANA 2: Pobieramy produkty raz przy załadowaniu (limit 10000) ---
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 300); // Czekamy 300ms po ostatnim naciśnięciu klawisza
-
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  // --- ZMIANA 3: Wyszukiwanie po stronie serwera ---
-  useEffect(() => {
-    // Jeśli fraza jest za krótka, czyścimy wyniki i nie pytamy API
-    if (!debouncedSearch || debouncedSearch.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-
     const fetchProducts = async () => {
       try {
-        // Pytamy backend o produkty pasujące do frazy 'q'
-        const res = await api.get("/products", {
-          params: { q: debouncedSearch, page_size: 20 } // Pobieramy max 20 wyników
-        });
-        
-        // Obsługa różnych formatów odpowiedzi (paginowana lub lista)
-        const data = res.data;
-        const list = Array.isArray(data) ? data : data.items || [];
-        setSearchResults(list);
+        const res = await api.get<{ items: Product[] }>("/products?page_size=10000");
+        const list = res.data.items || [];
+        setAllProducts(list);
       } catch (err) {
-        console.error("Błąd wyszukiwania:", err);
-        // Nie wyświetlamy toasta przy każdym błędzie wyszukiwania, żeby nie irytować usera
-        setSearchResults([]);
+        console.error("Błąd pobierania produktów:", err);
+        toast.error("Nie udało się załadować listy produktów");
       }
     };
 
     fetchProducts();
-  }, [debouncedSearch]);
-
+  }, []);
 
   const watchedItems = watch("items");
   const totalNet = watchedItems.reduce((sum, i) => sum + i.price_net * i.quantity, 0);
@@ -108,11 +84,19 @@ export default function CreateInvoice() {
   );
   const totalGross = totalNet + totalVat;
 
-  // --- ZMIANA 4: Filtrowanie wyników (tylko te, których nie ma na fakturze) ---
-  // Teraz filtrujemy 'searchResults' (małą listę z API), a nie 'products' (całą bazę)
-  const filteredProducts = searchResults.filter(
-    (p) => !watchedItems.some((item) => item.product_id === p.id)
-  );
+  // --- ZMIANA 3: Filtrowanie lokalne (Search w React) ---
+  // Filtrujemy 'allProducts' na podstawie wpisanego tekstu ORAZ usuwamy te już dodane
+  const filteredProducts = allProducts.filter((p) => {
+    // 1. Warunek wyszukiwania (nazwa lub kod)
+    const matchesSearch = 
+      p.name.toLowerCase().includes(search.toLowerCase()) || 
+      p.code.toLowerCase().includes(search.toLowerCase());
+    
+    // 2. Warunek: nie ma go jeszcze na liście
+    const notAdded = !watchedItems.some((item) => item.product_id === p.id);
+
+    return matchesSearch && notAdded;
+  });
 
   const handleAddProduct = (product: Product) => {
     append({
@@ -123,7 +107,6 @@ export default function CreateInvoice() {
       tax_rate: product.tax_rate ?? 23,
     });
     setSearch(""); // Czyścimy pole wyszukiwania
-    setSearchResults([]); // Czyścimy wyniki po dodaniu
     setFocused(false);
     inputRef.current?.blur();
   };
@@ -203,7 +186,7 @@ export default function CreateInvoice() {
         {focused && search.length >= 2 && (
           <ul className="absolute z-10 bg-white border rounded mt-1 shadow max-h-60 overflow-auto w-full">
             {filteredProducts.length > 0 ? (
-              filteredProducts.map((p) => (
+              filteredProducts.slice(0, 50).map((p) => ( // Limit wyświetlania w drop-downie dla wydajności
                 <li
                   key={p.id}
                   onMouseDown={() => handleAddProduct(p)}
@@ -324,10 +307,11 @@ export default function CreateInvoice() {
 
       {/* --- PRZYCISKI --- */}
       <div className="flex gap-3">
+        {/* Zmieniony kolor przycisku na zielony */}
         <button
           type="submit"
           disabled={isSubmitting}
-          className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50"
+          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
         >
           {isSubmitting ? "Zapisywanie..." : "Utwórz fakturę"}
         </button>

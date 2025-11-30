@@ -8,12 +8,16 @@ export interface Page<T> {
 // For the invoice list page (as used in InvoicesPage.tsx)
 export interface Invoice {
   id: number;
+  full_number: string;
   created_at: string;
   buyer_name: string;
   buyer_nip: string | null;
   total_gross: number;
   total_net: number;
   total_vat: number;
+  is_correction: boolean;
+  parent_id?: number | null;
+  correction_reason?: string | null;
 }
 
 // Represents a single item within a detailed invoice view.
@@ -31,6 +35,7 @@ export interface InvoiceItemDetail {
 // For the full invoice detail page (as used in InvoiceDetailPage.tsx)
 export interface InvoiceDetail {
   id: number;
+  full_number: string;
   buyer_name: string;
   buyer_nip: string | null;
   buyer_address: string | null;
@@ -39,6 +44,9 @@ export interface InvoiceDetail {
   total_vat: number;
   total_gross: number;
   items: InvoiceItemDetail[];
+  is_correction: boolean;
+  parent_id?: number | null;
+  correction_reason?: string | null;
 }
 
 // Warehouse Document Type

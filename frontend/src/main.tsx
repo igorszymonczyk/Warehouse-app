@@ -20,7 +20,8 @@ import CheckoutPage from "./pages/Checkout";
 import MyOrdersPage from "./pages/MyOrders";
 import MyInvoicesPage from "./pages/MyInvoices";
 import InvoiceDetailPage from "./pages/InvoiceDetail";
-import LogsPage from "./pages/Logs"; // Import już tu był, teraz użyjemy go w routerze
+import LogsPage from "./pages/Logs"; 
+import CorrectInvoicePage from "./pages/CorrectInvoice";
 
 
 const router = createBrowserRouter([
@@ -61,7 +62,14 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
-      
+      {
+        path: "invoices/:id/correct",
+        element: (
+          <Protected allowedRoles={["admin", "salesman"]}>
+            <CorrectInvoicePage />
+          </Protected>
+        ),
+      },
       // --- Trasy Magazyniera (i Admin/Salesman) ---
       {
         path: "wz",

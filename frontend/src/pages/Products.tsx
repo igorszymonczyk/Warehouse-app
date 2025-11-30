@@ -12,7 +12,7 @@ type Product = {
   description?: string;
   category?: string;
   supplier?: string;
-  buy_price?: number;
+  buy_price?: number; // Jest tutaj
   sell_price_net: number;
   tax_rate?: number;
   stock_quantity: number;
@@ -164,19 +164,16 @@ export default function ProductsPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
 
-  // === STANY DLA FILTRÓW ===
   const [nameFilter, setNameFilter] = useState("");
   const [codeFilter, setCodeFilter] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   
-  // Stany dla list rozwijanych
   const [allCategories, setAllCategories] = useState<string[]>([]);
   const [allSuppliers, setAllSuppliers] = useState<string[]>([]);
   const [allLocations, setAllLocations] = useState<string[]>([]);
   
-  // Debounce dla szybkich filtrów (Nazwa, Kod)
   const [debouncedNameFilter, setDebouncedNameFilter] = useState(nameFilter);
   const [debouncedCodeFilter, setDebouncedCodeFilter] = useState(codeFilter);
   
@@ -188,7 +185,6 @@ export default function ProductsPage() {
         clearTimeout(tCode);
     }
   }, [nameFilter, codeFilter]);
-  // === KONIEC STANÓW ===
 
   const [searchParams, setSearchParams] = useSearchParams();
   const urlSortKey = searchParams.get("sort_by");
@@ -207,7 +203,6 @@ export default function ProductsPage() {
   const [editData, setEditData] = useState<Partial<Product>>({});
   const [editing, setEditing] = useState(false);
   
-  // === FUNKCJA POBIERANIA UNIKALNYCH WARTOŚCI ===
   useEffect(() => {
     const fetchUniqueValues = async () => {
         try {
@@ -221,11 +216,10 @@ export default function ProductsPage() {
             setAllLocations(locRes.data);
         } catch (err) {
             console.error("Failed to load unique filters", err);
-            if (!error) toast.error("Nie udało się załadować filtrów. Sprawdź backend.");
         }
     };
     fetchUniqueValues();
-  }, [error]); 
+  }, []); 
   
 
   const load = useCallback(async () => {
@@ -236,13 +230,11 @@ export default function ProductsPage() {
         params: {
           page,
           page_size: pageSize,
-          // === NOWE PARAMETRY DLA API ===
           name: debouncedNameFilter || undefined,
           code: debouncedCodeFilter || undefined,
           supplier: supplierFilter || undefined,
           category: categoryFilter || undefined,
           location: locationFilter || undefined,
-          // === KONIEC NOWYCH PARAMETRÓW ===
           sort_by: sortKey,
           order: sortOrder,
         },
@@ -268,8 +260,6 @@ export default function ProductsPage() {
     if (page > 1) params.set("page", String(page));
     params.set("sort_by", sortKey);
     params.set("order", sortOrder);
-    
-    // === SYNCHRONIZACJA URL DLA NOWYCH FILTRÓW ===
     if (debouncedNameFilter) params.set("name", debouncedNameFilter);
     if (debouncedCodeFilter) params.set("code", debouncedCodeFilter);
     if (supplierFilter) params.set("supplier", supplierFilter);
@@ -383,7 +373,7 @@ export default function ProductsPage() {
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      if (file.size > 5 * 1024 * 1024) { 
         toast.error("Plik jest za duży! Maksymalny rozmiar to 5MB.");
         return;
       }
@@ -398,7 +388,7 @@ export default function ProductsPage() {
   const handleEditFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-       if (file.size > 5 * 1024 * 1024) { // 5MB limit
+       if (file.size > 5 * 1024 * 1024) {
         toast.error("Plik jest za duży! Maksymalny rozmiar to 5MB.");
         return;
       }
@@ -470,8 +460,6 @@ export default function ProductsPage() {
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-4">Zarządzanie Produktami</h1>
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        
-        {/* === NOWE FILTRY === */}
         <input
           type="text"
           placeholder="Filtruj po nazwie"
@@ -487,7 +475,6 @@ export default function ProductsPage() {
           onChange={(e) => {setCodeFilter(e.target.value); setPage(1);}}
         />
         
-        {/* FILTR DOSTAWCY (DROPDOWN) */}
         <select
           className="border rounded px-3 py-2 w-32"
           value={supplierFilter}
@@ -497,7 +484,6 @@ export default function ProductsPage() {
           {allSuppliers.map(val => (<option key={val} value={val}>{val}</option>))}
         </select>
         
-        {/* FILTR KATEGORII (DROPDOWN) */}
         <select
           className="border rounded px-3 py-2 w-32"
           value={categoryFilter}
@@ -507,7 +493,6 @@ export default function ProductsPage() {
           {allCategories.map(val => (<option key={val} value={val}>{val}</option>))}
         </select>
         
-        {/* FILTR LOKALIZACJI (DROPDOWN) */}
         <select
           className="border rounded px-3 py-2 w-32"
           value={locationFilter}
@@ -516,7 +501,6 @@ export default function ProductsPage() {
           <option value="">-- Lokalizacja --</option>
           {allLocations.map(val => (<option key={val} value={val}>{val}</option>))}
         </select>
-        {/* === KONIEC NOWYCH FILTRÓW === */}
         
         <button
           className="ml-auto bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
@@ -662,6 +646,21 @@ export default function ProductsPage() {
                     }
                   />
                 </label>
+                {/* NOWE POLE EDYCJI CENY ZAKUPU */}
+                <label className="block mb-2">
+                  Cena Zakupu:
+                  <input
+                    type="number"
+                    className="border w-full p-2 rounded mt-1"
+                    value={editData.buy_price ?? 0}
+                    onChange={(e) =>
+                      setEditData({
+                        ...editData,
+                        buy_price: parseFloat(e.target.value),
+                      })
+                    }
+                  />
+                </label>
                 <label className="block mb-2">
                   Stan Magazynowy:
                   <input
@@ -759,6 +758,7 @@ export default function ProductsPage() {
                 <p><strong>Nazwa:</strong> {selected.name}</p>
                 <p><strong>Kod:</strong> {selected.code}</p>
                 <p><strong>Cena Netto:</strong> {selected.sell_price_net.toFixed(2)} zł</p>
+                <p><strong>Cena Zakupu:</strong> {selected.buy_price ? selected.buy_price.toFixed(2) : "0.00"} zł</p>
                 <p><strong>Stan:</strong> {selected.stock_quantity}</p>
                 <p><strong>Dostawca:</strong> {selected.supplier || "Brak"}</p>
                 <p><strong>Kategoria:</strong> {selected.category || "Brak"}</p>

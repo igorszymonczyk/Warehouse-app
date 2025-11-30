@@ -29,6 +29,7 @@ class InvoiceItemResponse(BaseModel):
 
 class InvoiceResponse(BaseModel):
     id: int
+    full_number: str
     buyer_name: str
     buyer_nip: Optional[str]
     buyer_address: Optional[str]
@@ -54,6 +55,7 @@ class InvoiceItemDetail(BaseModel):
 
 class InvoiceDetail(BaseModel):
     id: int
+    full_number: str
     buyer_name: str
     buyer_nip: Optional[str]
     buyer_address: Optional[str]
@@ -62,19 +64,26 @@ class InvoiceDetail(BaseModel):
     total_vat: float
     total_gross: float
     items: List[InvoiceItemDetail]
+    is_correction: bool = False
+    parent_id: Optional[int] = None
+    correction_reason: Optional[str] = None
 
     class Config:
         from_attributes = True
 
 class InvoiceListItem(BaseModel):
     id: int
+    full_number: str
     buyer_name: str
     buyer_nip: Optional[str]
     created_at: datetime
     total_net: float
     total_vat: float
     total_gross: float
-    payment_status: Optional[str] = None 
+    payment_status: Optional[str] = None
+    is_correction: bool = False
+    parent_id: Optional[int] = None
+    correction_reason: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -84,3 +93,10 @@ class InvoiceListPage(BaseModel):
     total: int
     page: int
     page_size: int
+
+class InvoiceCorrectionCreate(BaseModel):
+    buyer_name: str
+    buyer_nip: Optional[str] = None
+    buyer_address: Optional[str] = None
+    items: List[InvoiceItemCreate]
+    correction_reason: str

@@ -194,7 +194,7 @@ def load_all_data():
 
 
     session.commit()
-    print(f"✅ Pomyślnie wstawiono {len(valid_orders_df)} zamówień Olist.")
+    print(f"Pomyślnie wstawiono {len(valid_orders_df)} zamówień Olist.")
     session.close()
 
 def populate_database():

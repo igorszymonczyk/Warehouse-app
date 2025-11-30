@@ -3,12 +3,12 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 
 
-# --- KONFIGURACJA DLA ORM ---
+# KONFIGURACJA DLA ORM
 class ORMBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- GŁÓWNY MODEL BAZOWY PRODUKTU ---
+# GŁÓWNY MODEL BAZOWY PRODUKTU
 class ProductBase(ORMBase):
     name: str
     code: str
@@ -24,7 +24,7 @@ class ProductBase(ORMBase):
     image_url: Optional[str] = None
 
 
-# --- TWORZENIE PRODUKTU ---
+# TWORZENIE PRODUKTU 
 class ProductCreate(ProductBase):
     name: str
     code: str
@@ -34,7 +34,7 @@ class ProductCreate(ProductBase):
     # ponieważ będzie przesyłane jako oddzielny plik, a nie JSON
 
 
-# --- EDYCJA PRODUKTU (PATCH) ---
+#EDYCJA PRODUKTU
 class ProductEditRequest(ORMBase):
     """Dla PATCH — wszystkie pola opcjonalne."""
     name: Optional[str] = Field(None, description="Nazwa produktu")
@@ -51,7 +51,7 @@ class ProductEditRequest(ORMBase):
     # Tu również nie dodajemy image_url, aby uprościć - edycja zdjęcia to osobny proces
 
 
-# --- ODP. DLA JEDNEGO PRODUKTU ---
+# DLA JEDNEGO PRODUKTU
 class ProductOut(ProductBase):
     id: int
     # image_url jest już dziedziczone z ProductBase

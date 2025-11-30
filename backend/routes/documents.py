@@ -1,4 +1,4 @@
-# routes/documents.py
+# backend/routes/documents.py
 from typing import Optional, Literal, List, Dict, Any
 from datetime import datetime
 
@@ -8,18 +8,25 @@ from sqlalchemy.orm import Session
 from database import get_db
 from utils.tokenJWT import get_current_user
 from models.users import User
-
 from models.invoice import Invoice
 from models.WarehouseDoc import WarehouseDocument, WarehouseStatus
 from schemas.documents import DocumentsPage, DocumentListItem
 
 router = APIRouter(tags=["Documents"])
 
+# Moduł Documents
+# --------------------------------
+# Obsługuje przeglądanie dokumentów sprzedaży i magazynowych:
+# - faktur (invoice)
+# - dokumentów WZ (warehouse document)
+# Endpoint wspiera filtrowanie, paginację i sortowanie.
+# Dostęp mają tylko wybrane role: ADMIN, SALESMAN, WAREHOUSE.
+
 def _role_ok(user: User) -> bool:
-    # Agregator ma sens dla tych ról:
     return (user.role or "").upper() in {"ADMIN", "SALESMAN", "WAREHOUSE"}
 
 def _parse_iso(s: Optional[str]) -> Optional[datetime]:
+    # Parsowanie daty w formacie ISO; walidacja
     if not s:
         return None
     try:
@@ -27,6 +34,8 @@ def _parse_iso(s: Optional[str]) -> Optional[datetime]:
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Bad datetime format: {s}")
 
+
+# Lista dokumentów z filtrowaniem, paginacją i sortowaniem
 @router.get("/documents", response_model=DocumentsPage)
 def list_documents(
     type: Optional[Literal["invoice", "wz"]] = Query(None, description="Filtr rodzaju dokumentu"),
@@ -54,21 +63,18 @@ def list_documents(
     if type in (None, "invoice"):
         iq = db.query(Invoice)
 
-        # buyer_name jeżeli jest; jeśli masz inną kolumnę, podmień getattr
         if buyer and hasattr(Invoice, "buyer_name"):
             iq = iq.filter(Invoice.buyer_name.ilike(f"%{buyer}%"))
-
         if fdt and hasattr(Invoice, "created_at"):
             iq = iq.filter(Invoice.created_at >= fdt)
         if tdt and hasattr(Invoice, "created_at"):
             iq = iq.filter(Invoice.created_at <= tdt)
-
         if status and hasattr(Invoice, "status"):
             iq = iq.filter(Invoice.status == status)
 
         inv_total = iq.count()
 
-        # sort
+        # sortowanie
         if sort_by == "date" and hasattr(Invoice, "created_at"):
             iq = iq.order_by(Invoice.created_at.asc() if order == "asc" else Invoice.created_at.desc())
         elif sort_by == "buyer" and hasattr(Invoice, "buyer_name"):
@@ -101,18 +107,16 @@ def list_documents(
 
         if buyer and hasattr(WarehouseDocument, "buyer_name"):
             wq = wq.filter(WarehouseDocument.buyer_name.ilike(f"%{buyer}%"))
-
         if fdt and hasattr(WarehouseDocument, "created_at"):
             wq = wq.filter(WarehouseDocument.created_at >= fdt)
         if tdt and hasattr(WarehouseDocument, "created_at"):
             wq = wq.filter(WarehouseDocument.created_at <= tdt)
-
         if status:
             wq = wq.filter(WarehouseDocument.status == status)
 
         wz_total = wq.count()
 
-        # sort
+        # sortowanie
         if sort_by == "date" and hasattr(WarehouseDocument, "created_at"):
             wq = wq.order_by(WarehouseDocument.created_at.asc() if order == "asc" else WarehouseDocument.created_at.desc())
         elif sort_by == "buyer" and hasattr(WarehouseDocument, "buyer_name"):
@@ -135,10 +139,7 @@ def list_documents(
                 "items_json": getattr(w, "items_json", None),
             })
 
-    # UWAGA: prosta paginacja "per-źródło".
-    # Dla aplikacji produkcyjnej można zrobić UNION w SQL, ale tutaj
-    # TODO(documents): replace Python merge with DB-level UNION/VIEW when moving to Postgres.
-
+    
     items: List[DocumentListItem] = [DocumentListItem(**x) for x in (inv_items + wz_items)]
     total = (inv_total if type in (None, "invoice") else 0) + (wz_total if type in (None, "wz") else 0)
 

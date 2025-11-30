@@ -163,7 +163,6 @@ export default function WZPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Stan do śledzenia pobierania konkretnego pliku
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
   const [buyer, setBuyer] = useState("");
@@ -178,7 +177,6 @@ export default function WZPage() {
   const [sortBy, setSortBy] = useState<"created_at" | "status" | "buyer_name">("created_at");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   
-  // Obsługa widoku szczegółów z URL
   const [searchParams, setSearchParams] = useSearchParams();
   const docIdParam = searchParams.get('doc_id');
   const currentDocId = docIdParam ? parseInt(docIdParam, 10) : null;
@@ -205,7 +203,6 @@ export default function WZPage() {
       return;
     }
 
-    // Nie ładujemy listy, jeśli jesteśmy w widoku szczegółów
     if (currentDocId) return; 
 
     try {
@@ -254,7 +251,6 @@ export default function WZPage() {
     }
   };
 
-  // --- POPRAWIONA FUNKCJA POBIERANIA (BLOB + TOAST) ---
   const downloadPdf = async (id: number) => {
     if (downloadingId === id) return;
     
@@ -262,15 +258,11 @@ export default function WZPage() {
     const toastId = toast.loading("Generowanie i pobieranie WZ...");
 
     try {
-        // 1. Generowanie PDF (jeśli nie istnieje)
         await api.post(`/warehouse-documents/${id}/pdf`);
-        
-        // 2. Pobieranie Bloba
         const res = await api.get(`/warehouse-documents/${id}/download`, {
             responseType: 'blob',
         });
 
-        // 3. Tworzenie linku i kliknięcie
         const url = window.URL.createObjectURL(new Blob([res.data]));
         const link = document.createElement('a');
         link.href = url;
@@ -278,7 +270,6 @@ export default function WZPage() {
         document.body.appendChild(link);
         link.click();
         
-        // Sprzątanie
         link.remove();
         window.URL.revokeObjectURL(url);
         
@@ -290,11 +281,9 @@ export default function WZPage() {
         setDownloadingId(null);
     }
   };
-  // ----------------------------------------------------
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   
-  // WARUNKOWY RENDER: Jeśli mamy doc_id w URL, pokaż szczegóły
   if (currentDocId) {
       return <WZDetailView docId={currentDocId} onBack={handleCloseDetail} onChangeStatus={changeStatus} />;
   }
@@ -380,41 +369,44 @@ export default function WZPage() {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="hover:bg-gray-50 border-b transition-colors">
-                <td 
-                    className="p-3 border-r text-blue-600 cursor-pointer hover:underline font-medium" 
-                    onClick={() => handleViewDetail(r.id)}
-                >
+              <tr 
+                key={r.id} 
+                className="hover:bg-gray-50 border-b transition-colors cursor-pointer"
+                onClick={() => handleViewDetail(r.id)} 
+              >
+                {/* ZMIANA KOLORU NA CZARNY (text-gray-900) */}
+                <td className="p-3 border-r text-gray-900 font-medium">
                     WZ-{r.id}
                 </td>
                 <td className="p-3 border-r text-gray-800">{r.buyer_name ?? "-"}</td>
                 <td className="p-3 border-r">
-                  <select
-                    className={`border rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500
-                        ${r.status === 'RELEASED' ? 'bg-green-50 text-green-700 border-green-200' : ''}
-                        ${r.status === 'NEW' ? 'bg-blue-50 text-blue-700 border-blue-200' : ''}
-                        ${r.status === 'CANCELLED' ? 'bg-red-50 text-red-700 border-red-200' : ''}
-                        ${r.status === 'IN_PROGRESS' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : ''}
-                    `}
-                    value={r.status}
-                    onChange={(e) =>
-                      changeStatus(r.id, e.target.value as WzItem["status"])
-                    }
-                  >
-                    <option value="NEW">Nowy</option>
-                    <option value="IN_PROGRESS">W trakcie</option>
-                    <option value="RELEASED">Wydane</option>
-                    <option value="CANCELLED">Anulowany</option>
-                  </select>
+                  <div onClick={(e) => e.stopPropagation()}> {/* Zabezpieczenie przed kliknięciem wiersza */}
+                      <select
+                        className={`border rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500
+                            ${r.status === 'RELEASED' ? 'bg-green-50 text-green-700 border-green-200' : ''}
+                            ${r.status === 'NEW' ? 'bg-blue-50 text-blue-700 border-blue-200' : ''}
+                            ${r.status === 'CANCELLED' ? 'bg-red-50 text-red-700 border-red-200' : ''}
+                            ${r.status === 'IN_PROGRESS' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : ''}
+                        `}
+                        value={r.status}
+                        onChange={(e) =>
+                          changeStatus(r.id, e.target.value as WzItem["status"])
+                        }
+                      >
+                        <option value="NEW">Nowy</option>
+                        <option value="IN_PROGRESS">W trakcie</option>
+                        <option value="RELEASED">Wydane</option>
+                        <option value="CANCELLED">Anulowany</option>
+                      </select>
+                  </div>
                 </td>
                 <td className="p-3 border-r text-gray-600">
                     {new Date(r.created_at).toLocaleString("pl-PL")}
                 </td>
                 <td className="p-3 border-r text-center">
-                    {/* ZAKTUALIZOWANY PRZYCISK POBIERANIA */}
                     <button
                         onClick={(e) => {
-                            e.stopPropagation();
+                            e.stopPropagation(); // Zabezpieczenie przed kliknięciem wiersza
                             downloadPdf(r.id);
                         }}
                         disabled={downloadingId === r.id}

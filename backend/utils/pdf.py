@@ -2,8 +2,7 @@
 
 from pathlib import Path
 from typing import List, Any
-# Importujemy modele tylko dla type hintingu (opcjonalne, ale pomaga w IDE)
-# Jeśli masz problem z cyklicznym importem, usuń importy modeli i type hinty
+# Importujemy modele tylko dla type hintingu
 from models.invoice import Invoice, InvoiceItem 
 
 # Konfiguracja ścieżek
@@ -54,9 +53,9 @@ def _init_fonts():
 def generate_invoice_pdf(invoice: Invoice, items: List[InvoiceItem], out_path: Path, company: dict | None = None) -> None:
     """
     Generuje PDF faktury z układem:
-    - Nagłówek
-    - Sprzedawca (lewo) + Kontakt / Nabywca (prawo)
-    - Tabela produktów
+    - Nagłówek (z obsługą korekty i sekwencji numeracji)
+    - Sprzedawca (lewo) + Nabywca Było/Jest (prawo)
+    - Tabela produktów (Było/Jest dla korekty)
     - Podsumowanie
     - Stopka z podpisami
     """
@@ -73,14 +72,53 @@ def generate_invoice_pdf(invoice: Invoice, items: List[InvoiceItem], out_path: P
     c = canvas.Canvas(str(out_path), pagesize=A4)
     width, height = A4
 
+    # Funkcja pomocnicza do rysowania tekstów
+    def draw_text(x, y, text, font=FONT_REGULAR_NAME, size=10, align="left", color=(0,0,0)):
+        c.setFillColorRGB(*color)
+        c.setFont(font, size)
+        text_str = str(text) if text is not None else ""
+        if align == "right":
+            c.drawRightString(x, y, text_str)
+        elif align == "center":
+            c.drawCentredString(x, y, text_str)
+        else:
+            c.drawString(x, y, text_str)
+        c.setFillColorRGB(0,0,0) # Reset koloru
+
+    # Sprawdzamy czy to korekta
+    is_correction = getattr(invoice, "is_correction", False)
+    parent = getattr(invoice, "parent", None)
+
     # --- 1. NAGŁÓWEK ---
     y = height - 20 * mm
-    c.setFont(FONT_BOLD_NAME, 18)
-    c.drawRightString(190 * mm, y, f"Faktura: INV-{invoice.id}")
-    y -= 8 * mm
-    c.setFont(FONT_REGULAR_NAME, 10)
-    c.drawRightString(190 * mm, y, f"Data wystawienia: {getattr(invoice, 'created_at', '')}")
     
+    # Pobieramy pełny numer z modelu (obsługa FK, FK1 itd.)
+    # Fallback do INV-{id} gdyby property nie istniało
+    full_number = getattr(invoice, "full_number", f"INV-{invoice.id}")
+
+    if is_correction:
+        title = "FAKTURA KORYGUJĄCA"
+        inv_number = full_number
+    else:
+        title = "Faktura"
+        inv_number = full_number
+
+    draw_text(190 * mm, y, f"{title}: {inv_number}", font=FONT_BOLD_NAME, size=16, align="right")
+    y -= 8 * mm
+    
+    draw_text(190 * mm, y, f"Data wystawienia: {getattr(invoice, 'created_at', '')}", size=10, align="right")
+    
+    # Dodatkowe info dla korekty
+    if is_correction and parent:
+        y -= 5 * mm
+        # Tutaj również możemy użyć full_number rodzica jeśli jest dostępny
+        parent_number = getattr(parent, "full_number", f"INV-{parent.id}")
+        draw_text(190 * mm, y, f"Dotyczy faktury: {parent_number} z dnia {getattr(parent, 'created_at', '')}", size=9, align="right")
+        
+        if getattr(invoice, "correction_reason", None):
+            y -= 5 * mm
+            draw_text(190 * mm, y, f"Przyczyna korekty: {invoice.correction_reason}", size=9, align="right")
+
     y -= 6 * mm
     c.setLineWidth(0.5)
     c.line(20 * mm, y, 190 * mm, y)
@@ -90,114 +128,148 @@ def generate_invoice_pdf(invoice: Invoice, items: List[InvoiceItem], out_path: P
     y_start_columns = y
     
     # >> Lewa kolumna: SPRZEDAWCA
-    c.setFont(FONT_BOLD_NAME, 10)
-    c.drawString(20 * mm, y, "SPRZEDAWCA:")
+    draw_text(20 * mm, y, "SPRZEDAWCA:", font=FONT_BOLD_NAME)
     y -= 5 * mm
-    c.setFont(FONT_REGULAR_NAME, 10)
     
     if company:
-        # Nazwa firmy
-        c.setFont(FONT_BOLD_NAME, 10)
-        c.drawString(20 * mm, y, str(company.get("name") or ""))
+        draw_text(20 * mm, y, company.get("name") or "", font=FONT_BOLD_NAME)
         y -= 5 * mm
-        c.setFont(FONT_REGULAR_NAME, 10)
         
-        # NIP
         if company.get("nip"):
-            c.drawString(20 * mm, y, f"NIP: {company.get('nip')}")
+            draw_text(20 * mm, y, f"NIP: {company.get('nip')}")
             y -= 5 * mm
         
-        # Adres
         if company.get("address"):
             addr = str(company.get("address"))
-            c.drawString(20 * mm, y, f"Adres: {addr[:40]}")
+            draw_text(20 * mm, y, f"Adres: {addr[:40]}")
             if len(addr) > 40:
                  y -= 4 * mm
-                 c.drawString(32 * mm, y, addr[40:])
+                 draw_text(32 * mm, y, addr[40:])
             y -= 5 * mm
         
-        # Kontakt (Telefon / Email)
         if company.get("phone"):
-            c.drawString(20 * mm, y, f"Tel: {company.get('phone')}")
+            draw_text(20 * mm, y, f"Tel: {company.get('phone')}")
             y -= 5 * mm
         if company.get("email"):
-            c.drawString(20 * mm, y, f"Email: {company.get('email')}")
+            draw_text(20 * mm, y, f"Email: {company.get('email')}")
             y -= 5 * mm
     else:
-        c.drawString(20 * mm, y, "Brak danych firmy w systemie")
+        draw_text(20 * mm, y, "Brak danych firmy w systemie")
 
-    # >> Prawa kolumna: NABYWCA (Resetujemy Y do góry)
+    # >> Prawa kolumna: NABYWCA
     y = y_start_columns 
-    c.setFont(FONT_BOLD_NAME, 10)
-    c.drawString(110 * mm, y, "NABYWCA:")
-    y -= 5 * mm
-    c.setFont(FONT_REGULAR_NAME, 10)
     
-    # Nazwa nabywcy
-    c.setFont(FONT_BOLD_NAME, 10)
-    c.drawString(110 * mm, y, str(invoice.buyer_name or "Klient detaliczny"))
-    y -= 5 * mm
-    c.setFont(FONT_REGULAR_NAME, 10)
-    
-    # NIP
-    if getattr(invoice, "buyer_nip", None):
-        c.drawString(110 * mm, y, f"NIP: {invoice.buyer_nip}")
+    # Helper do rysowania bloku nabywcy
+    def draw_buyer_block(start_y, label, name, nip, address, is_gray=False):
+        local_y = start_y
+        color = (0.5, 0.5, 0.5) if is_gray else (0, 0, 0)
+        
+        draw_text(110 * mm, local_y, label, font=FONT_BOLD_NAME, color=color)
+        local_y -= 5 * mm
+        
+        draw_text(110 * mm, local_y, name or "Klient detaliczny", font=FONT_BOLD_NAME, color=color)
+        local_y -= 5 * mm
+        
+        if nip:
+            draw_text(110 * mm, local_y, f"NIP: {nip}", color=color)
+            local_y -= 5 * mm
+        
+        if address:
+            addr = str(address)
+            draw_text(110 * mm, local_y, f"Adres: {addr[:40]}", color=color)
+            if len(addr) > 40:
+                local_y -= 4 * mm
+                draw_text(122 * mm, local_y, addr[40:], color=color)
+            local_y -= 5 * mm
+        
+        return local_y
+
+    # Logika wyświetlania nabywcy
+    if is_correction and parent:
+        # 1. Dane aktualne (po korekcie)
+        y = draw_buyer_block(y, "NABYWCA (PO KOREKCIE):", invoice.buyer_name, invoice.buyer_nip, invoice.buyer_address)
+        
+        # 2. Dane pierwotne (przed korektą) - rysujemy poniżej, na szaro
         y -= 5 * mm
-    
-    # Adres
-    if getattr(invoice, "buyer_address", None):
-        addr = str(invoice.buyer_address)
-        c.drawString(110 * mm, y, f"Adres: {addr[:40]}")
-        if len(addr) > 40:
-            y -= 4 * mm
-            c.drawString(122 * mm, y, addr[40:])
-        y -= 5 * mm
+        draw_buyer_block(y, "NABYWCA (PRZED KOREKTĄ):", parent.buyer_name, parent.buyer_nip, parent.buyer_address, is_gray=True)
+    else:
+        # Standardowy widok
+        draw_buyer_block(y, "NABYWCA:", invoice.buyer_name, invoice.buyer_nip, invoice.buyer_address)
 
-    # Ustawiamy Y poniżej najdłuższej kolumny (bezpieczny margines)
-    y = y_start_columns - 50 * mm 
+    # Ustawiamy Y poniżej najdłuższej kolumny
+    y = y_start_columns - 70 * mm if is_correction else y_start_columns - 50 * mm
 
-    # --- 3. TABELA POZYCJI ---
-    # Nagłówek tabeli
-    c.setFillColorRGB(0.95, 0.95, 0.95)
-    c.rect(20 * mm, y - 2*mm, 170 * mm, 8 * mm, fill=1, stroke=0)
-    c.setFillColorRGB(0, 0, 0)
-
-    c.setFont(FONT_BOLD_NAME, 9)
-    c.drawString(22 * mm, y, "Lp.")
-    c.drawString(32 * mm, y, "Produkt")
-    c.drawRightString(105 * mm, y, "Ilość")
-    c.drawRightString(130 * mm, y, "Cena netto")
-    c.drawRightString(150 * mm, y, "VAT")
-    c.drawRightString(185 * mm, y, "Wartość brutto")
-    y -= 8 * mm
-
-    # Wiersze
-    c.setFont(FONT_REGULAR_NAME, 9)
-    idx = 1
-    for it in items:
-        prod_name = getattr(it, "product_name", f"ID:{it.product_id}")
+    # --- 3. TABELA POZYCJI (Helper) ---
+    def draw_items_table(current_y, table_title, items_list):
+        # Tytuł tabeli
+        draw_text(20 * mm, current_y, table_title, font=FONT_BOLD_NAME, size=10)
         
-        c.drawString(22 * mm, y, str(idx))
-        c.drawString(32 * mm, y, str(prod_name)[:45])
-        c.drawRightString(105 * mm, y, f"{it.quantity}")
-        c.drawRightString(130 * mm, y, f"{it.price_net:.2f}")
-        c.drawRightString(150 * mm, y, f"{int(it.tax_rate)}%")
-        c.drawRightString(185 * mm, y, f"{it.total_gross:.2f}")
-        
-        c.setLineWidth(0.1)
-        c.line(20 * mm, y - 2*mm, 190 * mm, y - 2*mm)
-        
-        y -= 6 * mm
-        idx += 1
+        # --- FIX: Zwiększony odstęp, aby szary pasek nie zasłaniał tytułu ---
+        current_y -= 10 * mm 
 
-        # Obsługa nowej strony (zostawiamy miejsce na podpisy!)
-        if y < 60 * mm: 
-            c.showPage()
-            y = height - 30 * mm
-            c.setFont(FONT_REGULAR_NAME, 9)
+        # Nagłówek tabeli (szary pasek)
+        c.setFillColorRGB(0.95, 0.95, 0.95)
+        # Prostokąt tła nagłówka
+        c.rect(20 * mm, current_y - 2*mm, 170 * mm, 8 * mm, fill=1, stroke=0)
+        c.setFillColorRGB(0, 0, 0)
+
+        c.setFont(FONT_BOLD_NAME, 9)
+        c.drawString(22 * mm, current_y, "Lp.")
+        c.drawString(32 * mm, current_y, "Produkt")
+        c.drawRightString(105 * mm, current_y, "Ilość")
+        c.drawRightString(130 * mm, current_y, "Cena netto")
+        c.drawRightString(150 * mm, current_y, "VAT")
+        c.drawRightString(185 * mm, current_y, "Wartość brutto")
+        current_y -= 8 * mm
+
+        # Wiersze
+        c.setFont(FONT_REGULAR_NAME, 9)
+        idx = 1
+        for it in items_list:
+            prod_name = getattr(it, "product_name", f"ID:{it.product_id}")
+            
+            c.drawString(22 * mm, current_y, str(idx))
+            c.drawString(32 * mm, current_y, str(prod_name)[:45])
+            c.drawRightString(105 * mm, current_y, f"{it.quantity}")
+            c.drawRightString(130 * mm, current_y, f"{it.price_net:.2f}")
+            c.drawRightString(150 * mm, current_y, f"{int(it.tax_rate)}%")
+            c.drawRightString(185 * mm, current_y, f"{it.total_gross:.2f}")
+            
+            c.setLineWidth(0.1)
+            c.line(20 * mm, current_y - 2*mm, 190 * mm, current_y - 2*mm)
+            
+            current_y -= 6 * mm
+            idx += 1
+
+            # Obsługa nowej strony
+            if current_y < 40 * mm: 
+                c.showPage()
+                current_y = height - 20 * mm
+                c.setFont(FONT_REGULAR_NAME, 9)
+        
+        return current_y
+
+    # Rysowanie tabel(i)
+    if is_correction and parent:
+        # Tabela 1: Stan przed korektą (items z rodzica)
+        parent_items = getattr(parent, "items", [])
+        y = draw_items_table(y, "TREŚĆ KORYGOWANA (BYŁO):", parent_items)
+        
+        y -= 10 * mm
+        
+        # Tabela 2: Stan po korekcie (items z obecnej faktury)
+        y = draw_items_table(y, "TREŚĆ PO KOREKCIE (JEST):", items)
+    else:
+        # Standardowa jedna tabela
+        y = draw_items_table(y, "POZYCJE FAKTURY:", items)
 
     # --- 4. PODSUMOWANIE ---
     y -= 5 * mm
+    # Sprawdzenie miejsca na podsumowanie
+    if y < 40 * mm:
+        c.showPage()
+        y = height - 30 * mm
+
     c.setFont(FONT_BOLD_NAME, 10)
     
     c.drawRightString(150 * mm, y, "Suma netto:")
