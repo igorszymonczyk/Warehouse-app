@@ -1,237 +1,166 @@
-# routes/stock.py
-from typing import Optional, List
-import os
-
-from fastapi import APIRouter, Depends, HTTPException, Request, Query, status
+# backend/routes/stock.py
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
+from typing import Optional, List
 
 from database import get_db
+from models.stock import StockMovement
+from models.product import Product
+from models.users import User
 from utils.tokenJWT import get_current_user
 from utils.audit import write_log
-from models.users import User
-from models.product import Product
-from models.stock import StockMovement  # model ruchów magazynowych
-from schemas.stock import (
-    StockReceiptIn,
-    StockAdjustIn,
-    StockMovementOut,
-    StockMovementsPage,
-    StockLevelOut,
-)
+import schemas.stock as stock_schemas
 
-router = APIRouter(prefix="/stock", tags=["Stock"])
+router = APIRouter(tags=["Stock"])
 
-
-# --- helpers ---------------------------------------------------------------
-
-def _role_ok(user: User) -> bool:
-    # ADMIN/WAREHOUSE robią ruchy; SALESMAN podgląda
-    role = (user.role or "").upper()
-    return role in {"ADMIN", "WAREHOUSE", "SALESMAN"}
-
-
-def _can_modify_stock(user: User) -> bool:
+def _can_manage_stock(user: User) -> bool:
     return (user.role or "").upper() in {"ADMIN", "WAREHOUSE"}
 
-
-def _env_bool(name: str, default: bool = False) -> bool:
-    """Parse bool from env like: 'true/1/yes' -> True."""
-    val = os.getenv(name)
-    if val is None:
-        return default
-    return val.strip().lower() in {"1", "true", "t", "yes", "y", "on"}
-
-
-def _allow_negative_stock() -> bool:
-    # Główny przełącznik polityki
-    return _env_bool("ALLOW_NEGATIVE_STOCK", default=False)
-
-
-# --- endpoints -------------------------------------------------------------
-
-# PRZYJĘCIE (IN)
-@router.post("/receipt", response_model=StockMovementOut, status_code=status.HTTP_200_OK)
-def stock_receipt(
-    payload: StockReceiptIn,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    if not _can_modify_stock(current_user):
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    product = db.query(Product).filter(Product.id == payload.product_id).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    if payload.qty <= 0:
-        raise HTTPException(status_code=400, detail="qty must be > 0")
-
-    before = float(product.stock_quantity or 0.0)
-    after = before + float(payload.qty)
-    product.stock_quantity = after
-
-    move = StockMovement(
-        product_id=product.id,
-        type="in",
-        qty=float(payload.qty),
-        doc_type="manual",
-        doc_id=None,
-        user_id=current_user.id,
-        note=payload.note or "",
-    )
-
-    db.add(move)
-    db.commit()
-    db.refresh(move)
-
-    write_log(
-        db,
-        user_id=current_user.id,
-        action="STOCK_RECEIPT",
-        resource="stock",
-        status="SUCCESS",
-        ip=request.client.host if request.client else None,
-        meta={
-            "movement_id": move.id,
-            "product_id": product.id,
-            "qty": payload.qty,
-            "before": before,
-            "after": after,
-            "note": payload.note,
-            "allow_negative_stock": _allow_negative_stock(),
-        },
-    )
-    return move
-
-
-# KOREKTA (ADJUST +/- DELTA)
-@router.post("/adjust", response_model=StockMovementOut, status_code=status.HTTP_200_OK)
-def stock_adjust(
-    payload: StockAdjustIn,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    if not _can_modify_stock(current_user):
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    product = db.query(Product).filter(Product.id == payload.product_id).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    if payload.qty_delta == 0:
-        raise HTTPException(status_code=400, detail="qty_delta cannot be 0")
-
-    before = float(product.stock_quantity or 0.0)
-    after = before + float(payload.qty_delta)
-
-    # Polityka: blokuj zejście < 0, chyba że ALLOW_NEGATIVE_STOCK=true
-    if after < 0 and not _allow_negative_stock():
-        raise HTTPException(
-            status_code=400,
-            detail=f"Adjustment would make stock negative (before={before}, delta={payload.qty_delta})",
-        )
-
-    product.stock_quantity = after
-
-    move = StockMovement(
-        product_id=product.id,
-        type="adjust",
-        qty=abs(float(payload.qty_delta)),
-        doc_type="manual",
-        doc_id=None,
-        user_id=current_user.id,
-        note=f"ADJUST: {payload.reason or ''} (delta={payload.qty_delta})",
-    )
-
-    db.add(move)
-    db.commit()
-    db.refresh(move)
-
-    write_log(
-        db,
-        user_id=current_user.id,
-        action="STOCK_ADJUST",
-        resource="stock",
-        status="SUCCESS",
-        ip=request.client.host if request.client else None,
-        meta={
-            "movement_id": move.id,
-            "product_id": product.id,
-            "delta": payload.qty_delta,
-            "before": before,
-            "after": after,
-            "reason": payload.reason,
-            "allow_negative_stock": _allow_negative_stock(),
-        },
-    )
-    return move
-
-
-# LISTA RUCHÓW (PAGINACJA)
-@router.get("/movements", response_model=StockMovementsPage)
+# =========================
+# LISTA RUCHÓW
+# =========================
+@router.get("/", response_model=stock_schemas.StockMovementPage)
 def list_movements(
-    product_id: Optional[int] = Query(None),
+    request: Request,
+    q: Optional[str] = Query(None),
+    type: Optional[str] = Query(None),
+    supplier: Optional[str] = Query(None), # Nowy filtr
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
+    sort_by: str = "created_at",
+    order: str = "desc",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not _role_ok(current_user):
+    if not _can_manage_stock(current_user):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    q = db.query(StockMovement)
-    if product_id:
-        q = q.filter(StockMovement.product_id == product_id)
+    query = db.query(StockMovement).join(Product).join(User)
 
-    total = q.count()
-    rows: List[StockMovement] = (
-        q.order_by(StockMovement.created_at.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
+    if q:
+        like = f"%{q}%"
+        query = query.filter((Product.name.ilike(like)) | (Product.code.ilike(like)))
+    if type:
+        query = query.filter(StockMovement.type == type)
+    if supplier:
+        query = query.filter(StockMovement.supplier.ilike(f"%{supplier}%"))
 
-    write_log(
-        db,
-        user_id=current_user.id,
-        action="STOCK_MOVEMENTS_LIST",
-        resource="stock",
-        status="SUCCESS",
-        ip=None,
-        meta={"product_id": product_id, "page": page, "page_size": page_size, "returned": len(rows)},
-    )
+    col = StockMovement.created_at if sort_by == "created_at" else StockMovement.id
+    if order == "desc":
+        query = query.order_by(col.desc())
+    else:
+        query = query.order_by(col.asc())
 
-    return {"items": rows, "total": total, "page": page, "page_size": page_size}
+    total = query.count()
+    items = query.offset((page - 1) * page_size).limit(page_size).all()
+
+    results = []
+    for m in items:
+        raw_type = (m.type or "").upper()
+        if raw_type == "ADJUST": raw_type = "ADJUSTMENT"
+        
+        results.append({
+            "id": m.id,
+            "created_at": m.created_at,
+            "product_id": m.product_id,
+            "qty": m.qty,             
+            "quantity_change": m.qty, 
+            "reason": m.reason,
+            "type": raw_type,
+            "supplier": m.supplier, # Przekazujemy dostawcę
+            "user_id": m.user_id,
+            "product_name": m.product.name if m.product else "Nieznany",
+            "product_code": m.product.code if m.product else "-",
+            "user_email": m.user.email if m.user else "System"
+        })
+
+    return {"items": results, "total": total, "page": page, "page_size": page_size}
 
 
-# POZIOMY STANÓW
-@router.get("/levels", response_model=List[StockLevelOut])
-def stock_levels(
+# =========================
+# ZGŁOSZENIE STRATY / KOREKTY
+# =========================
+@router.post("/adjust", response_model=stock_schemas.StockMovementResponse)
+def adjust_stock(
+    payload: stock_schemas.StockMovementCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not _role_ok(current_user):
+    if not _can_manage_stock(current_user):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    products = db.query(Product).all()
-    result = [
-        StockLevelOut(
-            product_id=p.id,
-            name=p.name,
-            stock_quantity=float(p.stock_quantity or 0.0),
-        )
-        for p in products
-    ]
+    product = db.query(Product).filter(Product.id == payload.product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
 
-    write_log(
-        db,
+    qty_delta = payload.qty 
+    new_quantity = product.stock_quantity + qty_delta
+    
+    # Jeśli to strata, nie pozwól na ujemny stan
+    if qty_delta < 0 and new_quantity < 0:
+        raise HTTPException(status_code=400, detail=f"Stan nie może być ujemny (Obecnie: {product.stock_quantity})")
+
+    product.stock_quantity = new_quantity
+    
+    movement = StockMovement(
+        product_id=product.id, 
         user_id=current_user.id,
-        action="STOCK_LEVELS_GET",
-        resource="stock",
-        status="SUCCESS",
-        ip=None,
-        meta={"count": len(result)},
+        qty=qty_delta,      
+        reason=payload.reason, 
+        type=payload.type,
+        supplier=payload.supplier 
     )
-    return result
+    db.add(movement)
+    db.commit()
+    db.refresh(movement)
+
+    write_log(db, user_id=current_user.id, action="STOCK_ADJUSTMENT", resource="stock", status="SUCCESS", meta={"product_id": product.id, "change": qty_delta})
+
+    return {
+        "id": movement.id, "created_at": movement.created_at,
+        "product_id": movement.product_id, 
+        "qty": movement.qty, "quantity_change": movement.qty,
+        "reason": movement.reason, "type": movement.type, "supplier": movement.supplier,
+        "user_id": movement.user_id, "product_name": product.name, "product_code": product.code, "user_email": current_user.email
+    }
+
+
+# =========================
+# DOSTAWA
+# =========================
+@router.post("/delivery", response_model=dict)
+def receive_delivery(
+    payload: stock_schemas.DeliveryCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not _can_manage_stock(current_user):
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="Brak produktów")
+
+    count = 0
+    for item in payload.items:
+        if item.quantity <= 0: continue
+        
+        product = db.query(Product).filter(Product.id == item.product_id).first()
+        if product:
+            product.stock_quantity += item.quantity
+            
+            move = StockMovement(
+                product_id=product.id,
+                user_id=current_user.id,
+                qty=item.quantity,
+                type="IN",
+                reason=payload.reason or "Dostawa",
+                supplier=payload.supplier # Zapisujemy dostawcę
+            )
+            db.add(move)
+            count += 1
+            
+    db.commit()
+    write_log(db, user_id=current_user.id, action="STOCK_DELIVERY", resource="stock", status="SUCCESS", meta={"count": count})
+    return {"message": f"Pomyślnie przyjęto dostawę ({count} pozycji)"}

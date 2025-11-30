@@ -1,7 +1,6 @@
-// frontend/src/components/Layout.tsx
 import { Outlet, useNavigate, NavLink } from "react-router-dom";
 import { useAuth } from "../store/auth";
-import { ShoppingCart, Building } from "lucide-react";
+import { ShoppingCart, Building } from "lucide-react"; // Usunięto ClipboardList
 import { useState } from "react";
 import CompanyDataModal from "../pages/CompanyDataModal";
 
@@ -15,9 +14,9 @@ export default function Layout() {
   };
 
   const baseLinkStyle =
-    "px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900";
+    "px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 flex items-center gap-1";
   const activeLinkStyle =
-    "px-3 py-2 rounded-md text-sm font-bold text-blue-700 bg-blue-100";
+    "px-3 py-2 rounded-md text-sm font-bold text-blue-700 bg-blue-100 flex items-center gap-1";
 
   const cartItemCount = cart?.items.reduce((sum, item) => sum + item.qty, 0) ?? 0;
 
@@ -28,7 +27,7 @@ export default function Layout() {
       <header className="flex items-center justify-between p-4 border-b bg-white">
         <nav className="flex items-center space-x-2">
           
-          {/* 1. ZMIANA: Ukrywamy "Pulpit" dla Magazyniera, bo dla niego stroną startową jest WZ */}
+          {/* Ukrywamy "Pulpit" dla Magazyniera */}
           {role !== "warehouse" && (
             <NavLink
               to="/"
@@ -63,9 +62,16 @@ export default function Layout() {
             </>
           )}
 
-          {/* ----- Admin ----- */}
+          {/* ----- Admin (dodatkowo) ----- */}
           {role === "admin" && (
             <>
+              <NavLink
+                to="/stock"
+                className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
+              >
+                Ruchy Magazynowe
+              </NavLink>
+
               <NavLink
                 to="/users"
                 className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
@@ -84,13 +90,21 @@ export default function Layout() {
           {/* ----- Magazynier ----- */}
           {role === "warehouse" && (
             <>
-              {/* Magazynier ma WZ jako główną zakładkę */}
               <NavLink
                 to="/wz"
                 className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
               >
                 WZ
               </NavLink>
+              
+              {/* ZMIANA: Usunięto ikonę */}
+              <NavLink
+                to="/stock"
+                className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
+              >
+                Ruchy Magazynowe
+              </NavLink>
+              
               <NavLink
                 to="/products"
                 className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}

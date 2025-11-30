@@ -22,6 +22,7 @@ import MyInvoicesPage from "./pages/MyInvoices";
 import InvoiceDetailPage from "./pages/InvoiceDetail";
 import LogsPage from "./pages/Logs"; 
 import CorrectInvoicePage from "./pages/CorrectInvoice";
+import StockPage from "./pages/Stock";
 
 
 const router = createBrowserRouter([
@@ -49,7 +50,7 @@ const router = createBrowserRouter([
       {
         path: "invoices/:id",
         element: (
-          <Protected allowedRoles={["admin", "salesman"]}> 
+          <Protected allowedRoles={["admin", "salesman", "customer"]}> 
             <InvoiceDetailPage />
           </Protected>
         ),
@@ -87,6 +88,15 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
+      // --- TU BYŁ BŁĄD: RUCHY MAGAZYNOWE (STOCK) ---
+      {
+        path: "stock",
+        element: (
+          <Protected allowedRoles={["admin", "warehouse"]}>
+            <StockPage />
+          </Protected>
+        ),
+      },
 
       // --- Trasy Tylko dla Admina ---
       {
@@ -97,7 +107,7 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
-      // 1. ZMIANA: Dodano trasę do logów
+      
       {
         path: "logs",
         element: (
