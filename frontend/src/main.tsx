@@ -88,11 +88,11 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
-      // --- TU BYŁ BŁĄD: RUCHY MAGAZYNOWE (STOCK) ---
+      
       {
         path: "stock",
         element: (
-          <Protected allowedRoles={["admin", "warehouse"]}>
+          <Protected allowedRoles={["admin", "warehouse", "salesman"]}>
             <StockPage />
           </Protected>
         ),

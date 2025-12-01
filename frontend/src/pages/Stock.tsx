@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
-import { Search, PackageMinus, PackagePlus, History, X, AlertTriangle, Trash2 } from "lucide-react";
+import { Search, PackageMinus, PackagePlus, X, AlertTriangle, Trash2 } from "lucide-react"; // Usunięto History
 import toast from "react-hot-toast";
 import { useForm, type SubmitHandler } from "react-hook-form";
 
@@ -10,8 +10,7 @@ type StockMovement = {
   created_at: string;
   product_name: string;
   product_code: string;
-  // ZMIANA: Używamy 'qty' zamiast 'quantity_change', bo tak zwraca teraz backend
-  qty: number; 
+  qty: number;
   reason: string;
   user_email: string;
   type: string;
@@ -118,7 +117,6 @@ export default function StockPage() {
           return;
       }
       try {
-          // Backend oczekuje 'quantity_change' w payloadzie (zgodnie ze schematem Pydantic alias)
           await api.post("/stock/adjust", {
               product_id: formData.product_id,
               quantity_change: -Math.abs(formData.quantity),
@@ -175,8 +173,8 @@ export default function StockPage() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <History /> Ruchy Magazynowe
+        <h1 className="text-2xl font-semibold">
+             Ruchy Magazynowe
         </h1>
         <div className="flex gap-3">
             <button 
@@ -222,7 +220,6 @@ export default function StockPage() {
               <option value="">Wszystkie typy</option>
               <option value="IN">Dostawa (IN)</option>
               <option value="LOSS">Strata/Uszkodzenie (LOSS)</option>
-              {/* ZMIANA: Usunięto "Korekta" */}
           </select>
       </div>
 
@@ -251,7 +248,6 @@ export default function StockPage() {
                                   <div className="text-xs text-gray-500">{move.product_code}</div>
                               </td>
                               
-                              {/* ZMIANA: Wyświetlanie qty zamiast quantity_change */}
                               <td className="p-3 text-right">
                                    <span className={`font-bold px-2 py-0.5 rounded ${move.qty > 0 ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}`}>
                                       {move.qty > 0 ? "+" : ""}{move.qty} szt.
@@ -395,7 +391,7 @@ export default function StockPage() {
       {/* MODAL - STRATA */}
       {showLossModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-lg shadow-xl w-full max-w-lg">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
                   <div className="flex justify-between items-center p-4 border-b bg-red-50">
                       <h3 className="font-bold text-red-800 flex items-center gap-2"><AlertTriangle size={20}/> Zgłoś stratę</h3>
                       <button onClick={() => setShowLossModal(false)}><X size={20}/></button>

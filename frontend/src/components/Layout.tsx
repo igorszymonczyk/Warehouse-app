@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, NavLink } from "react-router-dom";
 import { useAuth } from "../store/auth";
-import { ShoppingCart, Building } from "lucide-react"; // Usunięto ClipboardList
+import { ShoppingCart, Building } from "lucide-react";
 import { useState } from "react";
 import CompanyDataModal from "../pages/CompanyDataModal";
 
@@ -62,16 +62,20 @@ export default function Layout() {
             </>
           )}
 
-          {/* ----- Admin (dodatkowo) ----- */}
-          {role === "admin" && (
-            <>
+          {/* ----- RUCHY MAGAZYNOWE (Admin + Magazynier + Sprzedawca) ----- */}
+          {/* ZMIANA: Dodano wspólną sekcję dla wszystkich ról obsługujących magazyn */}
+          {(role === "admin" || role === "warehouse" || role === "salesman") && (
               <NavLink
                 to="/stock"
                 className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
               >
                 Ruchy Magazynowe
               </NavLink>
+          )}
 
+          {/* ----- Admin (dodatkowo) ----- */}
+          {role === "admin" && (
+            <>
               <NavLink
                 to="/users"
                 className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
@@ -87,7 +91,7 @@ export default function Layout() {
             </>
           )}
 
-          {/* ----- Magazynier ----- */}
+          {/* ----- Magazynier (Specyficzne linki, jeśli nie zostały pokryte wyżej) ----- */}
           {role === "warehouse" && (
             <>
               <NavLink
@@ -96,15 +100,7 @@ export default function Layout() {
               >
                 WZ
               </NavLink>
-              
-              {/* ZMIANA: Usunięto ikonę */}
-              <NavLink
-                to="/stock"
-                className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
-              >
-                Ruchy Magazynowe
-              </NavLink>
-              
+              {/* Link "Ruchy Magazynowe" jest teraz obsłużony wyżej */}
               <NavLink
                 to="/products"
                 className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
