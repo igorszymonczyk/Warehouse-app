@@ -47,6 +47,7 @@ export interface InvoiceDetail {
   is_correction: boolean;
   parent_id?: number | null;
   correction_reason?: string | null;
+  shipping_address: string | null;
 }
 
 // Warehouse Document Type

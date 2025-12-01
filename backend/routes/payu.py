@@ -42,7 +42,7 @@ async def payu_notify(
 
     body = await request.body()
 
-    # Log incoming notification for debugging (trim long bodies)
+    
     try:
         body_text = body.decode("utf-8")
     except Exception:
@@ -52,7 +52,6 @@ async def payu_notify(
 
     verified = verify_payu_signature(openpayu_signature, body)
     if not verified:
-        # compute expected/signature for debugging
         try:
             parts = {p.split('=')[0]: p.split('=')[1] for p in openpayu_signature.split(';')}
             signature_from_header = parts.get('signature')
@@ -65,37 +64,43 @@ async def payu_notify(
     payu_order_status = notification_data.get("order", {}).get("status")
     
     if payu_order_status == "COMPLETED":
-        ext_order_id = notification_data.get("order", {}).get("extOrderId")
-        if not ext_order_id:
+        ext_order_id_str = notification_data.get("order", {}).get("extOrderId")
+        if not ext_order_id_str:
             return {"status": "error", "message": "Missing extOrderId"}
 
-        order = db.query(Order).filter(Order.id == int(ext_order_id)).first()
+        # odcinamy _timestamp
+        try:
+            order_id = int(ext_order_id_str.split('_')[0])
+        except ValueError:
+            return {"status": "error", "message": "Invalid ID format"}
+
+        order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             return {"status": "error", "message": "Order not found"}
             
-        if order.status != "pending_payment":
-            return {"status": "ok", "message": "Order already processed"}
-            
-        order.status = "processing"
+        # Jeśli status jest nadal pending, a PayU potwierdza, uruchamiamy realizację
+        if order.status == "pending_payment":
+            order.status = "processing"
+            order.payment_status = "paid" 
 
-        try:
-            # Call existing fulfillment logic (creates invoice + WZ + updates stock)
-            _fulfill_order(db, order, request)
-            db.commit()
-
-            # Write audit log
             try:
-                write_log(
-                    db, user_id=order.user_id, action="PAYU_NOTIFY", resource="orders", status="SUCCESS",
-                    ip=request.client.host if request.client else None,
-                    meta={"order_id": order.id, "payu_status": payu_order_status}
-                )
-            except Exception as log_e:
-                logger.exception("Failed to write audit log after PayU notify: %s", log_e)
+             
+                _fulfill_order(db, order, request)
+                db.commit()
 
-        except Exception as e:
-            db.rollback()
-            logger.exception("CRITICAL: Failed to fulfill order %s after payment. Error: %s", order.id, e)
-            raise HTTPException(status_code=500, detail="Failed to fulfill order after payment")
+                # Write audit log
+                try:
+                    write_log(
+                        db, user_id=order.user_id, action="PAYU_NOTIFY", resource="orders", status="SUCCESS",
+                        ip=request.client.host if request.client else None,
+                        meta={"order_id": order.id, "payu_status": payu_order_status}
+                    )
+                except Exception as log_e:
+                    logger.exception("Failed to write audit log after PayU notify: %s", log_e)
+
+            except Exception as e:
+                db.rollback()
+                logger.exception("CRITICAL: Failed to fulfill order %s after payment. Error: %s", order.id, e)
+                raise HTTPException(status_code=500, detail="Failed to fulfill order after payment")
             
     return {"status": "ok"}

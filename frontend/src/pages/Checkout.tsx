@@ -1,11 +1,8 @@
-// frontend/src/pages/Checkout.tsx
 import { useState } from "react";
 import { useAuth } from "../store/auth";
 import { api } from "../lib/api";
 import toast from "react-hot-toast";
 
-
-// Komponent do renderowania pól formularza (dla czystości kodu)
 type InputProps = {
   label: string;
   id: string;
@@ -32,147 +29,155 @@ function FormInput({ label, id, ...props }: InputProps) {
 }
 
 export default function CheckoutPage() {
-  const { cart, setCart, role } = useAuth();
+  const { cart} = useAuth();
   const [loading, setLoading] = useState(false);
 
-  // Stan formularza (dopasowany do OrderCreatePayload z backendu)
-  const [formData, setFormData] = useState({
-    invoice_buyer_name: "",     // Nazwa firmy
-    invoice_contact_person: "", // Imię i nazwisko
-    invoice_buyer_nip: "",
-    invoice_address_street: "", // Ulica + Numer
-    invoice_address_zip: "",    // Kod pocztowy
-    invoice_address_city: "",   // Miasto
+  // --- DANE NABYWCY (FAKTURA) ---
+  // Usunięto contact_person
+  const [invoiceData, setInvoiceData] = useState({
+    buyer_name: "",
+    buyer_nip: "",
+    street: "",
+    zip: "",
+    city: "",
   });
 
-  // Obsługa zmian w formularzu
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
+  // --- DANE DOSTAWY ---
+  const [sameAsInvoice, setSameAsInvoice] = useState(true);
+  const [shippingData, setShippingData] = useState({
+    street: "",
+    zip: "",
+    city: "",
+  });
 
-  // Wysłanie formularza
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  // Usunięto useEffect wypełniający contact_person z danych usera
 
-    try {
-      // Inicjujemy płatność w backendzie — otrzymamy link do PayU
-      const response = await api.post("/orders/initiate-payment", formData);
-      const { redirect_url } = response.data as { redirect_url?: string };
+  const handlePay = async () => {
+    if (!cart || cart.items.length === 0) {
+      toast.error("Koszyk jest pusty");
+      return;
+    }
+    if (!invoiceData.buyer_name || !invoiceData.street || !invoiceData.zip || !invoiceData.city) {
+      toast.error("Uzupełnij dane nabywcy (Faktura)");
+      return;
+    }
 
-      if (redirect_url) {
-        // Czyścimy koszyk lokalnie (backend zamknął koszyk)
-        setCart(null);
-        // Przekierowanie do PayU
-        window.location.href = redirect_url;
-        return;
-      }
-
-      toast.success("Zamówienie zostało zainicjowane.");
-
-    } catch (err: unknown) {
-      console.error(err);
-      let msg = "Nie udało się złożyć zamówienia";
-      if (typeof err === 'object' && err !== null && 'response' in err) {
-        const response = (err as { response?: { data?: { detail?: string } } }).response;
-        if (response?.data?.detail) {
-          msg = response.data.detail; // Np. "Insufficient stock"
+    if (!sameAsInvoice) {
+        if (!shippingData.street || !shippingData.zip || !shippingData.city) {
+            toast.error("Uzupełnij adres dostawy");
+            return;
         }
+    }
+
+    setLoading(true);
+    try {
+      const payload = {
+        invoice_buyer_name: invoiceData.buyer_name,
+        invoice_buyer_nip: invoiceData.buyer_nip || null,
+        // invoice_contact_person: USUNIĘTE
+        invoice_contact_person: "Brak", // Fallback dla starych schematów jeśli backend jeszcze tego wymaga (ale usunąłem to w backendzie wyżej)
+        invoice_address_street: invoiceData.street,
+        invoice_address_zip: invoiceData.zip,
+        invoice_address_city: invoiceData.city,
+        
+        shipping_address_street: sameAsInvoice ? invoiceData.street : shippingData.street,
+        shipping_address_zip: sameAsInvoice ? invoiceData.zip : shippingData.zip,
+        shipping_address_city: sameAsInvoice ? invoiceData.city : shippingData.city,
+      };
+
+      const res = await api.post("/orders/initiate-payment", payload);
+      const { redirect_url } = res.data;
+      if (redirect_url) {
+        window.location.href = redirect_url;
+      } else {
+        toast.success("Zamówienie przyjęte (tryb testowy)");
       }
-      toast.error(msg);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || "Błąd przy tworzeniu zamówienia");
     } finally {
       setLoading(false);
     }
   };
 
-  // Zabezpieczenia (gdyby ktoś wszedł tu bez uprawnień lub koszyka)
-  if (role !== "customer") return <div>Brak dostępu</div>;
   if (!cart || cart.items.length === 0) {
-    return (
-      <div className="p-6 text-center">
-        <p>Twój koszyk jest pusty. Nie możesz przejść do kasy.</p>
-      </div>
-    );
+    return <div className="p-6 text-center">Twój koszyk jest pusty.</div>;
   }
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Podsumowanie zamówienia</h1>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="p-6 max-w-3xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6 text-gray-800">Podsumowanie zamówienia</h1>
+      
+      <div className="grid grid-cols-1 gap-6">
         
         {/* Formularz */}
-        <form onSubmit={handleSubmit} className="md:col-span-2 bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-lg font-semibold mb-4">Dane do faktury i wysyłki</h2>
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h2 className="text-lg font-semibold mb-4 border-b pb-2">1. Dane Nabywcy (Faktura)</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormInput
-              label="Nazwa firmy"
-              id="invoice_buyer_name"
-              value={formData.invoice_buyer_name}
-              onChange={handleChange}
-              required
+            <FormInput 
+              label="Nazwa firmy / Imię i Nazwisko" 
+              id="buyer_name" 
+              value={invoiceData.buyer_name} 
+              onChange={e => setInvoiceData({...invoiceData, buyer_name: e.target.value})} 
+              required 
             />
-            <FormInput
-              label="Imię i nazwisko (osoba kontaktowa)"
-              id="invoice_contact_person"
-              value={formData.invoice_contact_person}
-              onChange={handleChange}
-              required
+            <FormInput 
+              label="NIP (opcjonalnie)" 
+              id="buyer_nip" 
+              value={invoiceData.buyer_nip} 
+              onChange={e => setInvoiceData({...invoiceData, buyer_nip: e.target.value})} 
             />
-            <FormInput
-              label="NIP (opcjonalnie)"
-              id="invoice_buyer_nip"
-              value={formData.invoice_buyer_nip}
-              onChange={handleChange}
-            />
-            <FormInput
-              label="Ulica i numer domu"
-              id="invoice_address_street"
-              value={formData.invoice_address_street}
-              onChange={handleChange}
-              required
-            />
-            <FormInput
-              label="Kod pocztowy"
-              id="invoice_address_zip"
-              value={formData.invoice_address_zip}
-              onChange={handleChange}
-              placeholder="np. 00-001"
-              required
-            />
-            <FormInput
-              label="Miasto"
-              id="invoice_address_city"
-              value={formData.invoice_address_city}
-              onChange={handleChange}
-              required
-            />
+            
+            <div className="sm:col-span-2">
+                <FormInput label="Ulica i numer" id="street" value={invoiceData.street} onChange={e => setInvoiceData({...invoiceData, street: e.target.value})} required />
+            </div>
+            <FormInput label="Kod pocztowy" id="zip" value={invoiceData.zip} onChange={e => setInvoiceData({...invoiceData, zip: e.target.value})} required />
+            <FormInput label="Miasto" id="city" value={invoiceData.city} onChange={e => setInvoiceData({...invoiceData, city: e.target.value})} required />
+          </div>
+
+          {/* Sekcja Adresu Dostawy */}
+          <div className="mt-6 pt-4 border-t">
+            <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-green-700">2. Adres Dostawy</h2>
+                <label className="flex items-center text-sm text-gray-600 cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        className="mr-2"
+                        checked={sameAsInvoice}
+                        onChange={e => setSameAsInvoice(e.target.checked)}
+                    />
+                    Taki sam jak na fakturze
+                </label>
+            </div>
+
+            {!sameAsInvoice && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 p-4 rounded border border-gray-200">
+                    <div className="sm:col-span-2">
+                        <FormInput label="Ulica i numer" id="ship_street" value={shippingData.street} onChange={e => setShippingData({...shippingData, street: e.target.value})} required />
+                    </div>
+                    <FormInput label="Kod pocztowy" id="ship_zip" value={shippingData.zip} onChange={e => setShippingData({...shippingData, zip: e.target.value})} required />
+                    <FormInput label="Miasto" id="ship_city" value={shippingData.city} onChange={e => setShippingData({...shippingData, city: e.target.value})} required />
+                </div>
+            )}
           </div>
 
           <button
-            type="submit"
+            onClick={handlePay}
             disabled={loading}
-            className="mt-6 w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:bg-gray-400"
+            className="mt-6 w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50"
           >
-            {loading ? "Składanie zamówienia..." : `Złóż zamówienie i zapłać (${cart.total.toFixed(2)} zł)`}
+            {loading ? "Przetwarzanie..." : `Złóż zamówienie i zapłać (${cart.total.toFixed(2)} zł)`}
           </button>
-        </form>
+        </div>
 
-        {/* Podsumowanie koszyka (sticky) */}
-        <div className="md:col-span-1">
-          <div className="bg-white p-6 rounded-lg shadow-md sticky top-6">
+        {/* Podsumowanie koszyka */}
+        <div className="bg-white p-6 rounded-lg shadow-md">
             <h2 className="text-lg font-semibold mb-4">Twój koszyk</h2>
-            <ul className="divide-y divide-gray-200">
+            <ul className="divide-y divide-gray-200 text-sm">
               {cart.items.map((item) => (
-                <li key={item.id} className="py-3">
-                  <p className="font-medium">{item.name}</p>
-                  <p className="text-sm text-gray-600">
-                    {item.qty} szt. x {item.unit_price.toFixed(2)} zł
-                  </p>
-                  <p className="text-right font-semibold">{item.line_total.toFixed(2)} zł</p>
+                <li key={item.id} className="py-2 flex justify-between">
+                  <span>{item.name} <span className="text-gray-500">x {item.qty}</span></span>
+                  <span className="font-semibold">{item.line_total.toFixed(2)} zł</span>
                 </li>
               ))}
             </ul>
@@ -180,8 +185,8 @@ export default function CheckoutPage() {
               <span>Suma:</span>
               <span>{cart.total.toFixed(2)} zł</span>
             </div>
-          </div>
         </div>
+
       </div>
     </div>
   );

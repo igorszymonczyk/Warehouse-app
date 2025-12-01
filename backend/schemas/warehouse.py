@@ -2,7 +2,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
-from models.WarehouseDoc import WarehouseStatus  # Enum z modelu
+from models.WarehouseDoc import WarehouseStatus
 
 class WzProductItem(BaseModel):
     product_name: str
@@ -14,9 +14,9 @@ class WarehouseDocDetail(BaseModel):
     id: int
     invoice_id: Optional[int] = None
     buyer_name: str
+    shipping_address: Optional[str] = None
     status: WarehouseStatus
     created_at: datetime
-    # Lista sparsowanych produktów
     items: List[WzProductItem] 
 
     class Config:

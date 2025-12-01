@@ -1,35 +1,25 @@
-# backend/models/warehouse_document.py
+# backend/models/WarehouseDoc.py
 import enum
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, func, Enum
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Enum, func
 from sqlalchemy.orm import relationship
 from database import Base
 
-# Status dokumentu magazynowego — pozwala kontrolować przebieg procesu
-# obsługi dokumentu (od utworzenia po zakończenie lub anulowanie).
 class WarehouseStatus(str, enum.Enum):
     NEW = "NEW"
     IN_PROGRESS = "IN_PROGRESS"
     RELEASED = "RELEASED"
     CANCELLED = "CANCELLED"
 
-# Model WarehouseDocument
-# Przechowuje dokument magazynowy powiązany z fakturą. Zawiera dane
-# odbiorcy, daty, listę pozycji w formie JSON oraz status obsługi.
-# Służy jako zapis operacji magazynowych wynikających z wystawienia faktury.
 class WarehouseDocument(Base):
     __tablename__ = "warehouse_documents"
 
     id = Column(Integer, primary_key=True, index=True)
-    invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=False)
-
-    created_at = Column(DateTime, default=func.now(), nullable=False)
-    buyer_name = Column(String, nullable=False)
-    invoice_date = Column(DateTime, nullable=False)
-
-    # Pozycje dokumentu zapisane w formie JSON — snapshot produktów i ilości.
-    items_json = Column(String, nullable=False)
-
-    status = Column(Enum(WarehouseStatus), default=WarehouseStatus.NEW, nullable=False)
-
-    # Powiązanie z fakturą źródłową.
+    invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=True)
+    buyer_name = Column(String, nullable=True)
+    shipping_address = Column(String, nullable=True) 
+    invoice_date = Column(DateTime(timezone=True), nullable=True)
+    status = Column(Enum(WarehouseStatus), default=WarehouseStatus.NEW)
+    items_json = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
     invoice = relationship("Invoice", back_populates="warehouse_doc")

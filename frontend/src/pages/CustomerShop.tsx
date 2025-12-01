@@ -28,12 +28,11 @@ type PaginatedProducts = {
 function ProductCard({ product }: { product: Product }) {
   const { setCart } = useAuth();
   const [isAdding, setIsAdding] = useState(false);
+  const [quantity, setQuantity] = useState(1);
 
   const price_gross = product.sell_price_net * (1 + (product.tax_rate ?? 23) / 100);
-
   const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
   
-  // Logika URL zdjęcia (obsługa linków zewnętrznych)
   const fullImageUrl = product.image_url 
     ? (product.image_url.startsWith('http') || product.image_url.startsWith('https')
          ? product.image_url 
@@ -41,14 +40,24 @@ function ProductCard({ product }: { product: Product }) {
     : null;
     
   const handleAddToCart = async () => {
+    if (quantity < 1) {
+        toast.error("Ilość musi być co najmniej 1");
+        return;
+    }
+    if (quantity > product.stock_quantity) {
+        toast.error(`Maksymalna dostępna ilość to ${product.stock_quantity}`);
+        return;
+    }
+
     setIsAdding(true);
     try {
       const res = await api.post("/cart/add", {
         product_id: product.id,
-        qty: 1,
+        qty: quantity,
       });
       setCart(res.data);
-      toast.success(`Dodano do koszyka: ${product.name}`);
+      toast.success(`Dodano do koszyka: ${quantity}x ${product.name}`);
+      setQuantity(1); // Reset po dodaniu
     } catch (err: unknown) {
       console.error(err);
       let msg = "Nie udało się dodać produktu"; 
@@ -64,9 +73,18 @@ function ProductCard({ product }: { product: Product }) {
     }
   };
 
+  const isOutOfStock = product.stock_quantity <= 0;
+
+  // ZMIANA: Dodano handler z poprawnym typowaniem dla TypeScript
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.currentTarget.blur(); // Usuwa fokus po naciśnięciu Enter
+    }
+  };
+
   return (
-    <div className="bg-white shadow rounded-lg overflow-hidden flex flex-col hover:shadow-md transition">
-      <div className="h-48 bg-gray-200 flex items-center justify-center relative">
+    <div className="bg-white shadow rounded-lg overflow-hidden flex flex-col hover:shadow-md transition h-full">
+      <div className="h-48 bg-gray-200 flex items-center justify-center relative shrink-0">
         {fullImageUrl ? (
           <img
             src={fullImageUrl}
@@ -85,8 +103,8 @@ function ProductCard({ product }: { product: Product }) {
         </h3>
         <p className="text-xs text-gray-500 mb-1">Kod: {product.code}</p>
         <div className="flex justify-between items-center mb-3">
-            <span className={`text-xs font-medium px-2 py-1 rounded-full ${product.stock_quantity > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                {product.stock_quantity > 0 ? 'Dostępny' : 'Niedostępny'}
+            <span className={`text-xs font-medium px-2 py-1 rounded-full ${!isOutOfStock ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                {!isOutOfStock ? 'Dostępny' : 'Niedostępny'}
             </span>
             <span className="text-xs text-gray-400">Stan: {product.stock_quantity}</span>
         </div>
@@ -97,18 +115,34 @@ function ProductCard({ product }: { product: Product }) {
             <span className="text-xs font-normal text-gray-500 ml-1">brutto</span>
           </p>
 
-          <button
-            onClick={handleAddToCart}
-            disabled={isAdding || product.stock_quantity <= 0}
-            className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-          >
-            <ShoppingCart size={16} className="mr-2" />
-            {product.stock_quantity <= 0
-              ? "Brak towaru"
-              : isAdding
-              ? "Dodawanie..."
-              : "Dodaj do koszyka"}
-          </button>
+          <div className="flex gap-2">
+              <input 
+                type="number"
+                min={1}
+                max={product.stock_quantity}
+                value={quantity}
+                onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    setQuantity(isNaN(val) ? 1 : val);
+                }}
+                onKeyDown={handleKeyDown} // ZMIANA: Użycie poprawionego handlera
+                disabled={isOutOfStock || isAdding}
+                className="w-20 border border-gray-300 rounded-md px-2 py-2 text-center text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-gray-100"
+              />
+              
+              <button
+                onClick={handleAddToCart}
+                disabled={isAdding || isOutOfStock}
+                className="flex-1 flex items-center justify-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                <ShoppingCart size={16} className="mr-2" />
+                {isOutOfStock
+                  ? "Brak"
+                  : isAdding
+                  ? "..."
+                  : "Do koszyka"}
+              </button>
+          </div>
         </div>
       </div>
     </div>
@@ -122,7 +156,6 @@ export default function CustomerShop() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   
-  // Stany filtrów
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [categoryFilter, setCategoryFilter] = useState<string | undefined>(undefined);
@@ -132,13 +165,11 @@ export default function CustomerShop() {
   const [allCategories, setAllCategories] = useState<string[]>([]);
   const [categoryLoading, setCategoryLoading] = useState(false);
 
-  // 1. Ładowanie Kategorii
   useEffect(() => {
     const fetchCategories = async () => {
       setCategoryLoading(true);
       try {
         const res = await api.get<string[]>("/shop/categories");
-        // Filtrujemy puste kategorie
         setAllCategories(res.data.filter(c => c));
       } catch (err) {
         console.error("Failed to fetch categories", err);
@@ -149,7 +180,6 @@ export default function CustomerShop() {
     fetchCategories();
   }, []);
   
-  // 2. Ładowanie Produktów
   useEffect(() => {
     const loadProducts = async () => {
       setLoading(true);
@@ -176,12 +206,10 @@ export default function CustomerShop() {
       }
     };
     
-    // Debounce dla wyszukiwania
     const timeoutId = setTimeout(loadProducts, 300);
     return () => clearTimeout(timeoutId);
   }, [search, page, categoryFilter, sortBy, order]);
 
-  // Helper do zmiany sortowania
   const toggleSort = (field: typeof sortBy) => {
     setPage(1); 
     if (sortBy === field) {
@@ -199,11 +227,9 @@ export default function CustomerShop() {
         <span className="text-sm text-gray-500">Znaleziono stron: {totalPages}</span>
       </div>
       
-      {/* PANEL FILTRÓW */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-8">
           <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
             
-            {/* Grupa lewa: Szukaj + Kategoria */}
             <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto flex-grow">
                 <div className="relative flex-grow max-w-md">
                     <input
@@ -237,7 +263,6 @@ export default function CustomerShop() {
                 </div>
             </div>
 
-            {/* Grupa prawa: Sortowanie */}
             <div className="flex gap-2 w-full md:w-auto justify-end">
                 <span className="text-sm text-gray-500 self-center mr-1">Sortuj:</span>
                 <button
@@ -258,7 +283,6 @@ export default function CustomerShop() {
           </div>
       </div>
 
-      {/* TREŚĆ */}
       {loading && <div className="text-center py-10 text-gray-500">Ładowanie produktów...</div>}
       {error && <div className="text-center py-10 text-red-500 bg-red-50 rounded-lg">{error}</div>}
 
@@ -276,14 +300,12 @@ export default function CustomerShop() {
              </div>
           ) : (
             <>
-              {/* Siatka produktów */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {products.map((product) => (
                   <ProductCard key={product.id} product={product} />
                 ))}
               </div>
 
-              {/* Paginacja */}
               <div className="mt-10 flex items-center justify-center gap-4">
                 <button
                   className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"

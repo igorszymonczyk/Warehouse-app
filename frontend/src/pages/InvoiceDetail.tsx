@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import type { InvoiceDetail } from "../lib/types";
-import { ArrowLeft, Download, AlertCircle } from "lucide-react";
+import { ArrowLeft, Download, AlertCircle, Truck } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function InvoiceDetailPage() {
+  // ... (reszta kodu bez zmian) ...
   const { id } = useParams();
   const navigate = useNavigate();
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
@@ -20,7 +21,7 @@ export default function InvoiceDetailPage() {
       } catch (err) {
         console.error(err);
         toast.error("Nie udało się pobrać szczegółów faktury");
-        navigate("/invoices"); // Wróć do listy w razie błędu
+        navigate("/invoices");
       } finally {
         setLoading(false);
       }
@@ -29,27 +30,28 @@ export default function InvoiceDetailPage() {
   }, [id, navigate]);
 
   const downloadPdf = async () => {
-    if (!invoice) return;
-    setDownloading(true);
-    const toastId = toast.loading("Pobieranie PDF...");
-    try {
-      await api.post(`/invoices/${invoice.id}/pdf`);
-      const res = await api.get(`/invoices/${invoice.id}/download`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `Faktura-${invoice.full_number.replace('/', '_')}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success("Pobrano PDF", { id: toastId });
-    } catch (err) {
-      console.error(err);
-      toast.error("Błąd pobierania PDF", { id: toastId });
-    } finally {
-      setDownloading(false);
-    }
+      // ... (kod pdf bez zmian) ...
+      if (!invoice) return;
+      setDownloading(true);
+      const toastId = toast.loading("Pobieranie PDF...");
+      try {
+        await api.post(`/invoices/${invoice.id}/pdf`);
+        const res = await api.get(`/invoices/${invoice.id}/download`, { responseType: 'blob' });
+        const url = window.URL.createObjectURL(new Blob([res.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Faktura-${invoice.full_number.replace('/', '_')}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+        toast.success("Pobrano PDF", { id: toastId });
+      } catch (err) {
+        console.error(err);
+        toast.error("Błąd pobierania PDF", { id: toastId });
+      } finally {
+        setDownloading(false);
+      }
   };
 
   if (loading) return <div className="p-6 text-gray-500">Ładowanie...</div>;
@@ -59,7 +61,6 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      {/* Przycisk powrotu */}
       <button 
         onClick={() => navigate("/invoices")} 
         className="flex items-center text-gray-600 mb-6 hover:text-black transition-colors"
@@ -68,7 +69,6 @@ export default function InvoiceDetailPage() {
         Powrót do listy
       </button>
 
-      {/* Baner informacyjny dla korekty */}
       {isCorrection && (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r shadow-sm flex items-start gap-3">
           <AlertCircle className="text-yellow-600 mt-0.5" />
@@ -91,7 +91,6 @@ export default function InvoiceDetailPage() {
         </div>
       )}
 
-      {/* Nagłówek faktury */}
       <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
         <div className="flex justify-between items-start">
           <div>
@@ -101,7 +100,6 @@ export default function InvoiceDetailPage() {
             <p className="text-gray-500 text-sm">
               Data wystawienia: {new Date(invoice.created_at).toLocaleString("pl-PL")}
             </p>
-            {/* Wyświetlamy techniczne ID tylko pomocniczo, małym drukiem */}
             <p className="text-gray-400 text-xs mt-1">ID systemowe: {invoice.id}</p>
           </div>
           <button
@@ -115,17 +113,31 @@ export default function InvoiceDetailPage() {
         </div>
 
         <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* NABYWCA */}
           <div>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Nabywca</h3>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Nabywca (Faktura)</h3>
             <div className="text-gray-900 font-medium text-lg">{invoice.buyer_name}</div>
             <div className="text-gray-600">
               {invoice.buyer_nip && <p>NIP: {invoice.buyer_nip}</p>}
               {invoice.buyer_address && <p>{invoice.buyer_address}</p>}
             </div>
           </div>
-          <div className="text-right">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Podsumowanie</h3>
-            <div className="space-y-1">
+
+          {/* DOSTAWA (NOWE) */}
+          <div className="md:text-right">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center md:justify-end gap-1">
+               <Truck size={14} />
+               Adres Dostawy
+            </h3>
+            <div className="text-gray-700 font-medium bg-gray-50 p-3 rounded inline-block text-left">
+                {invoice.shipping_address ? (
+                    <span className="whitespace-pre-wrap">{invoice.shipping_address}</span>
+                ) : (
+                    <span className="italic text-gray-400">Taki sam jak nabywcy</span>
+                )}
+            </div>
+            
+            <div className="mt-4 space-y-1">
               <div className="flex justify-end gap-4 text-gray-600">
                 <span>Suma Netto:</span>
                 <span className="font-medium">{invoice.total_net.toFixed(2)} zł</span>
@@ -143,7 +155,7 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {/* Tabela pozycji */}
+      {/* TABELA (bez zmian) */}
       <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
         <div className="bg-gray-50 px-6 py-3 border-b">
           <h3 className="font-semibold text-gray-700">Pozycje na dokumencie</h3>

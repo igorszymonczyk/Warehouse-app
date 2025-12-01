@@ -18,6 +18,7 @@ type WZDetail = {
   id: number;
   invoice_id?: number;
   buyer_name: string;
+  shipping_address?: string;
   status: WZStatus;
   created_at: string;
   items: WzProductItem[];
@@ -96,8 +97,16 @@ function WZDetailView({ docId, onBack, onChangeStatus }: { docId: number, onBack
                 </div>
                 <div>
                     <p className="text-gray-500">Data Utworzenia:</p>
-                    <p className="font-semibold">{new Date(detail.created_at).toLocaleString()}</p>
+                    <p className="font-semibold">{detail.created_at ? new Date(detail.created_at).toLocaleString() : "Brak daty"}</p>
                 </div>
+                
+                {detail.shipping_address && (
+                    <div className="col-span-2 border-t pt-2 mt-2">
+                        <p className="text-gray-500">Adres Dostawy:</p>
+                        <p className="font-semibold text-gray-800 whitespace-pre-wrap">{detail.shipping_address}</p>
+                    </div>
+                )}
+                
                 <div>
                     <p className="text-gray-500">ID Faktury powiązanej:</p>
                     <p className="font-semibold">{detail.invoice_id ? `INV-${detail.invoice_id}` : 'Brak (Utworzono z Zamówienia)'}</p>
@@ -162,10 +171,7 @@ export default function WZPage() {
   const [rows, setRows] = useState<WzItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
-
-  // Stan dla licznika oczekujących
   const [activeCount, setActiveCount] = useState(0);
 
   const [buyer, setBuyer] = useState("");
@@ -177,7 +183,8 @@ export default function WZPage() {
   const [total, setTotal] = useState(0);
   const pageSize = 10;
 
-  const [sortBy, setSortBy] = useState<"created_at" | "status" | "buyer_name">("created_at");
+  // ZMIANA: Typ sortowania zawiera teraz "id"
+  const [sortBy, setSortBy] = useState<"created_at" | "status" | "buyer_name" | "id">("created_at");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   
   const [searchParams, setSearchParams] = useSearchParams();
@@ -190,8 +197,8 @@ export default function WZPage() {
   
   const handleCloseDetail = useCallback(() => {
       setSearchParams({});
-      load(); // Odśwież listę po powrocie
-      fetchActiveCount(); // Odśwież licznik po powrocie
+      load(); 
+      fetchActiveCount(); 
   }, [setSearchParams]);
 
   const toggleSort = (field: typeof sortBy) => {
@@ -202,13 +209,11 @@ export default function WZPage() {
     }
   };
 
-  // Funkcja pobierająca listę (tabela)
   const load = useCallback(async () => {
     if (fromDt && toDt && new Date(toDt) < new Date(fromDt)) {
       setError("Data 'do' nie może być wcześniejsza niż 'od'");
       return;
     }
-
     if (currentDocId) return; 
 
     try {
@@ -236,13 +241,12 @@ export default function WZPage() {
     }
   }, [buyer, status, fromDt, toDt, sortBy, order, page, currentDocId]);
 
-  // Funkcja pobierająca licznik zadań
   const fetchActiveCount = async () => {
       try {
           const res = await api.get<{ total: number }>("/warehouse-documents", {
               params: {
                   status: ["NEW", "IN_PROGRESS"],
-                  page_size: 1, // Pobieramy cokolwiek, interesuje nas tylko 'total'
+                  page_size: 1, 
               }
           });
           setActiveCount(res.data.total);
@@ -251,7 +255,6 @@ export default function WZPage() {
       }
   };
 
-  // Ładowanie listy
   useEffect(() => {
     const timeout = setTimeout(() => {
       setPage(1);
@@ -262,7 +265,6 @@ export default function WZPage() {
 
   useEffect(() => { load(); }, [page]);
 
-  // Ładowanie licznika przy starcie
   useEffect(() => {
       fetchActiveCount();
   }, []);
@@ -272,7 +274,7 @@ export default function WZPage() {
       await api.patch(`/warehouse-documents/${id}/status`, { status: newStatus });
       toast.success(`Status WZ ${id} zmieniony na ${newStatus}`);
       setRows((r) => r.map((x) => (x.id === id ? { ...x, status: newStatus } : x)));
-      fetchActiveCount(); // Odśwież licznik po zmianie statusu
+      fetchActiveCount(); 
     } catch {
       toast.error("Nie udało się zmienić statusu");
       throw new Error("Błąd"); 
@@ -320,7 +322,6 @@ export default function WZPage() {
     <div className="p-6">
       <h1 className="text-xl font-semibold mb-4">Wydania zewnętrzne (WZ)</h1>
 
-      {/* --- NOWY LICZNIK ZADAŃ --- */}
       <div className={`mb-6 p-4 rounded-lg shadow-sm border flex items-center justify-between ${activeCount > 0 ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'}`}>
           <div className="flex items-center gap-3">
               <div className={`p-2 rounded-full ${activeCount > 0 ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
@@ -344,7 +345,6 @@ export default function WZPage() {
               </button>
           )}
       </div>
-      {/* -------------------------- */}
 
       {/* FILTRY */}
       <div className="flex flex-wrap items-end gap-3 mb-4">
@@ -399,10 +399,11 @@ export default function WZPage() {
         <table className="min-w-full text-sm bg-white">
           <thead className="bg-gray-100">
             <tr>
-              <th className="p-3 border-r cursor-pointer select-none hover:bg-gray-200" onClick={() => toggleSort("created_at")}>
+              {/* ZMIANA: Kliknięcie w ID sortuje po ID */}
+              <th className="p-3 border-r cursor-pointer select-none hover:bg-gray-200" onClick={() => toggleSort("id")}>
                 <div className="flex items-center gap-1 font-semibold text-gray-700">
                     ID
-                    <ArrowUpDown size={14} className={sortBy === "created_at" ? "text-blue-600" : "text-gray-400"}/>
+                    <ArrowUpDown size={14} className={sortBy === "id" ? "text-blue-600" : "text-gray-400"}/>
                 </div>
               </th>
               <th className="p-3 border-r cursor-pointer select-none hover:bg-gray-200" onClick={() => toggleSort("buyer_name")}>
@@ -417,7 +418,12 @@ export default function WZPage() {
                     <ArrowUpDown size={14} className={sortBy === "status" ? "text-blue-600" : "text-gray-400"}/>
                 </div>
               </th>
-              <th className="p-3 border-r font-semibold text-gray-700">Data</th>
+              <th className="p-3 border-r font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-200" onClick={() => toggleSort("created_at")}>
+                  <div className="flex items-center gap-1 font-semibold text-gray-700">
+                    Data
+                    <ArrowUpDown size={14} className={sortBy === "created_at" ? "text-blue-600" : "text-gray-400"}/>
+                  </div>
+              </th>
               <th className="p-3 font-semibold text-center text-gray-700">Akcje</th>
             </tr>
           </thead>
@@ -428,7 +434,7 @@ export default function WZPage() {
                 className="hover:bg-gray-50 border-b transition-colors cursor-pointer"
                 onClick={() => handleViewDetail(r.id)} 
               >
-                <td className="p-3 border-r text-gray-900 font-medium">
+                <td className="p-3 border-r text-blue-600 font-medium">
                     WZ-{r.id}
                 </td>
                 <td className="p-3 border-r text-gray-800">{r.buyer_name ?? "-"}</td>

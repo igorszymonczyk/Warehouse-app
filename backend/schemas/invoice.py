@@ -49,6 +49,7 @@ class InvoiceItemDetail(BaseModel):
     tax_rate: float
     total_net: float
     total_gross: float
+    
 
     class Config:
         from_attributes = True
@@ -67,6 +68,7 @@ class InvoiceDetail(BaseModel):
     is_correction: bool = False
     parent_id: Optional[int] = None
     correction_reason: Optional[str] = None
+    shipping_address: Optional[str] = None
 
     class Config:
         from_attributes = True

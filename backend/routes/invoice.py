@@ -11,15 +11,13 @@ from datetime import datetime
 # Modele
 from models.invoice import Invoice, InvoiceItem, PaymentStatus
 from models.product import Product
-from models.WarehouseDoc import WarehouseDocument
+from models.WarehouseDoc import WarehouseDocument, WarehouseStatus
 from models.company import Company
 from models.users import User
 from database import get_db
 from utils.tokenJWT import get_current_user
 from utils.audit import write_log
 from schemas import invoice as invoice_schemas
-
-# IMPORTY Z TWOJEGO PLIKU UTILS (PDF)
 from utils.pdf import generate_invoice_pdf, get_pdf_path
 
 router = APIRouter(tags=["Invoices"])
@@ -28,8 +26,6 @@ router = APIRouter(tags=["Invoices"])
 # HELPER: PERMISSIONS
 # =========================
 def _check_pdf_permission(db: Session, invoice_id: int, user: User) -> Invoice:
-    """Helper to check PDF access for admin, salesman, or owner."""
-    # Ładujemy też rodzica i jego itemy, aby PDF mógł wyświetlić "PRZED KOREKTĄ"
     invoice = db.query(Invoice).options(
         joinedload(Invoice.items),
         joinedload(Invoice.parent).joinedload(Invoice.items)
@@ -68,8 +64,9 @@ def list_my_invoices(
 
     return {"items": invoices, "total": total, "page": page, "page_size": page_size}
 
+
 # =========================
-# CREATE INVOICE
+# TWORZENIE FAKTURY (RĘCZNE) + AUTOMATYCZNE WZ
 # =========================
 @router.post("/invoices", response_model=invoice_schemas.InvoiceResponse)
 def create_invoice(
@@ -80,6 +77,12 @@ def create_invoice(
 ):
     if (current_user.role or "").upper() not in {"ADMIN", "SALESMAN"}:
         raise HTTPException(status_code=403, detail="Not authorized to issue invoices")
+
+    # Numeracja
+    last_number = db.query(func.max(Invoice.number)).filter(
+        (Invoice.is_correction == False) | (Invoice.is_correction == None)
+    ).scalar()
+    new_number = (last_number or 0) + 1
 
     total_net, total_vat, total_gross = 0.0, 0.0, 0.0
     items = []
@@ -115,22 +118,30 @@ def create_invoice(
         )
         product.stock_quantity -= quantity
 
+    # Ustawiamy adres dostawy taki sam jak nabywcy (bo w manualnym formularzu nie ma osobnego pola)
+    shipping_addr = invoice_data.buyer_address
+    
+    now = datetime.now()
+
     invoice = Invoice(
         buyer_name=invoice_data.buyer_name,
         buyer_nip=invoice_data.buyer_nip,
         buyer_address=invoice_data.buyer_address,
+        shipping_address=shipping_addr, # <-- ZAPISUJEMY ADRES
         created_by=current_user.id,
         user_id=current_user.id,
+        created_at=now,
         total_net=total_net,
         total_vat=total_vat,
         total_gross=total_gross,
         items=items,
+        number=new_number
     )
     db.add(invoice)
     db.commit()
     db.refresh(invoice)
 
-    # Automatyczne utworzenie dokumentu WZ
+    # Automatyczne tworzenie dokumentu WZ
     warehouse_items = [
         {
             "product_name": item.product_name,
@@ -143,9 +154,11 @@ def create_invoice(
     warehouse_doc = WarehouseDocument(
         invoice_id=invoice.id,
         buyer_name=invoice.buyer_name,
-        invoice_date=invoice.created_at,
+        invoice_date=now,
+        created_at=now,
         items_json=json.dumps(warehouse_items),
-        status="NEW"
+        status=WarehouseStatus.NEW,
+        shipping_address=shipping_addr # <-- PRZEKAZUJEMY ADRES DO WZ
     )
     db.add(warehouse_doc)
     db.commit()
@@ -153,12 +166,13 @@ def create_invoice(
     write_log(
         db, user_id=current_user.id, action="INVOICE_CREATE", resource="invoices", status="SUCCESS",
         ip=request.client.host,
-        meta={"invoice_id": invoice.id, "total_gross": total_gross, "buyer": invoice_data.buyer_name}
+        meta={"invoice_id": invoice.id, "total_gross": total_gross, "wz_id": warehouse_doc.id}
     )
     return invoice
 
+
 # =========================
-# UTWORZENIE KOREKTY (ZMODYFIKOWANE)
+# KOREKTA
 # =========================
 @router.post("/invoices/{invoice_id}/correction", response_model=invoice_schemas.InvoiceResponse)
 def create_invoice_correction(
@@ -177,10 +191,8 @@ def create_invoice_correction(
     if original_invoice.is_correction:
         raise HTTPException(status_code=400, detail="Nie można korygować korekty")
 
-    # === OBLICZANIE SEKWENCJI KOREKTY ===
     existing_corrections_count = db.query(Invoice).filter(Invoice.parent_id == original_invoice.id).count()
     new_seq = existing_corrections_count + 1
-    # ====================================
 
     total_net, total_vat, total_gross = 0.0, 0.0, 0.0
     new_items = []
@@ -216,6 +228,7 @@ def create_invoice_correction(
         buyer_name=correction_data.buyer_name,
         buyer_nip=correction_data.buyer_nip,
         buyer_address=correction_data.buyer_address,
+        shipping_address=original_invoice.shipping_address, # Kopiujemy adres z oryginału
         created_by=current_user.id,
         user_id=original_invoice.user_id,
         
@@ -243,9 +256,7 @@ def create_invoice_correction(
     
     return correction_invoice
 
-# =========================
-# GET INVOICE DETAIL (POPRAWIONE)
-# =========================
+
 @router.get("/invoices/{invoice_id}", response_model=invoice_schemas.InvoiceDetail)
 def get_invoice(
     invoice_id: int,
@@ -284,32 +295,29 @@ def get_invoice(
         ip=request.client.host, meta={"invoice_id": invoice.id}
     )
 
-    # TU BYŁ BŁĄD: Dodajemy nowe pola (full_number, is_correction itp.) do zwracanego słownika
     return {
         "id": invoice.id,
-        "full_number": invoice.full_number, # <--- POPRAWKA
+        "full_number": invoice.full_number,
         "buyer_name": invoice.buyer_name,
         "buyer_nip": invoice.buyer_nip,
         "buyer_address": invoice.buyer_address,
+        "shipping_address": invoice.shipping_address, # ZWRACAMY ADRES
         "created_at": invoice.created_at,
         "total_net": invoice.total_net,
         "total_vat": invoice.total_vat,
         "total_gross": invoice.total_gross,
         "items": detailed_items,
-        # Nowe pola korekt
         "is_correction": invoice.is_correction,
         "parent_id": invoice.parent_id,
         "correction_reason": invoice.correction_reason,
     }
 
-# =========================
-# LIST (FOR ADMIN/SALES) - ZMODYFIKOWANE SORTOWANIE
-# =========================
+
 @router.get("/invoices", response_model=invoice_schemas.InvoiceListPage)
 def list_invoices(
     request: Request,
     q: Optional[str] = Query(None),
-    search_id: Optional[str] = Query(None, description="Szukaj po ID"), # <--- NOWY PARAMETR
+    search_id: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
     sort_by: Literal["created_at", "buyer_name", "total_gross", "id"] = "created_at",
@@ -323,26 +331,20 @@ def list_invoices(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     query = db.query(Invoice)
-    
-    # 1. Filtrowanie tekstowe (NIP, Nazwa)
     if q:
         like = f"%{q}%"
         query = query.filter(or_(Invoice.buyer_name.ilike(like), Invoice.buyer_nip.ilike(like)))
-
-    # 2. NOWOŚĆ: Filtrowanie po ID
-    # Jeśli wpiszesz "6297", znajdzie fakturę 6297 ORAZ wszystkie jej korekty (gdzie parent_id=6297)
+    
     if search_id:
-        # Próbujemy sparsować int, jeśli się nie uda (np. ktoś wpisze "INV-1"), ignorujemy
         try:
             s_id = int(search_id)
-            query = query.filter(or_(Invoice.id == s_id, Invoice.parent_id == s_id))
+            query = query.filter(or_(Invoice.id == s_id, Invoice.number == s_id, Invoice.parent_id == s_id))
         except ValueError:
-            pass # Ignorujemy błędny format ID
+            pass
 
     if date_from: query = query.filter(Invoice.created_at >= date_from)
     if date_to: query = query.filter(Invoice.created_at <= date_to)
 
-    # Sortowanie (Rodzinami)
     family_id = func.coalesce(Invoice.parent_id, Invoice.id)
 
     if sort_by == "created_at" or sort_by == "id":
@@ -352,8 +354,6 @@ def list_invoices(
              query = query.order_by(family_id.asc(), Invoice.is_correction.asc(), Invoice.id.asc())
     else:
         sort_map = {
-            "id": Invoice.id, # Fallback
-            "created_at": Invoice.created_at,
             "buyer_name": Invoice.buyer_name,
             "total_gross": Invoice.total_gross,
         }
@@ -365,9 +365,6 @@ def list_invoices(
 
     return {"items": invoices, "total": total, "page": page, "page_size": page_size}
 
-# =========================
-# PDF ENDPOINTS
-# =========================
 
 @router.post("/invoices/{invoice_id}/pdf")
 def generate_invoice_pdf_endpoint(
@@ -394,15 +391,6 @@ def generate_invoice_pdf_endpoint(
         generate_invoice_pdf(invoice, invoice.items, out_path, company=company_dict)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Błąd generowania PDF: {e}")
-
-    if hasattr(invoice, "pdf_path"):
-        invoice.pdf_path = str(out_path)
-        db.commit()
-
-    write_log(
-        db, user_id=current_user.id, action="INVOICE_PDF_GENERATE", resource="invoices", status="SUCCESS",
-        ip=request.client.host, meta={"invoice_id": invoice.id, "pdf_path": str(out_path)}
-    )
     
     return {"message": "PDF generated", "path": str(out_path)}
 
@@ -415,12 +403,11 @@ def download_invoice_pdf_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     invoice_for_check = _check_pdf_permission(db, invoice_id, current_user)
-    pdf_path = Path(getattr(invoice_for_check, "pdf_path", "") or get_pdf_path(invoice_for_check.id))
+    pdf_path = get_pdf_path(invoice_for_check.id)
     
     if not pdf_path.exists():
         try:
             full_invoice_details = _check_pdf_permission(db, invoice_id, current_user)
-            
             company = db.query(Company).first()
             company_dict = None
             if company:
@@ -431,12 +418,7 @@ def download_invoice_pdf_endpoint(
                     "phone": getattr(company, "phone", None),
                     "email": getattr(company, "email", None)
                 }
-            
             generate_invoice_pdf(full_invoice_details, full_invoice_details.items, pdf_path, company=company_dict)
-            
-            if hasattr(full_invoice_details, "pdf_path"):
-                full_invoice_details.pdf_path = str(pdf_path)
-                db.commit()
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Could not generate PDF: {e}")
 

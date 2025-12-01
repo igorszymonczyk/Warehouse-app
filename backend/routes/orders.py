@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session, joinedload
 import json
 import httpx
+import time
+from datetime import datetime # <--- 1. DODANO IMPORT
 
 from database import get_db
 import logging
@@ -21,18 +23,17 @@ from schemas.order import (
     OrderResponse, OrdersPage, OrderStatusPatch, OrderItemOut,
     OrderCreatePayload, PaymentInitiationResponse
 )
+from sqlalchemy import func 
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 logger = logging.getLogger(__name__)
 
-
+# ... (funkcje _is_admin_or_sales, _cart_open, _order_to_out BEZ ZMIAN) ...
 def _is_admin_or_sales(user: User) -> bool:
     return (user.role or "").upper() in {"ADMIN", "SALESMAN"}
 
-
 def _cart_open(db: Session, user_id: int) -> Cart:
     return db.query(Cart).filter(Cart.user_id == user_id, Cart.status == "open").first()
-
 
 def _order_to_out(order: Order) -> OrderResponse:
     items: List[OrderItemOut] = []
@@ -53,13 +54,15 @@ def _order_to_out(order: Order) -> OrderResponse:
         items=items
     )
 
-
 def _fulfill_order(db: Session, order: Order, request: Request):
+    """
+    Realizuje zamówienie: zdejmuje stan, tworzy fakturę i WZ.
+    """
     db.refresh(order)
     for item in order.items:
         db.refresh(item)
 
-    # 1. ZDJĘCIE STANU MAGAZYNOWEGO
+    # 1. ZDJĘCIE STANU
     for item in order.items:
         product = db.query(Product).filter(Product.id == item.product_id).with_for_update().first()
         if product:
@@ -91,19 +94,46 @@ def _fulfill_order(db: Session, order: Order, request: Request):
             "quantity": quantity, "location": prod.location or ""
         })
 
-    full_buyer_address = f"{order.invoice_address_street}, {order.invoice_address_zip} {order.invoice_address_city}"
+    # ADRESY
+    billing_addr = f"{order.invoice_address_street}, {order.invoice_address_zip} {order.invoice_address_city}"
+    
+    shipping_addr = None
+    if order.shipping_address_street:
+        shipping_addr = f"{order.shipping_address_street}, {order.shipping_address_zip} {order.shipping_address_city}"
+    else:
+        shipping_addr = billing_addr
+
+    # NUMERACJA FAKTUR
+    last_number = db.query(func.max(Invoice.number)).filter(
+        (Invoice.is_correction == False) | (Invoice.is_correction == None)
+    ).scalar()
+    new_number = (last_number or 0) + 1
+
+    # Data utworzenia (wspólna dla faktury i WZ)
+    now = datetime.now()
+
     invoice = Invoice(
         user_id=order.user_id, order_id=order.id, payment_status=PaymentStatus.PAID,
         buyer_name=order.invoice_buyer_name, buyer_nip=order.invoice_buyer_nip,
-        buyer_address=full_buyer_address, created_by=order.user_id,
-        total_net=total_net, total_vat=total_vat, total_gross=total_gross, items=invoice_items
+        buyer_address=billing_addr,    
+        shipping_address=shipping_addr, 
+        created_by=order.user_id,
+        created_at=now, # Jawne przypisanie daty
+        total_net=total_net, total_vat=total_vat, total_gross=total_gross, items=invoice_items,
+        number=new_number
     )
     db.add(invoice)
     db.flush()
 
+    # TWORZENIE WZ
     warehouse_doc = WarehouseDocument(
-        invoice_id=invoice.id, buyer_name=invoice.buyer_name, invoice_date=invoice.created_at,
-        items_json=json.dumps(wz_items_json), status=WarehouseStatus.NEW
+        invoice_id=invoice.id, 
+        buyer_name=invoice.buyer_name, 
+        invoice_date=now, # Data faktury
+        created_at=now,   # <--- 2. JAWNE PRZYPISANIE DATY UTWORZENIA
+        items_json=json.dumps(wz_items_json), 
+        status=WarehouseStatus.NEW,
+        shipping_address=shipping_addr 
     )
     db.add(warehouse_doc)
 
@@ -113,7 +143,7 @@ def _fulfill_order(db: Session, order: Order, request: Request):
         meta={"order_id": order.id, "invoice_id": invoice.id, "wz_id": warehouse_doc.id}
     )
 
-
+# ... (reszta pliku: endpointy initiate_payment, list_my_orders, get_order_detail, update_order_status BEZ ZMIAN) ...
 @router.post("/initiate-payment", response_model=PaymentInitiationResponse)
 async def initiate_payment(
     payload: OrderCreatePayload,
@@ -133,9 +163,19 @@ async def initiate_payment(
         product_cache[ci.product_id] = prod
         total_gross += ci.qty * ci.unit_price_snapshot * (1 + prod.tax_rate / 100)
 
+    order_data = payload.model_dump()
+    if not order_data.get("shipping_address_street"):
+        order_data["shipping_address_street"] = order_data["invoice_address_street"]
+        order_data["shipping_address_zip"] = order_data["invoice_address_zip"]
+        order_data["shipping_address_city"] = order_data["invoice_address_city"]
+
+    if "invoice_contact_person" in order_data:
+        del order_data["invoice_contact_person"]
+
     order = Order(
         user_id=current_user.id, status="pending_payment",
-        total_amount=round(total_gross, 2), **payload.model_dump()
+        total_amount=round(total_gross, 2), 
+        **order_data 
     )
     db.add(order)
     
@@ -154,6 +194,15 @@ async def initiate_payment(
         "unitPrice": int(round(it.unit_price * (1 + product_cache[it.product_id].tax_rate / 100), 2) * 100)
     } for it in order.items]
     
+    unique_ext_order_id = f"{order.id}_{int(time.time())}"
+    
+    buyer_first_name = getattr(current_user, "first_name", "") or "Klient"
+    buyer_last_name = getattr(current_user, "last_name", "") or "Sklepu"
+    if (not buyer_first_name or buyer_first_name == "Klient") and payload.invoice_buyer_name:
+         parts = payload.invoice_buyer_name.split(' ')
+         buyer_first_name = parts[0]
+         buyer_last_name = " ".join(parts[1:]) if len(parts) > 1 else "-"
+
     payu_order_data = {
         "notifyUrl": payu_client.notify_url,
         "continueUrl": payu_client.continue_url,
@@ -162,47 +211,41 @@ async def initiate_payment(
         "description": f"Zamówienie #{order.id}",
         "currencyCode": "PLN",
         "totalAmount": int(order.total_amount * 100),
-        "extOrderId": str(order.id),
+        "extOrderId": unique_ext_order_id, 
         "buyer": {
             "email": current_user.email,
-            "firstName": payload.invoice_contact_person.split(' ')[0],
-            "lastName": " ".join(payload.invoice_contact_person.split(' ')[1:]),
+            "firstName": buyer_first_name,
+            "lastName": buyer_last_name,
             "language": "pl"
         },
         "products": payu_products
     }
 
-    # Immediately fulfill the order and mark as paid/processing when user clicks "Pay",
-    # then create PayU order and return redirect URL so user is redirected to PayU.
     try:
         order.status = "processing"
-        try:
-            _fulfill_order(db, order, request)
-            db.commit()
-        except Exception as e:
-            db.rollback()
-            raise HTTPException(status_code=500, detail=f"Failed to fulfill order after payment: {e}")
+        _fulfill_order(db, order, request)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to fulfill order immediately: {e}")
+        raise HTTPException(status_code=500, detail=f"Błąd generowania faktury: {e}")
+    
+    try:
+        token = await payu_client.get_auth_token()
+        payu_response = await payu_client.create_order(token, payu_order_data)
 
-        # Now create PayU order to obtain redirect URL for the user
-        try:
-            token = await payu_client.get_auth_token()
-            payu_response = await payu_client.create_order(token, payu_order_data)
+        redirect = None
+        if isinstance(payu_response, dict):
+            redirect = payu_response.get("redirectUri") or payu_response.get("redirect_uri") or payu_response.get("redirectUrl") or payu_response.get("Location") or payu_response.get("location")
+            order.payu_order_id = payu_response.get("orderId") or payu_response.get("order_id")
 
-            redirect = None
-            if isinstance(payu_response, dict):
-                redirect = payu_response.get("redirectUri") or payu_response.get("redirect_uri") or payu_response.get("redirectUrl") or payu_response.get("Location") or payu_response.get("location")
-                order.payu_order_id = payu_response.get("orderId") or payu_response.get("order_id")
+        order.payment_url = redirect
+        db.commit()
 
-            order.payment_url = redirect
-            db.commit()
-
-            return PaymentInitiationResponse(redirect_url=redirect, order_id=order.id)
-        except httpx.HTTPError as e:
-            logger.exception("PayU create order failed: %s", e)
-            # Payment initiation failed, but fulfillment already happened. Inform frontend.
-            raise HTTPException(status_code=500, detail=f"Błąd komunikacji z systemem płatności: {e}")
-    except HTTPException:
-        raise
+        return PaymentInitiationResponse(redirect_url=redirect, order_id=order.id)
+    except httpx.HTTPError as e:
+        logger.exception("PayU create order failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Błąd komunikacji z systemem płatności: {e}")
     except Exception as e:
         logger.exception("Unexpected error in initiate_payment: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -215,19 +258,15 @@ def list_my_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Synchronize order status with WarehouseDocument status if needed
     orders = db.query(Order).filter(Order.user_id == current_user.id).all()
     for order in orders:
-        # Find related invoice and warehouse document
         invoice = db.query(Invoice).filter(Invoice.order_id == order.id).first()
         if invoice:
             wz = db.query(WarehouseDocument).filter(WarehouseDocument.invoice_id == invoice.id).first()
             if wz:
-                # If WZ is released, set order status to shipped
                 if wz.status == "RELEASED" and order.status != "shipped":
                     order.status = "shipped"
                     db.commit()
-                # If WZ is cancelled, set order status to cancelled
                 elif wz.status == "CANCELLED" and order.status != "cancelled":
                     order.status = "cancelled"
                     db.commit()
@@ -272,15 +311,8 @@ def update_order_status(
 
     old_status, new_status = order.status, payload.status
     
-    # Prosta walidacja, można rozbudować
     if old_status == "shipped" or old_status == "cancelled":
         raise HTTPException(status_code=400, detail=f"Cannot change status from {old_status}")
-
-    # Logika anulowania zamówienia przedpłaconego jest skomplikowana (zwrot środków)
-    # Na razie pozwalamy tylko na anulowanie przed wysyłką, bez automatycznego zwrotu stanu
-    if new_status == "cancelled" and old_status in ("pending_payment", "processing"):
-        # TODO: Implement refund logic via PayU API if needed
-        pass
 
     order.status = new_status
     db.commit()

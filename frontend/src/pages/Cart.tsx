@@ -1,14 +1,13 @@
-import { useEffect, useState } from "react"; // Upewnij się, że useState jest zaimportowany
+import { useEffect, useState } from "react";
 import { useAuth } from "../store/auth";
 import type { Cart } from "../store/auth";
 import { api } from "../lib/api";
 import toast from "react-hot-toast";
-import { Link } from "react-router-dom"; // useNavigate jest używany wewnątrz body funkcji
-import { Trash2, Plus, Minus, Lightbulb } from "lucide-react"; // Lightbulb jest używany
+import { Link } from "react-router-dom";
+import { Trash2, Lightbulb} from "lucide-react";
 
-// === TYPY DANYCH DLA REKOMENDACJI ===
+// === TYPY DANYCH ===
 
-// Typ produktu pobierany dla rekomendacji (bazuje na modelu Product)
 type RecommendedProduct = {
   id: number;
   name: string;
@@ -18,19 +17,20 @@ type RecommendedProduct = {
   stock_quantity: number; 
 };
 
-// Typ reguły zwracanej z /salesman/recommendations
 type RecommendationRule = {
-    product_in: string[]; // Nazwa Produktu w Koszyku (warunek)
-    product_out: string[]; // Nazwa Sugerowanego Produktu (sugestia)
+    product_in: string[];
+    product_out: string[];
     confidence: string;
     lift: string;
 };
 
-function RecommendationCard({ product, setCart }: { product: RecommendedProduct, setCart: (cart: Cart | null) => void }) {  const [isAdding, setIsAdding] = useState(false); // Stan do przycisku
+// === KOMPONENTY POMOCNICZE ===
+
+function RecommendationCard({ product, setCart }: { product: RecommendedProduct, setCart: (cart: Cart | null) => void }) {
+  const [isAdding, setIsAdding] = useState(false);
   
   const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
   
-  // Logika budowania URL dla zdjęć (bez zmian)
   const fullImageUrl = product.image_url 
     ? (product.image_url.startsWith('http') || product.image_url.startsWith('https')
          ? product.image_url 
@@ -39,15 +39,14 @@ function RecommendationCard({ product, setCart }: { product: RecommendedProduct,
 
   const price_gross = product.sell_price_net * (1 + 23 / 100); 
 
-  // 2. ZMIANA: Nowa funkcja do dodawania produktu do koszyka
   const handleAddToCart = async () => {
       setIsAdding(true);
       try {
           const res = await api.post("/cart/add", {
               product_id: product.id,
-              qty: 1, // Zawsze dodajemy jedną sztukę z rekomendacji
+              qty: 1,
           });
-          setCart(res.data); // Aktualizujemy globalny stan koszyka
+          setCart(res.data);
           toast.success(`Dodano: ${product.name}`);
       } catch (err: unknown) { 
           console.error(err);
@@ -73,7 +72,6 @@ function RecommendationCard({ product, setCart }: { product: RecommendedProduct,
                       {price_gross.toFixed(2)} zł
                   </p>
               </div>
-              {/* 3. ZMIANA: Przycisk dodawania */}
               <button
                   onClick={handleAddToCart}
                   disabled={isAdding || product.stock_quantity <= 0}
@@ -86,25 +84,75 @@ function RecommendationCard({ product, setCart }: { product: RecommendedProduct,
   );
 }
 
+// --- KOMPONENT WIERSZA KOSZYKA ---
+function CartItemRow({ item, onUpdate, onDelete }: { item: any, onUpdate: (id: number, q: number) => void, onDelete: (id: number) => void }) {
+    const [localQty, setLocalQty] = useState(item.qty);
+
+    useEffect(() => {
+        setLocalQty(item.qty);
+    }, [item.qty]);
+
+    const commitChange = () => {
+        if (localQty !== item.qty) {
+            onUpdate(item.id, localQty);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.currentTarget.blur(); 
+        }
+    };
+
+    return (
+        <li className="flex items-center justify-between py-4">
+            <div className="flex-grow">
+                <p className="font-semibold text-gray-800">{item.name}</p>
+                <p className="text-sm font-medium text-gray-500">
+                    Cena: {item.unit_price.toFixed(2)} zł
+                </p>
+            </div>
+            <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500 mr-1">Ilość:</span>
+                <input 
+                    type="number"
+                    min="1"
+                    className="w-20 text-center border border-gray-300 rounded p-1 focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={localQty}
+                    onChange={(e) => setLocalQty(parseInt(e.target.value) || 0)}
+                    onBlur={commitChange}
+                    onKeyDown={handleKeyDown}
+                />
+            </div>
+            <p className="w-24 text-right font-semibold">
+                {item.line_total.toFixed(2)} zł
+            </p>
+            <button
+                onClick={() => onDelete(item.id)}
+                className="ml-4 p-2 text-red-500 hover:text-red-700"
+            >
+                <Trash2 size={20} />
+            </button>
+        </li>
+    );
+}
+
+// === GŁÓWNA STRONA KOSZYKA ===
+
 export default function CartPage() {
   const { cart, setCart, role } = useAuth();
-  // 1. ZMIANA: Zmienne dla logiki rekomendacji
   const [recommendedProducts, setRecommendedProducts] = useState<RecommendedProduct[]>([]);
   const [loadingRecs, setLoadingRecs] = useState(true);
   
-  // Usunięto deklarację 'navigate' ponieważ nie była używana w tej funkcji
-  
   const handleUpdateQty = async (itemId: number, newQty: number) => {
-  
     if (newQty < 1) {
-      handleDeleteItem(itemId);
-      return;
+        handleDeleteItem(itemId);
+        return;
     }
 
     try {
       const res = await api.put(`/cart/items/${itemId}`, { qty: newQty });
       setCart(res.data);
-      toast.success("Zaktualizowano ilość");
     } catch {
       toast.error("Błąd: Nie udało się zaktualizować koszyka");
     }
@@ -123,7 +171,6 @@ export default function CartPage() {
     }
   };
   
-  // 2. ZMIANA: Efekt do ładowania rekomendacji (Używa wszystkich zmiennych stanów)
   useEffect(() => {
     if (!cart || cart.items.length === 0) return;
 
@@ -131,34 +178,27 @@ export default function CartPage() {
       setLoadingRecs(true);
       
       try {
-        // Krok 1: Pobierz reguły Apriori
         const recsRes = await api.get<RecommendationRule[]>("/salesman/recommendations");
 
-        // Krok 2: Znajdź produkty sugerowane (product_out)
         const cartProductNames = cart.items.map(item => item.name);
-        
-        // Zastosuj filtry: znajdź reguły, w których produkt_in jest już w koszyku
         const relevantRecs = recsRes.data.filter(rule => 
             rule.product_in.some(name => cartProductNames.includes(name))
         );
         
-        // Zbierz wszystkie unikalne nazwy produktów do zasugerowania
         const productsToSuggest = new Set<string>();
         relevantRecs.forEach(rule => {
             rule.product_out.forEach(name => productsToSuggest.add(name));
         });
 
         if (productsToSuggest.size > 0) {
-            // Krok 3: Pobierz szczegóły produktów po nazwie (POST /products/details)
             const detailsRes = await api.post("/products/details", { 
                 product_names: Array.from(productsToSuggest) 
             });
             
-            // Krok 4: Filtruj, aby uniknąć sugerowania czegoś, co już jest w koszyku
             const currentCartNames = new Set(cart.items.map(i => i.name));
             const filteredDetails = detailsRes.data.filter((p: RecommendedProduct) => !currentCartNames.has(p.name));
             
-            setRecommendedProducts(filteredDetails as RecommendedProduct[]); // Użycie zmiennej 'recommendedProducts'
+            setRecommendedProducts(filteredDetails as RecommendedProduct[]);
         }
       } catch (err) {
         console.error("Błąd ładowania rekomendacji:", err);
@@ -168,9 +208,8 @@ export default function CartPage() {
     };
     
     loadRecommendations();
-  }, [cart]); // Uruchom przy każdej zmianie koszyka
+  }, [cart]); 
 
-  // Zabezpieczenie na wypadek, gdyby ktoś inny niż klient tu wszedł
   if (role !== "customer") {
     return <div>Brak dostępu</div>;
   }
@@ -197,53 +236,25 @@ export default function CartPage() {
       <h1 className="text-2xl font-semibold mb-4">Mój koszyk</h1>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* Lewa kolumna: Lista produktów w koszyku */}
         <div className="md:col-span-2 bg-white p-6 rounded-lg shadow-md">
           <ul className="divide-y divide-gray-200">
             {cart.items.map((item) => (
-              <li key={item.id} className="flex items-center justify-between py-4">
-                <div className="flex-grow">
-                  <p className="font-semibold text-gray-800">{item.name}</p>
-                  <p className="text-sm font-medium text-gray-500">
-                    Cena: {item.unit_price.toFixed(2)} zł
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleUpdateQty(item.id, item.qty - 1)}
-                    className="p-1 rounded bg-gray-200 hover:bg-gray-300"
-                  >
-                    <Minus size={16} />
-                  </button>
-                  <span className="w-10 text-center font-medium">{item.qty}</span>
-                  <button
-                    onClick={() => handleUpdateQty(item.id, item.qty + 1)}
-                    className="p-1 rounded bg-gray-200 hover:bg-gray-300"
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
-                <p className="w-24 text-right font-semibold">
-                  {item.line_total.toFixed(2)} zł
-                </p>
-                <button
-                  onClick={() => handleDeleteItem(item.id)}
-                  className="ml-4 p-2 text-red-500 hover:text-red-700"
-                >
-                  <Trash2 size={20} />
-                </button>
-              </li>
+                <CartItemRow 
+                    key={item.id} 
+                    item={item} 
+                    onUpdate={handleUpdateQty} 
+                    onDelete={handleDeleteItem} 
+                />
             ))}
           </ul>
         </div>
 
-        {/* Prawa kolumna: Podsumowanie */}
         <div className="md:col-span-1">
           <div className="bg-white p-6 rounded-lg shadow-md sticky top-6">
             <h2 className="text-lg font-semibold mb-4">Podsumowanie</h2>
             <div className="flex justify-between text-xl font-bold mb-4">
-              <span>Suma:</span>
+              {/* ZMIANA: Dodano informację o brutto */}
+              <span>Suma (brutto):</span>
               <span>{cart.total.toFixed(2)} zł</span>
             </div>
             <Link
@@ -256,7 +267,6 @@ export default function CartPage() {
         </div>
       </div>
       
-      {/* 3. ZMIANA: Sekcja Rekomendacji (Pełna szerokość) */}
       {loadingRecs ? (
           <p className="mt-8 text-center text-sm text-gray-500">Analizowanie wzorców zakupowych...</p>
       ) : (

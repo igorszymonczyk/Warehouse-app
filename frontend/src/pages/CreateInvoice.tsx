@@ -1,8 +1,8 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { Trash2, Plus, ArrowLeft, Save, Search, Sparkles } from "lucide-react";
-import { useForm, useFieldArray, type SubmitHandler } from "react-hook-form";
+import { useForm, useFieldArray, type SubmitHandler, type UseFormSetValue } from "react-hook-form";
 import toast from "react-hot-toast"; 
 
 // --- TYPY ---
@@ -38,6 +38,96 @@ type InvoiceFormInputs = {
   items: InvoiceItem[];
 };
 
+// --- KOMPONENT WIERSZA (Z OPTYMALIZACJĄ) ---
+function InvoiceItemRow({ 
+  index, 
+  item, 
+  remove, 
+  setValue 
+}: { 
+  index: number; 
+  item: InvoiceItem; 
+  remove: (index: number) => void;
+  setValue: UseFormSetValue<InvoiceFormInputs>;
+}) {
+    const [localQty, setLocalQty] = useState(item.quantity);
+    const [localPrice, setLocalPrice] = useState(item.price_net);
+    const [localTax, setLocalTax] = useState(item.tax_rate);
+
+    // Synchronizacja, gdyby propsy zmieniły się z zewnątrz (np. inny mechanizm)
+    useEffect(() => {
+        setLocalQty(item.quantity);
+        setLocalPrice(item.price_net);
+        setLocalTax(item.tax_rate);
+    }, [item.quantity, item.price_net, item.tax_rate]);
+
+    const rowGross = (localPrice * localQty * (1 + localTax / 100)) || 0;
+
+    const commitChanges = () => {
+        // Aktualizujemy tylko jeśli wartości są inne, aby uniknąć zbędnych renderów
+        if (item.quantity !== localQty) setValue(`items.${index}.quantity`, localQty);
+        if (item.price_net !== localPrice) setValue(`items.${index}.price_net`, localPrice);
+        if (item.tax_rate !== localTax) setValue(`items.${index}.tax_rate`, localTax);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+    };
+
+    return (
+        <tr className="border-b last:border-none hover:bg-gray-50">
+            <td className="p-3 font-medium">{item.name}</td>
+            
+            <td className="p-3 text-right">
+                <input 
+                    type="number" step="0.01" 
+                    className="w-24 text-right border rounded p-1 focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={localPrice}
+                    onChange={e => setLocalPrice(parseFloat(e.target.value) || 0)}
+                    onBlur={commitChanges}
+                    onKeyDown={handleKeyDown}
+                />
+            </td>
+
+            <td className="p-3 text-right">
+                <input 
+                    type="number" 
+                    className="w-20 text-right border rounded p-1 focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={localQty}
+                    onChange={e => setLocalQty(parseFloat(e.target.value) || 0)}
+                    onBlur={commitChanges}
+                    onKeyDown={handleKeyDown}
+                />
+            </td>
+
+            <td className="p-3 text-right">
+                <input 
+                    type="number" 
+                    className="w-16 text-right border rounded p-1 focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={localTax}
+                    onChange={e => setLocalTax(parseFloat(e.target.value) || 0)}
+                    onBlur={commitChanges}
+                    onKeyDown={handleKeyDown}
+                />
+            </td>
+
+            <td className="p-3 text-right font-bold">{rowGross.toFixed(2)}</td>
+
+            <td className="p-3 text-center">
+                <button 
+                    type="button" 
+                    onClick={() => remove(index)} 
+                    className="text-red-500 hover:bg-red-50 p-1 rounded transition-colors"
+                >
+                    <Trash2 size={16}/>
+                </button>
+            </td>
+        </tr>
+    );
+}
+
+
+// --- GŁÓWNY KOMPONENT ---
 export default function CreateInvoice() {
   const navigate = useNavigate();
 
@@ -47,7 +137,6 @@ export default function CreateInvoice() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Stan rekomendacji
   const [recommendations, setRecommendations] = useState<Product[]>([]);
   const [loadingRecs, setLoadingRecs] = useState(false);
 
@@ -57,6 +146,7 @@ export default function CreateInvoice() {
     handleSubmit,
     formState: { errors },
     watch,
+    setValue,
   } = useForm<InvoiceFormInputs>({
     defaultValues: {
       buyer_name: "",
@@ -69,19 +159,20 @@ export default function CreateInvoice() {
   const { fields, append, remove } = useFieldArray({
     control,
     name: "items",
-    keyName: "keyId",
   });
 
   const watchedItems = watch("items");
-  const itemNamesJson = JSON.stringify(watchedItems.map(i => i.name));
 
-  // 1. Ładowanie produktów do wyszukiwarki
+  // Tworzymy klucz (fingerprint) składający się tylko z ID produktów.
+  // Zmieni się tylko gdy dodamy/usuniemy produkt, a nie gdy zmienimy ilość.
+  const productIdsFingerprint = JSON.stringify(watchedItems.map(i => i.product_id).sort());
+
+  // 1. Ładowanie produktów
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         const res = await api.get<{ items: Product[] }>("/products?page_size=10000");
-        const list = res.data.items || [];
-        setAllProducts(list);
+        setAllProducts(res.data.items || []);
       } catch (err) {
         console.error("Błąd pobierania produktów:", err);
       }
@@ -89,11 +180,9 @@ export default function CreateInvoice() {
     fetchProducts();
   }, []);
 
-  // 2. LOGIKA REKOMENDACJI
+  // 2. REKOMENDACJE (Zależne tylko od fingerprinta ID)
   useEffect(() => {
-    const currentNames: string[] = itemNamesJson ? JSON.parse(itemNamesJson) : [];
-
-    if (currentNames.length === 0) {
+    if (watchedItems.length === 0) {
         setRecommendations([]);
         return;
     }
@@ -101,54 +190,57 @@ export default function CreateInvoice() {
     const loadRecommendations = async () => {
       setLoadingRecs(true);
       try {
-        // Krok A: Reguły
         const recsRes = await api.get<RecommendationRule[]>("/salesman/recommendations");
+        const currentItemNames = watchedItems.map(i => i.name);
         
-        // Krok B: Dopasowanie
         const relevantRecs = recsRes.data.filter(rule => 
-            rule.product_in.some(name => currentNames.includes(name))
+            rule.product_in.some(name => currentItemNames.includes(name))
         );
         
-        // Krok C: Unikalne nazwy
         const productsToSuggest = new Set<string>();
         relevantRecs.forEach(rule => {
             rule.product_out.forEach(name => productsToSuggest.add(name));
         });
 
         if (productsToSuggest.size > 0) {
-            // Krok D: Detale z bazy
             const detailsRes = await api.post("/products/details", { 
                 product_names: Array.from(productsToSuggest) 
             });
             
-            // Krok E: Filtracja (bez tych co już są)
-            const currentNameSet = new Set(currentNames);
-            const filteredDetails = detailsRes.data.filter((p: Product) => !currentNameSet.has(p.name));
-            
+            const currentIds = new Set(watchedItems.map(i => i.product_id));
+            const filteredDetails = detailsRes.data.filter((p: Product) => !currentIds.has(p.id));
             setRecommendations(filteredDetails);
         } else {
             setRecommendations([]);
         }
       } catch (err) {
-        console.error("Błąd ładowania rekomendacji:", err);
+        console.error(err);
       } finally {
         setLoadingRecs(false);
       }
     };
 
-    const timer = setTimeout(loadRecommendations, 300);
+    const timer = setTimeout(loadRecommendations, 500);
     return () => clearTimeout(timer);
 
-  }, [itemNamesJson]); 
+  }, [productIdsFingerprint]); // <--- KLUCZOWA ZMIANA: Nie reaguje na zmianę ilości/ceny
 
+  // 3. FILTROWANIE PRODUKTÓW (useMemo dla wydajności)
+  // Obliczamy to tylko gdy zmieni się 'search' lub lista 'productIdsFingerprint'.
+  // Nie przeliczamy tego 10000 razy, gdy zmienisz ilość w input!
+  const filteredProducts = useMemo(() => {
+    // Tworzymy Set ID, aby szybciej sprawdzać "notAdded"
+    const addedIds = new Set(watchedItems.map(i => i.product_id));
+    const lowerSearch = search.toLowerCase();
 
-  const filteredProducts = allProducts.filter((p) => {
-    const matchesSearch = 
-      p.name.toLowerCase().includes(search.toLowerCase()) || 
-      p.code.toLowerCase().includes(search.toLowerCase());
-    const notAdded = !watchedItems.some((item) => item.product_id === p.id);
-    return matchesSearch && notAdded;
-  });
+    return allProducts.filter((p) => {
+      const matchesSearch = 
+        p.name.toLowerCase().includes(lowerSearch) || 
+        p.code.toLowerCase().includes(lowerSearch);
+      const notAdded = !addedIds.has(p.id);
+      return matchesSearch && notAdded;
+    });
+  }, [allProducts, search, productIdsFingerprint]); // <--- Używamy fingerprinta
 
   const handleAddProduct = (product: Product) => {
     if (product.stock_quantity <= 0) {
@@ -169,17 +261,17 @@ export default function CreateInvoice() {
 
   const onSubmit: SubmitHandler<InvoiceFormInputs> = async (data) => {
     if (data.items.length === 0) {
-      toast.error("Dodaj przynajmniej jeden produkt do faktury.");
+      toast.error("Dodaj przynajmniej jeden produkt.");
       return;
     }
     setIsSubmitting(true);
     try {
       await api.post("/invoices", data);
-      toast.success("Faktura została utworzona");
+      toast.success("Faktura utworzona");
       navigate("/invoices");
     } catch (err) {
       console.error(err);
-      toast.error("Błąd przy tworzeniu faktury.");
+      toast.error("Błąd tworzenia faktury.");
     } finally {
       setIsSubmitting(false);
     }
@@ -187,7 +279,7 @@ export default function CreateInvoice() {
 
   const handleCancel = () => {
     if (watchedItems.length > 0 || watch("buyer_name")) {
-      if (confirm("Anulować? Zmiany zostaną utracone.")) navigate("/invoices");
+      if (confirm("Anulować?")) navigate("/invoices");
     } else {
       navigate("/invoices");
     }
@@ -200,7 +292,6 @@ export default function CreateInvoice() {
   return (
     <div className="p-6 max-w-7xl mx-auto flex gap-6 items-start">
       
-      {/* LEWA KOLUMNA: Formularz */}
       <div className="flex-1 min-w-0">
         <form onSubmit={handleSubmit(onSubmit)}>
             <div className="flex items-center justify-between mb-4">
@@ -235,6 +326,7 @@ export default function CreateInvoice() {
             <div className="bg-white p-6 rounded shadow-sm border mb-6">
                 <h2 className="font-medium border-b pb-2 text-gray-700 mb-4">Pozycje faktury</h2>
 
+                {/* Wyszukiwarka */}
                 <div className="relative mb-6">
                     <div className="relative">
                         <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
@@ -276,43 +368,28 @@ export default function CreateInvoice() {
                     )}
                 </div>
 
+                {/* Tabela */}
                 <table className="min-w-full text-sm mb-4">
                     <thead className="bg-gray-50 text-gray-500">
                         <tr>
                             <th className="p-3 text-left font-normal">Produkt</th>
-                            <th className="p-3 text-right font-normal w-24">Cena</th>
-                            <th className="p-3 text-right font-normal w-20">Ilość</th>
+                            <th className="p-3 text-right font-normal w-28">Cena</th>
+                            <th className="p-3 text-right font-normal w-24">Ilość</th>
                             <th className="p-3 text-right font-normal w-20">VAT</th>
                             <th className="p-3 text-right font-normal">Wartość</th>
                             <th className="p-3 text-center w-10"></th>
                         </tr>
                     </thead>
                     <tbody>
-                        {fields.map((item, index) => {
-                            const price = watch(`items.${index}.price_net`);
-                            const qty = watch(`items.${index}.quantity`);
-                            const tax = watch(`items.${index}.tax_rate`);
-                            const val = (price * qty * (1 + tax / 100)) || 0;
-
-                            return (
-                                <tr key={item.keyId} className="border-b last:border-none hover:bg-gray-50">
-                                    <td className="p-3 font-medium">{item.name}</td>
-                                    <td className="p-3 text-right">
-                                        <input type="number" step="0.01" className="w-20 text-right border rounded p-1" {...register(`items.${index}.price_net`, { valueAsNumber: true })} />
-                                    </td>
-                                    <td className="p-3 text-right">
-                                        <input type="number" className="w-16 text-right border rounded p-1" {...register(`items.${index}.quantity`, { valueAsNumber: true })} />
-                                    </td>
-                                    <td className="p-3 text-right">
-                                        <input type="number" className="w-16 text-right border rounded p-1" {...register(`items.${index}.tax_rate`, { valueAsNumber: true })} />
-                                    </td>
-                                    <td className="p-3 text-right font-bold">{val.toFixed(2)}</td>
-                                    <td className="p-3 text-center">
-                                        <button type="button" onClick={() => remove(index)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={16}/></button>
-                                    </td>
-                                </tr>
-                            );
-                        })}
+                        {fields.map((item, index) => (
+                            <InvoiceItemRow 
+                                key={item.id} 
+                                index={index}
+                                item={watchedItems[index]}
+                                remove={remove}
+                                setValue={setValue}
+                            />
+                        ))}
                         {fields.length === 0 && (
                             <tr><td colSpan={6} className="p-8 text-center text-gray-400 border-dashed border-2 rounded">Dodaj produkty powyżej</td></tr>
                         )}
@@ -351,7 +428,6 @@ export default function CreateInvoice() {
                 <div className="space-y-3">
                     {recommendations.map(rec => (
                         <div key={rec.id} className="bg-white p-3 rounded border border-blue-100 hover:shadow-md transition-shadow group relative">
-                            {/* ZMIANA: Usunięto sekcję obrazka */}
                             <div className="text-sm font-medium text-gray-800 leading-tight mb-1">{rec.name}</div>
                             <div className="text-xs text-gray-500 mb-2">{rec.code}</div>
                             <div className="flex justify-between items-center">
