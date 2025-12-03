@@ -322,6 +322,7 @@ export default function WZPage() {
     <div className="p-6">
       <h1 className="text-xl font-semibold mb-4">Wydania zewnętrzne (WZ)</h1>
 
+      {/* Box statusu (bez zmian) */}
       <div className={`mb-6 p-4 rounded-lg shadow-sm border flex items-center justify-between ${activeCount > 0 ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'}`}>
           <div className="flex items-center gap-3">
               <div className={`p-2 rounded-full ${activeCount > 0 ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
@@ -346,48 +347,50 @@ export default function WZPage() {
           )}
       </div>
 
-      {/* FILTRY */}
-      <div className="flex flex-wrap items-end gap-3 mb-4">
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">Odbiorca</label>
-          <input
-            value={buyer}
-            onChange={(e) => setBuyer(e.target.value)}
-            placeholder="Nazwa odbiorcy"
-            className="border px-3 py-2 rounded w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">Status</label>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Wszystkie</option>
-            <option value="NEW">Nowy</option>
-            <option value="IN_PROGRESS">W trakcie realizacji</option>
-            <option value="RELEASED">Wydane</option>
-            <option value="CANCELLED">Anulowany</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">Data od</label>
-          <input
-            type="date"
-            value={fromDt}
-            onChange={(e) => setFromDt(e.target.value)}
-            className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">Data do</label>
-          <input
-            type="date"
-            value={toDt}
-            onChange={(e) => setToDt(e.target.value)}
-            className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+      {/* NOWY KONTENER STYLU LOGI (FILTRY) */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">Odbiorca</label>
+            <input
+              value={buyer}
+              onChange={(e) => setBuyer(e.target.value)}
+              placeholder="Nazwa odbiorcy"
+              className="border px-3 py-2 rounded w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">Status</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Wszystkie</option>
+              <option value="NEW">Nowy</option>
+              <option value="IN_PROGRESS">W trakcie realizacji</option>
+              <option value="RELEASED">Wydane</option>
+              <option value="CANCELLED">Anulowany</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">Data od</label>
+            <input
+              type="date"
+              value={fromDt}
+              onChange={(e) => setFromDt(e.target.value)}
+              className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">Data do</label>
+            <input
+              type="date"
+              value={toDt}
+              onChange={(e) => setToDt(e.target.value)}
+              className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </div>
       </div>
 

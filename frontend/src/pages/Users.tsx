@@ -132,40 +132,42 @@ export default function UsersPage() {
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-4">Zarządzanie użytkownikami</h1>
 
-      {/* Filtry */}
-      <div className="flex flex-wrap items-end gap-3 mb-4">
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">Szukaj po e-mailu</label>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="email"
-            className="border px-3 py-2 rounded w-64"
-          />
-        </div>
-        {/* ZMIANA: Filtr nazwiska po prawej od emaila */}
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">Szukaj po nazwisku</label>
-          <input
-            value={lastNameFilter}
-            onChange={(e) => setLastNameFilter(e.target.value)}
-            placeholder="nazwisko"
-            className="border px-3 py-2 rounded w-64"
-          />
-        </div>
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">Rola</label>
-          <select
-            value={role || ""}
-            onChange={(e) => setRole(e.target.value || undefined)}
-            className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Wszystkie</option>
-            <option value="customer">customer</option>
-            <option value="salesman">salesman</option>
-            <option value="admin">admin</option>
-            <option value="warehouse">warehouse</option>
-          </select>
+      {/* NOWY KONTENER STYLU LOGI */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">Szukaj po e-mailu</label>
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="email"
+              className="border px-3 py-2 rounded w-64"
+            />
+          </div>
+          {/* ZMIANA: Filtr nazwiska po prawej od emaila */}
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">Szukaj po nazwisku</label>
+            <input
+              value={lastNameFilter}
+              onChange={(e) => setLastNameFilter(e.target.value)}
+              placeholder="nazwisko"
+              className="border px-3 py-2 rounded w-64"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">Rola</label>
+            <select
+              value={role || ""}
+              onChange={(e) => setRole(e.target.value || undefined)}
+              className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Wszystkie</option>
+              <option value="customer">customer</option>
+              <option value="salesman">salesman</option>
+              <option value="admin">admin</option>
+              <option value="warehouse">warehouse</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -302,20 +304,6 @@ export default function UsersPage() {
           </div>
         </>
       )}
-
-      {/* Modal potwierdzenia usunięcia */}
-      <ConfirmationModal
-        isOpen={!!userToDelete}
-        onClose={() => setUserToDelete(null)}
-        onConfirm={deleteUser}
-        isLoading={deleteLoading}
-        title="Potwierdź usunięcie"
-        confirmText="Usuń"
-        confirmVariant="danger"
-      >
-        <p>Czy na pewno chcesz usunąć użytkownika <strong>{userToDelete?.email}</strong>?</p>
-        <p className="text-sm text-gray-500 mt-2">Tej akcji nie można cofnąć.</p>
-      </ConfirmationModal>
     </div>
   );
 }

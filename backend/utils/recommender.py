@@ -69,3 +69,5 @@ def generate_recommendations(min_support: float = 0.01, min_confidence: float = 
     rules.sort_values('lift', ascending=False, inplace=True)
     
     return rules
+
+

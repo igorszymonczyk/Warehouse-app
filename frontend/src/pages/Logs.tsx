@@ -81,10 +81,10 @@ export default function LogsPage() {
         </h1>
       </div>
 
-      {/* SEKCJA FILTRÓW (Zmieniona kolejność) */}
+      {/* SEKCJA FILTRÓW*/}
       <div className="bg-white p-4 rounded shadow-sm border mb-6 flex flex-wrap gap-4 items-end">
           
-          {/* 1. User ID (Teraz jako pierwszy) */}
+          
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">ID Użytkownika</label>
             <input 
@@ -96,7 +96,7 @@ export default function LogsPage() {
             />
           </div>
 
-          {/* 2. Akcja */}
+         
           <div className="relative">
             <label className="block text-xs font-semibold text-gray-500 mb-1">Akcja</label>
             <input 
@@ -109,7 +109,7 @@ export default function LogsPage() {
             <Search className="absolute left-2.5 top-8 text-gray-400" size={14} />
           </div>
 
-          {/* 3. Zasób */}
+         
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">Zasób</label>
             <input 
@@ -121,7 +121,7 @@ export default function LogsPage() {
             />
           </div>
 
-          {/* 4. Status */}
+         
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">Status</label>
             <select 
@@ -135,7 +135,7 @@ export default function LogsPage() {
             </select>
           </div>
 
-          {/* 5. Data Od */}
+        
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">Data od</label>
             <input 
@@ -146,7 +146,6 @@ export default function LogsPage() {
             />
           </div>
 
-          {/* 6. Data Do */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">Data do</label>
             <input 
@@ -163,7 +162,7 @@ export default function LogsPage() {
         <table className="min-w-full text-sm text-left">
           <thead className="bg-gray-100 text-gray-600 uppercase border-b">
             <tr>
-              {/* Przywrócona standardowa kolejność kolumn */}
+            
               <th className="px-4 py-3">ID</th>
               <th className="px-4 py-3">Data</th>
               <th className="px-4 py-3">Użytkownik (ID)</th>

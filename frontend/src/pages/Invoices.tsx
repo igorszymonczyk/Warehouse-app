@@ -62,7 +62,7 @@ export default function InvoicesPage() {
       if (!dateError) load();
     }, 300);
     return () => clearTimeout(timeout);
-  }, [q, searchId, dateFrom, dateTo, sortBy, order]); // Dodano searchId do zależności
+  }, [q, searchId, dateFrom, dateTo, sortBy, order]); 
 
   useEffect(() => {
     if (!dateError) load();
@@ -122,38 +122,41 @@ export default function InvoicesPage() {
         </button>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 mb-4">
-        {/* Szukaj po ID */}
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">Szukaj ID</label>
-          <input
-            value={searchId}
-            onChange={(e) => setSearchId(e.target.value)}
-            placeholder="np. 6297"
-            className="border px-3 py-2 rounded w-24 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+      {/* NOWY KONTENER STYLU LOGI */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div className="flex flex-wrap items-end gap-3">
+          {/* Szukaj po ID */}
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">Szukaj ID</label>
+            <input
+              value={searchId}
+              onChange={(e) => setSearchId(e.target.value)}
+              placeholder="np. 6297"
+              className="border px-3 py-2 rounded w-24 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
 
-        {/* Szukaj klienta */}
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">Szukaj klienta / NIP</label>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Nazwa klienta lub NIP"
-            className="border px-3 py-2 rounded w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+          {/* Szukaj klienta */}
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">Szukaj klienta / NIP</label>
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Nazwa klienta lub NIP"
+              className="border px-3 py-2 rounded w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
 
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">Data od</label>
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">Data od</label>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">Data do</label>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={`border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${dateError ? "border-red-500" : ""}`} />
+          </div>
+          {dateError && <div className="text-red-600 text-sm font-medium">{dateError}</div>}
         </div>
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">Data do</label>
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={`border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${dateError ? "border-red-500" : ""}`} />
-        </div>
-        {dateError && <div className="text-red-600 text-sm font-medium">{dateError}</div>}
       </div>
 
       {loading && <p className="text-gray-500">Ładowanie danych...</p>}

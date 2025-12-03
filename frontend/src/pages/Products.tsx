@@ -138,7 +138,7 @@ const ConfirmationModal = ({
 };
 
 export default function ProductsPage() {
-  const { role } = useAuth(); // 2. POBIERAMY ROLĘ
+  const { role } = useAuth();
   
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
@@ -463,56 +463,60 @@ export default function ProductsPage() {
   return (
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-4">Zarządzanie Produktami</h1>
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        
-        <input
-          type="text"
-          placeholder="Filtruj po nazwie"
-          className="border rounded px-3 py-2 w-48"
-          value={nameFilter}
-          onChange={(e) => {setNameFilter(e.target.value); setPage(1);}}
-        />
-        <input
-          type="text"
-          placeholder="Filtruj po kodzie"
-          className="border rounded px-3 py-2 w-32"
-          value={codeFilter}
-          onChange={(e) => {setCodeFilter(e.target.value); setPage(1);}}
-        />
-        
-        <select
-          className="border rounded px-3 py-2 w-32"
-          value={supplierFilter}
-          onChange={(e) => {setSupplierFilter(e.target.value || ""); setPage(1);}}
-        >
-          <option value="">-- Dostawca --</option>
-          {allSuppliers.map(val => (<option key={val} value={val}>{val}</option>))}
-        </select>
-        
-        <select
-          className="border rounded px-3 py-2 w-32"
-          value={categoryFilter}
-          onChange={(e) => {setCategoryFilter(e.target.value || ""); setPage(1);}}
-        >
-          <option value="">-- Kategoria --</option>
-          {allCategories.map(val => (<option key={val} value={val}>{val}</option>))}
-        </select>
-        
-        <select
-          className="border rounded px-3 py-2 w-32"
-          value={locationFilter}
-          onChange={(e) => {setLocationFilter(e.target.value || ""); setPage(1);}}
-        >
-          <option value="">-- Lokalizacja --</option>
-          {allLocations.map(val => (<option key={val} value={val}>{val}</option>))}
-        </select>
-        
-        <button
-          className="ml-auto bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-          onClick={() => setShowAdd(true)}
-        >
-          Dodaj Produkt
-        </button>
+      
+      {/* NOWY KONTENER STYLU LOGI */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div className="flex flex-wrap items-center gap-3">
+          
+          <input
+            type="text"
+            placeholder="Filtruj po nazwie"
+            className="border rounded px-3 py-2 w-48"
+            value={nameFilter}
+            onChange={(e) => {setNameFilter(e.target.value); setPage(1);}}
+          />
+          <input
+            type="text"
+            placeholder="Filtruj po kodzie"
+            className="border rounded px-3 py-2 w-32"
+            value={codeFilter}
+            onChange={(e) => {setCodeFilter(e.target.value); setPage(1);}}
+          />
+          
+          <select
+            className="border rounded px-3 py-2 w-32"
+            value={supplierFilter}
+            onChange={(e) => {setSupplierFilter(e.target.value || ""); setPage(1);}}
+          >
+            <option value="">-- Dostawca --</option>
+            {allSuppliers.map(val => (<option key={val} value={val}>{val}</option>))}
+          </select>
+          
+          <select
+            className="border rounded px-3 py-2 w-32"
+            value={categoryFilter}
+            onChange={(e) => {setCategoryFilter(e.target.value || ""); setPage(1);}}
+          >
+            <option value="">-- Kategoria --</option>
+            {allCategories.map(val => (<option key={val} value={val}>{val}</option>))}
+          </select>
+          
+          <select
+            className="border rounded px-3 py-2 w-32"
+            value={locationFilter}
+            onChange={(e) => {setLocationFilter(e.target.value || ""); setPage(1);}}
+          >
+            <option value="">-- Lokalizacja --</option>
+            {allLocations.map(val => (<option key={val} value={val}>{val}</option>))}
+          </select>
+          
+          <button
+            className="ml-auto bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+            onClick={() => setShowAdd(true)}
+          >
+            Dodaj Produkt
+          </button>
+        </div>
       </div>
 
       {loading && <p>Ładowanie danych...</p>}
@@ -534,7 +538,7 @@ export default function ProductsPage() {
                     Kod {renderSortIcon("code")}
                   </th>
                   
-                  {/* WARUNKOWE WYŚWIETLANIE KOLUMN W TABELI */}
+                  {/* Warunkowe wyświetlannie tabeli*/}
                   {role !== "warehouse" ? (
                     <th className="p-2 border text-right cursor-pointer" onClick={() => toggleSort("sell_price_net")}>
                       Cena Netto {renderSortIcon("sell_price_net")}
@@ -563,7 +567,7 @@ export default function ProductsPage() {
                       <td className="p-2 border font-medium">{p.name}</td>
                       <td className="p-2 border">{p.code}</td>
                       
-                      {/*WARUNKOWA ZAWARTOŚĆ TABELI */}
+                      {/*warunkowa zawartosc tabeli*/}
                       {role !== "warehouse" ? (
                         <td className="p-2 border text-right">{p.sell_price_net.toFixed(2)} zł</td>
                       ) : (
@@ -654,7 +658,7 @@ export default function ProductsPage() {
                   />
                 </label>
                 
-                {/*UKRYWANIE PÓL CENOWYCH PRZY EDYCJI DLA MAGAZYNIERA */}
+                {/* ukrywanie pol cenowych przed magazynierem*/}
                 {role !== "warehouse" && (
                   <>
                     <label className="block mb-2">
@@ -738,11 +742,11 @@ export default function ProductsPage() {
                 <label className="block mb-2">
                   <span className="text-sm">Zmień zdjęcie produktu</span>
                   {editData.image_url && !editImageFile && (
-                     <img 
-                      src={`${import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"}${editData.image_url}`} 
-                      alt={editData.name} 
-                      className="w-full h-auto max-h-32 object-contain rounded-md bg-gray-100 my-2"
-                    />
+                      <img 
+                       src={`${import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"}${editData.image_url}`} 
+                       alt={editData.name} 
+                       className="w-full h-auto max-h-32 object-contain rounded-md bg-gray-100 my-2"
+                     />
                   )}
                   <div className="mt-1 flex items-center gap-3">
                     <label className="cursor-pointer border rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
@@ -785,7 +789,7 @@ export default function ProductsPage() {
                 <p><strong>Nazwa:</strong> {selected.name}</p>
                 <p><strong>Kod:</strong> {selected.code}</p>
                 
-                {/*UKRYWANIE PÓL CENOWYCH W SZCZEGÓŁACH DLA MAGAZYNIERA */}
+                {/*ukrywanie pol cenowych w szczegolach dla magazyniera */}
                 {role !== "warehouse" && (
                   <>
                     <p><strong>Cena Netto:</strong> {selected.sell_price_net.toFixed(2)} zł</p>
@@ -840,7 +844,7 @@ export default function ProductsPage() {
                 />
               </label>
               
-              {/*UKRYWANIE PÓL CENOWYCH PRZY DODAWANIU DLA MAGAZYNIERA */}
+              {/*ukrywanie pol cenowych przy dodawaniu */}
               {role !== "warehouse" && (
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block">
