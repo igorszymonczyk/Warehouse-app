@@ -1,21 +1,33 @@
-# database.py
+# backend/database.py
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+import os
+from dotenv import load_dotenv
 
-#adres bazy danych SQLite
-SQLALCHEMY_DATABASE_URL = "sqlite:///./database_warehouseapp.db"
+load_dotenv()
 
-# Tworzenie silnika bazy danych
+# 1. Pobierz adres z systemu (Azure) lub użyj domyślnego SQLite (Lokalnie)
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./database_warehouseapp.db")
+
+# 2. Poprawka dla Azure (zamienia postgres:// na postgresql://, bo SQLAlchemy tego wymaga)
+if SQLALCHEMY_DATABASE_URL and SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# 3. Konfiguracja zależna od bazy
+if "sqlite" in SQLALCHEMY_DATABASE_URL:
+    connect_args = {"check_same_thread": False} # Tylko dla SQLite
+else:
+    connect_args = {} # Puste dla PostgreSQL
+
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL, connect_args=connect_args
 )
-# Tworzenie sesji
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-# Podstawa dla modeli
+
 Base = declarative_base()
 
-# Dependency do uzyskiwania sesji bazy danych
 def get_db():
     db = SessionLocal()
     try:
@@ -23,10 +35,5 @@ def get_db():
     finally:
         db.close()
 
-# Inicjalizacja bazy danych
 def init_db():
     Base.metadata.create_all(bind=engine)
-
-
-
-

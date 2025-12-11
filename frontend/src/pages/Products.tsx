@@ -346,7 +346,12 @@ export default function ProductsPage() {
     }
 
     try {
-      await api.patch(`/products/${selected.id}/edit`, formData);
+      // POPRAWKA: Dodano nagłówek Content-Type: multipart/form-data
+      await api.patch(`/products/${selected.id}/edit`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
       await load();
       toast.success("Produkt zaktualizowany!");
       closeDetails();
@@ -439,7 +444,12 @@ export default function ProductsPage() {
 
     try {
       setAddLoading(true);
-      await api.post(`/products`, formData); 
+      // POPRAWKA: Dodano nagłówek Content-Type: multipart/form-data
+      await api.post(`/products`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }); 
       
       setShowAdd(false);
       setAddForm({

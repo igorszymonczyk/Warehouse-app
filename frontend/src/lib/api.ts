@@ -1,7 +1,15 @@
+// frontend/src/lib/api.ts
 import axios, { type InternalAxiosRequestConfig } from "axios";
 
+// UWAGA: Usunąłem "import.meta.env...", żeby Docker nie mógł wstawić tu starego adresu HTTP.
+// Teraz jest wpisane na sztywno HTTPS.
+export const API_URL = "https://warehouse-app-backend.braveplant-bad8f0cb.polandcentral.azurecontainerapps.io";
+
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://127.0.0.1:8000",
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
@@ -13,5 +21,3 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   }
   return config;
 });
-
-

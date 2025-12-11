@@ -47,6 +47,7 @@ function WZDetailView({ docId, onBack, onChangeStatus }: { docId: number, onBack
     const fetchDetail = useCallback(async () => {
         try {
             setLoading(true);
+            // Tu było dobrze (jest ID na końcu), ale dla pewności zostawiamy jak jest
             const res = await api.get<WZDetail>(`/warehouse-documents/${docId}`);
             setDetail(res.data);
             setError(null);
@@ -113,7 +114,6 @@ function WZDetailView({ docId, onBack, onChangeStatus }: { docId: number, onBack
                 </div>
             </div>
 
-            {/* Panel Akcji Magazyniera */}
             <div className="mb-6 flex gap-3">
                 {detail.status === 'NEW' && (
                     <button 
@@ -183,7 +183,6 @@ export default function WZPage() {
   const [total, setTotal] = useState(0);
   const pageSize = 10;
 
-  // ZMIANA: Typ sortowania zawiera teraz "id"
   const [sortBy, setSortBy] = useState<"created_at" | "status" | "buyer_name" | "id">("created_at");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   
@@ -219,7 +218,9 @@ export default function WZPage() {
     try {
       setLoading(true);
       setError("");
-      const res = await api.get<PaginatedWz>("/warehouse-documents", {
+      
+      // === POPRAWKA 1: Dodano "/" na końcu adresu ===
+      const res = await api.get<PaginatedWz>("/warehouse-documents/", {
         params: {
           buyer: buyer || undefined,
           status: status || undefined,
@@ -243,7 +244,8 @@ export default function WZPage() {
 
   const fetchActiveCount = async () => {
       try {
-          const res = await api.get<{ total: number }>("/warehouse-documents", {
+          // === POPRAWKA 2: Dodano "/" na końcu adresu ===
+          const res = await api.get<{ total: number }>("/warehouse-documents/", {
               params: {
                   status: ["NEW", "IN_PROGRESS"],
                   page_size: 1, 
@@ -322,7 +324,7 @@ export default function WZPage() {
     <div className="p-6">
       <h1 className="text-xl font-semibold mb-4">Wydania zewnętrzne (WZ)</h1>
 
-      {/* Box statusu (bez zmian) */}
+      {/* Box statusu */}
       <div className={`mb-6 p-4 rounded-lg shadow-sm border flex items-center justify-between ${activeCount > 0 ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'}`}>
           <div className="flex items-center gap-3">
               <div className={`p-2 rounded-full ${activeCount > 0 ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
@@ -347,7 +349,7 @@ export default function WZPage() {
           )}
       </div>
 
-      {/* NOWY KONTENER STYLU LOGI (FILTRY) */}
+      {/* Filtry */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
         <div className="flex flex-wrap items-end gap-3">
           <div>
@@ -397,12 +399,11 @@ export default function WZPage() {
       {error && <div className="text-red-600 mb-2">{error}</div>}
       {loading && <div>Ładowanie...</div>}
 
-      {/* TABELA */}
+      {/* Tabela */}
       <div className="overflow-x-auto border rounded shadow-sm">
         <table className="min-w-full text-sm bg-white">
           <thead className="bg-gray-100">
             <tr>
-              {/* ZMIANA: Kliknięcie w ID sortuje po ID */}
               <th className="p-3 border-r cursor-pointer select-none hover:bg-gray-200" onClick={() => toggleSort("id")}>
                 <div className="flex items-center gap-1 font-semibold text-gray-700">
                     ID
@@ -505,7 +506,6 @@ export default function WZPage() {
         </table>
       </div>
 
-      {/* PAGINACJA */}
       <div className="mt-4 flex items-center gap-4 justify-center">
         <button
           className="border rounded px-4 py-2 disabled:opacity-50 hover:bg-gray-50 text-sm"

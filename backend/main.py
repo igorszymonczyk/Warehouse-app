@@ -5,10 +5,11 @@ from fastapi.staticfiles import StaticFiles
 from database import engine, Base, init_db
 from pathlib import Path
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
-# Import routerów (zachowuję Twój styl importów "as ..._router")
+# Import routerów
 from routes.auth import router as auth_router
 from routes.admin import router as admin_router
 from routes.logs import router as logs_router
@@ -24,8 +25,6 @@ from routes.stats import router as stats_router
 from routes.shop import router as shop_router
 from routes.salesman import router as salesman_router
 from routes.payu import router as payu_router
-
-# 1. NOWY IMPORT STOCK
 from routes.stock import router as stock_router 
 
 # Inicjalizacja
@@ -34,14 +33,25 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Warehouse App API", version="1.0.0")
 
-# Uploads
+# Uploads - upewniamy się, że katalog istnieje
 Path("static/uploads").mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="static/uploads"), name="uploads")
 
-# CORS
+# CORS Configuration
+# Pobieramy URL frontendu ze zmiennych środowiskowych (Azure) lub używamy domyślnych lokalnych
+frontend_url = os.getenv("FRONTEND_URL")
+origins = [
+    "http://localhost:5173", 
+    "http://127.0.0.1:5173"
+]
+
+if frontend_url:
+    origins.append(frontend_url)
+
+# W pliku backend/main.py
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["*"],  # <--- UWAGA: Tymczasowo pozwalamy na wszystko, żeby ułatwić start
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -64,8 +74,7 @@ app.include_router(shop_router)
 app.include_router(salesman_router)
 app.include_router(payu_router)
 
-# 2. REJESTRACJA STOCK Z PREFIKSEM
-# Dzięki temu endpointy będą dostępne pod /stock (lista) i /stock/adjust (korekta)
+# Rejestracja Stock
 app.include_router(stock_router, prefix="/stock") 
 
 @app.get("/")
