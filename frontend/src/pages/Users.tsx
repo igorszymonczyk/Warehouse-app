@@ -4,7 +4,7 @@ import { ArrowUpDown, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import ConfirmationModal from "./ConfirmationModal";
 
-// ZMIANA: first_name / last_name
+// CHANGE: first_name / last_name
 type User = {
   id: number;
   email: string;
@@ -32,13 +32,13 @@ export default function UsersPage() {
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // Filtry
+  // Filters
   const [q, setQ] = useState(""); // Email filter
-  const [lastNameFilter, setLastNameFilter] = useState(""); // ZMIANA: Filtr nazwiska
+  const [lastNameFilter, setLastNameFilter] = useState(""); // CHANGE: Last name filter
   const [role, setRole] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   
-  // ZMIANA: Nowe klucze sortowania
+  // CHANGE: New sort keys
   const [sortBy, setSortBy] = useState<"id" | "email" | "role" | "first_name" | "last_name">("id");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
 
@@ -51,7 +51,7 @@ export default function UsersPage() {
       const res = await api.get<PaginatedUsers>("/users", {
         params: {
           q: q || undefined,
-          last_name: lastNameFilter || undefined, // Przekazujemy nazwisko
+          last_name: lastNameFilter || undefined, // Pass last name
           role: role || undefined,
           page,
           page_size: pageSize,
@@ -62,8 +62,8 @@ export default function UsersPage() {
       setData(res.data);
     } catch (err) {
       console.error(err);
-      setError("Nie udało się pobrać użytkowników");
-      toast.error("Nie udało się pobrać użytkowników"); 
+      setError("Failed to fetch users");
+      toast.error("Failed to fetch users"); 
     } finally {
       setLoading(false);
     }
@@ -75,7 +75,7 @@ export default function UsersPage() {
       load();
     }, 300);
     return () => clearTimeout(timeout);
-  }, [q, lastNameFilter, role, sortBy, order]); // Dodano lastNameFilter do zależności
+  }, [q, lastNameFilter, role, sortBy, order]); // Added lastNameFilter to dependencies
 
   useEffect(() => {
     load();
@@ -92,21 +92,21 @@ export default function UsersPage() {
 
   const changeRole = async (id: number, newRole: string) => {
     if (!isValidRole(newRole)) {
-      toast.error("Nieznana rola");
+      toast.error("Unknown role");
       return;
     }
 
-    if (!window.confirm(`Czy na pewno zmienić rolę użytkownika na "${newRole}"?`)) {
+    if (!window.confirm(`Are you sure you want to change the user's role to "${newRole}"?`)) {
        load(); 
        return;
     }
     
     try {
       await api.put(`/users/${id}/role`, { role: newRole });
-      toast.success("Rola została zaktualizowana!");
+      toast.success("Role updated!");
       load(); 
     } catch {
-      toast.error("Błąd przy zmianie roli użytkownika");
+      toast.error("Error changing user role");
     }
   };
 
@@ -116,11 +116,11 @@ export default function UsersPage() {
     setDeleteLoading(true);
     try {
       await api.delete(`/users/${userToDelete.id}`);
-      toast.success(`Użytkownik ${userToDelete.email} usunięty!`);
+      toast.success(`User ${userToDelete.email} deleted!`);
       setUserToDelete(null);
       load(); 
     } catch {
-      toast.error("Błąd przy usuwaniu użytkownika");
+      toast.error("Error deleting user");
     } finally {
       setDeleteLoading(false);
     }
@@ -130,13 +130,13 @@ export default function UsersPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Zarządzanie użytkownikami</h1>
+      <h1 className="text-2xl font-semibold mb-4">User Management</h1>
 
-      {/* NOWY KONTENER STYLU LOGI */}
+      {/* FILTERS CONTAINER */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="block text-sm text-gray-700 mb-1">Szukaj po e-mailu</label>
+            <label className="block text-sm text-gray-700 mb-1">Search by email</label>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -144,24 +144,24 @@ export default function UsersPage() {
               className="border px-3 py-2 rounded w-64"
             />
           </div>
-          {/* ZMIANA: Filtr nazwiska po prawej od emaila */}
+          {/* CHANGE: Last name filter to the right of email */}
           <div>
-            <label className="block text-sm text-gray-700 mb-1">Szukaj po nazwisku</label>
+            <label className="block text-sm text-gray-700 mb-1">Search by last name</label>
             <input
               value={lastNameFilter}
               onChange={(e) => setLastNameFilter(e.target.value)}
-              placeholder="nazwisko"
+              placeholder="last name"
               className="border px-3 py-2 rounded w-64"
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-700 mb-1">Rola</label>
+            <label className="block text-sm text-gray-700 mb-1">Role</label>
             <select
               value={role || ""}
               onChange={(e) => setRole(e.target.value || undefined)}
               className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Wszystkie</option>
+              <option value="">All</option>
               <option value="customer">customer</option>
               <option value="salesman">salesman</option>
               <option value="admin">admin</option>
@@ -171,7 +171,7 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {loading && <p>Ładowanie…</p>}
+      {loading && <p>Loading…</p>}
       {error && <p className="text-red-600">{error}</p>}
 
       {!loading && data && (
@@ -198,15 +198,15 @@ export default function UsersPage() {
                       />
                     </div>
                   </th>
-                  {/* ZMIANA: Kolumny Imię i Nazwisko */}
+                  {/* CHANGE: First Name and Last Name columns */}
                   <th className="p-3 border-b text-left" onClick={() => toggleSort("first_name")}>
                     <div className="flex items-center gap-1 cursor-pointer hover:bg-gray-200 p-1 rounded">
-                        Imię <ArrowUpDown size={14} className={sortBy === "first_name" ? (order === "asc" ? "rotate-180 text-black" : "text-black") : "text-gray-400"} />
+                        First Name <ArrowUpDown size={14} className={sortBy === "first_name" ? (order === "asc" ? "rotate-180 text-black" : "text-black") : "text-gray-400"} />
                     </div>
                   </th>
                   <th className="p-3 border-b text-left" onClick={() => toggleSort("last_name")}>
                     <div className="flex items-center gap-1 cursor-pointer hover:bg-gray-200 p-1 rounded">
-                        Nazwisko <ArrowUpDown size={14} className={sortBy === "last_name" ? (order === "asc" ? "rotate-180 text-black" : "text-black") : "text-gray-400"} />
+                        Last Name <ArrowUpDown size={14} className={sortBy === "last_name" ? (order === "asc" ? "rotate-180 text-black" : "text-black") : "text-gray-400"} />
                     </div>
                   </th>
                   <th
@@ -232,7 +232,7 @@ export default function UsersPage() {
                     onClick={() => toggleSort("role")}
                   >
                     <div className="flex items-center gap-1">
-                      Rola
+                      Role
                       <ArrowUpDown
                         size={14}
                         className={
@@ -245,7 +245,7 @@ export default function UsersPage() {
                       />
                     </div>
                   </th>
-                  <th className="p-3 border-b text-center w-24">Akcje</th>
+                  <th className="p-3 border-b text-center w-24">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -254,7 +254,7 @@ export default function UsersPage() {
                     <td className="p-3 font-mono text-gray-600">{u.id}</td>
                     <td className="p-3 text-gray-800">{u.first_name || "-"}</td>
                     <td className="p-3 text-gray-800">{u.last_name || "-"}</td>
-                    {/* ZMIANA: E-mail bez niebieskiego koloru */}
+                    {/* CHANGE: Email without blue color */}
                     <td className="p-3 text-gray-900">{u.email}</td>
                     <td className="p-3">
                         <select
@@ -272,7 +272,7 @@ export default function UsersPage() {
                         <button
                           onClick={() => setUserToDelete(u)}
                           className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                          title="Usuń użytkownika"
+                          title="Delete user"
                         >
                           <Trash2 size={18} />
                         </button>
@@ -289,17 +289,17 @@ export default function UsersPage() {
               disabled={page === 1}
               onClick={() => setPage((p) => p - 1)}
             >
-              Poprzednia
+              Previous
             </button>
             <span className="text-sm font-medium">
-              Strona {page} z {totalPages}
+              Page {page} of {totalPages}
             </span>
             <button
               className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50 text-sm"
               disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
             >
-              Następna
+              Next
             </button>
           </div>
         </>

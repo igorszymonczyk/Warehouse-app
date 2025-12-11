@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../store/auth";
 import toast from "react-hot-toast";
-// 1. ZMIANA: Import ikon
+// Import icons
 import { ChevronDown, ChevronUp } from "lucide-react";
 
-// 2. ZMIANA: Typ OrderItem zawiera teraz nazwę
+// OrderItem type now includes name
 type OrderItem = {
   product_id: number;
-  product_name: string; // <-- DODANE
+  product_name: string; // <-- ADDED
   qty: number;
   unit_price: number;
   line_total: number;
@@ -29,11 +29,11 @@ type PaginatedOrders = {
   page_size: number;
 };
 
-// 3. ZMIANA: Komponent OrderCard ma teraz stan i listę produktów
+// OrderCard component now has state and product list
 function OrderCard({ order }: { order: Order }) {
-  const [isExpanded, setIsExpanded] = useState(false); // <-- Stan rozwijania
+  const [isExpanded, setIsExpanded] = useState(false); // <-- Expansion state
 
-  const formattedDate = new Date(order.created_at).toLocaleString("pl-PL", {
+  const formattedDate = new Date(order.created_at).toLocaleString("en-GB", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -42,19 +42,19 @@ function OrderCard({ order }: { order: Order }) {
   });
 
   const statusMap: { [key: string]: string } = {
-    pending: "Oczekujące",
-    pending_payment: "W trakcie realizacji",
-    processing: "W trakcie realizacji",
-    shipped: "Wysłane",
-    cancelled: "Anulowane",
-    CANCELLED: "Anulowane",
+    pending: "Pending",
+    pending_payment: "Processing",
+    processing: "Processing",
+    shipped: "Shipped",
+    cancelled: "Cancelled",
+    CANCELLED: "Cancelled",
   };
   // Normalize status for display (handle different casing/whitespace)
   const normalize = (s?: string) => (s || "").toString().trim().toLowerCase();
 
   return (
     <div className="bg-white rounded-lg shadow-md border overflow-hidden">
-      {/* Sekcja klikalna (nagłówek) */}
+      {/* Clickable Header Section */}
       <div
         className="p-4 cursor-pointer hover:bg-gray-50 transition"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -63,7 +63,7 @@ function OrderCard({ order }: { order: Order }) {
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setIsExpanded(!isExpanded)}
       >
         <div className="flex justify-between items-center mb-2">
-          <h2 className="text-lg font-semibold">Zamówienie #{order.id}</h2>
+          <h2 className="text-lg font-semibold">Order #{order.id}</h2>
           <span className="text-sm font-medium text-gray-600">{formattedDate}</span>
         </div>
         <div className="flex justify-between items-center">
@@ -74,30 +74,30 @@ function OrderCard({ order }: { order: Order }) {
             (normalize(order.status) === 'processing' || normalize(order.status) === 'pending_payment') ? 'bg-blue-100 text-blue-800' :
             'bg-gray-100 text-gray-800'
           }`}>
-            {statusMap[normalize(order.status)] || statusMap[order.status] || "Nieznany"}
+            {statusMap[normalize(order.status)] || statusMap[order.status] || "Unknown"}
           </span>
           <div className="flex items-center gap-4">
-            <span className="text-xl font-bold">{order.total_amount.toFixed(2)} zł</span>
-            {/* Ikona strzałki */}
+            <span className="text-xl font-bold">{order.total_amount.toFixed(2)} PLN</span>
+            {/* Arrow Icon */}
             {isExpanded ? <ChevronUp size={20} className="text-gray-500" /> : <ChevronDown size={20} className="text-gray-500" />}
           </div>
         </div>
       </div>
 
-      {/* 4. ZMIANA: Sekcja rozwijana z produktami */}
+      {/* 4. CHANGE: Expandable product section */}
       {isExpanded && (
         <div className="bg-gray-50 p-4 border-t border-gray-200">
-          <h4 className="text-sm font-semibold mb-3 text-gray-700">Produkty w zamówieniu:</h4>
+          <h4 className="text-sm font-semibold mb-3 text-gray-700">Order Items:</h4>
           <ul className="divide-y divide-gray-200">
             {order.items.map((item) => (
               <li key={item.product_id} className="flex justify-between items-center py-2 text-sm">
                 <div>
                   <span className="font-medium text-gray-800">{item.product_name}</span>
                   <span className="text-gray-500 ml-2">
-                    ({item.qty} szt. x {item.unit_price.toFixed(2)} zł)
+                    ({item.qty} pcs x {item.unit_price.toFixed(2)} PLN)
                   </span>
                 </div>
-                <span className="font-semibold text-gray-800">{item.line_total.toFixed(2)} zł</span>
+                <span className="font-semibold text-gray-800">{item.line_total.toFixed(2)} PLN</span>
               </li>
             ))}
           </ul>
@@ -107,7 +107,7 @@ function OrderCard({ order }: { order: Order }) {
   );
 }
 
-// Komponent strony (bez zmian, poza poprawką błędu eslint)
+// Page Component (unchanged logic, fixed eslint/comments)
 export default function MyOrdersPage() {
   const { role } = useAuth();
   const [data, setData] = useState<PaginatedOrders | null>(null);
@@ -121,8 +121,8 @@ export default function MyOrdersPage() {
       });
       setData(res.data);
     } catch (err) {
-      console.error("Błąd ładowania zamówień:", err);
-      toast.error("Nie udało się pobrać zamówień");
+      console.error("Error loading orders:", err);
+      toast.error("Failed to fetch orders");
     } finally {
       setLoading(false);
     }
@@ -141,13 +141,13 @@ export default function MyOrdersPage() {
     return () => clearInterval(interval);
   }, [page]);
 
-  if (role !== "customer") return <div>Brak dostępu</div>;
+  if (role !== "customer") return <div>Access denied</div>;
 
   if (loading && !data) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-semibold mb-4">Moje zamówienia</h1>
-        <p>Ładowanie...</p>
+        <h1 className="text-2xl font-semibold mb-4">My Orders</h1>
+        <p>Loading...</p>
       </div>
     );
   }
@@ -155,8 +155,8 @@ export default function MyOrdersPage() {
   if (!data || data.items.length === 0) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-semibold mb-4">Moje zamówienia</h1>
-        <p>Nie złożyłeś jeszcze żadnych zamówień.</p>
+        <h1 className="text-2xl font-semibold mb-4">My Orders</h1>
+        <p>You haven't placed any orders yet.</p>
       </div>
     );
   }
@@ -165,7 +165,7 @@ export default function MyOrdersPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Moje zamówienia</h1>
+      <h1 className="text-2xl font-semibold mb-4">My Orders</h1>
       
       <div className="space-y-4">
         {data.items.map((order) => (
@@ -173,24 +173,24 @@ export default function MyOrdersPage() {
         ))}
       </div>
 
-      {/* Paginacja */}
+      {/* Pagination */}
       <div className="mt-6 flex items-center justify-center gap-3">
         <button
           className="border rounded px-3 py-1 disabled:opacity-50"
           disabled={page === 1}
           onClick={() => setPage((p) => p - 1)}
         >
-          Poprzednia
+          Previous
         </button>
         <span>
-          Strona {page} / {totalPages}
+          Page {page} / {totalPages}
         </span>
         <button
           className="border rounded px-3 py-1 disabled:opacity-50"
           disabled={page >= totalPages}
           onClick={() => setPage((p) => p + 1)}
         >
-          Następna
+          Next
         </button>
       </div>
     </div>

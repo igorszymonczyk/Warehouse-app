@@ -20,9 +20,11 @@ from schemas.warehouse import WarehouseStatusUpdate, WarehouseDocPage, Warehouse
 
 router = APIRouter(prefix="/warehouse-documents", tags=["Warehouse"])
 
+# Verify user permissions for warehouse operations
 def _role_ok(user: User) -> bool:
     return (user.role or "").upper() in {"ADMIN", "WAREHOUSE", "SALESMAN"}
 
+# Convert database model to detail schema with JSON parsing
 def _document_to_detail_schema(doc: WarehouseDocument) -> WarehouseDocDetail:
     try:
         items_data = json.loads(doc.items_json or "[]")
@@ -52,7 +54,7 @@ def _document_to_detail_schema(doc: WarehouseDocument) -> WarehouseDocDetail:
         items=items,
     )
 
-# === NOWY ENDPOINT DO LICZNIKA ===
+# Retrieve count of active documents (NEW or IN_PROGRESS)
 @router.get("/active-count")
 def get_active_wz_count(
     db: Session = Depends(get_db),
@@ -64,7 +66,7 @@ def get_active_wz_count(
     if not _role_ok(current_user): 
         raise HTTPException(403, "Not authorized")
     
-    # Liczymy rekordy, które mają status NEW lub IN_PROGRESS
+    # Count records with specific statuses
     count = db.query(WarehouseDocument).filter(
         WarehouseDocument.status.in_([
             WarehouseStatus.NEW, 
@@ -73,8 +75,9 @@ def get_active_wz_count(
     ).count()
     
     return {"total": count}
-# =================================
 
+
+# List warehouse documents with filtering and pagination
 @router.get("/", response_model=WarehouseDocPage)
 def list_warehouse_documents(
     request: Request,
@@ -92,6 +95,7 @@ def list_warehouse_documents(
     if not _role_ok(current_user): raise HTTPException(403, "Not authorized")
     q = db.query(WarehouseDocument)
 
+    # Apply filters
     if status:
         vals = [s.value for s in status]
         q = q.filter(WarehouseDocument.status.in_(vals))
@@ -114,6 +118,7 @@ def list_warehouse_documents(
             q = q.filter(WarehouseDocument.created_at <= tdt)
         except: pass
 
+    # Apply sorting
     sort_map = {
         "created_at": WarehouseDocument.created_at,
         "status": WarehouseDocument.status,
@@ -128,6 +133,7 @@ def list_warehouse_documents(
     items = q.offset((page - 1) * page_size).limit(page_size).all()
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
+# Get detailed view of a single warehouse document
 @router.get("/{doc_id}", response_model=WarehouseDocDetail)
 def get_wz_detail(
     doc_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
@@ -137,6 +143,7 @@ def get_wz_detail(
     if not doc: raise HTTPException(404, "WZ not found")
     return _document_to_detail_schema(doc)
 
+# Update document status and sync with Order status if released
 @router.patch("/{doc_id}/status")
 def update_warehouse_status(
     doc_id: int, status_data: WarehouseStatusUpdate, request: Request,
@@ -150,6 +157,7 @@ def update_warehouse_status(
     doc.status = status_data.status
     db.commit()
     
+    # Sync order status to 'shipped' if WZ is released
     if doc.status == WarehouseStatus.RELEASED and doc.invoice_id:
         inv = db.query(Invoice).filter(Invoice.id == doc.invoice_id).first()
         if inv and inv.order_id:
@@ -163,21 +171,25 @@ def update_warehouse_status(
 
 WZ_STORAGE_DIR = Path("storage/wz")
 
+# Ensure storage directory exists
 def _ensure_wz_dir() -> None:
     WZ_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
+# Get PDF file path
 def _wz_pdf_path(doc_id: int) -> Path:
     return WZ_STORAGE_DIR / f"WZ-{doc_id}.pdf"
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 FONT_DIRS = [BACKEND_DIR / "assets" / "fonts", BACKEND_DIR / "fonts"]
 
+# Locate font file in known directories
 def _find_font(name: str) -> Optional[Path]:
     for d in FONT_DIRS:
         p = d / name
         if p.exists(): return p
     return None
 
+# Generate PDF document using ReportLab
 def _generate_wz_pdf(doc: WarehouseDocument, out_path: Path) -> None:
     try:
         from reportlab.lib.pagesizes import A4
@@ -265,6 +277,7 @@ def _generate_wz_pdf(doc: WarehouseDocument, out_path: Path) -> None:
     c.showPage()
     c.save()
 
+# Endpoint to trigger PDF generation
 @router.post("/{doc_id}/pdf")
 def generate_wz_pdf(doc_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if not _role_ok(user): raise HTTPException(403, "Not authorized")
@@ -274,6 +287,7 @@ def generate_wz_pdf(doc_id: int, db: Session = Depends(get_db), user: User = Dep
     _generate_wz_pdf(doc, out)
     return {"message": "Generated"}
 
+# Endpoint to download PDF, generating on demand if missing
 @router.get("/{doc_id}/download")
 def download_wz_pdf(doc_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if not _role_ok(user): raise HTTPException(403, "Not authorized")

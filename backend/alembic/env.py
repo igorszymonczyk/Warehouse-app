@@ -1,10 +1,10 @@
 import os
 import sys
 
-# Dodaj folder 'backend' (nadrzędny) do ścieżki Pythona, aby umożliwić import modeli
+# Add the 'backend' (parent) folder to Python path to allow model imports
 sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Importuj Base i wszystkie modele, które mają być śledzone przez migracje
+# Import Base and all models that should be tracked by migrations
 from database import Base
 import models.users
 import models.product
@@ -28,12 +28,12 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# target_metadata zawiera definicje wszystkich tabel zadeklarowanych w modelach (Base.metadata)
+# target_metadata contains definitions of all tables declared in models (Base.metadata)
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    """Uruchamia migracje w trybie 'offline', generując skrypty SQL bez łączenia się z bazą."""
+    """Run migrations in 'offline' mode, generating SQL scripts without DB connection."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -47,27 +47,27 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Uruchamia migracje w trybie 'online', łącząc się bezpośrednio z bazą danych."""
-    # Tworzenie obiektu Engine z konfiguracji
+    """Run migrations in 'online' mode, connecting directly to the database."""
+    # Create Engine object from configuration
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
 
-    # Nawiązywanie i używanie połączenia z bazą
+    # Establish and use database connection
     with connectable.connect() as connection:
-        # Konfiguracja kontekstu Alembic dla trybu online
+        # Configure Alembic context for online mode
         context.configure(
             connection=connection, target_metadata=target_metadata
         )
 
-        # Uruchomienie migracji w ramach pojedynczej transakcji
+        # Run migrations within a single transaction
         with context.begin_transaction():
             context.run_migrations()
 
 
-# Wybór trybu wykonania na podstawie konfiguracji Alembic
+# Select execution mode based on Alembic configuration
 if context.is_offline_mode():
     run_migrations_offline()
 else:

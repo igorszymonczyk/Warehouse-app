@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 
+# Schema for displaying company details
 class CompanyOut(BaseModel):
     id: int
     name: Optional[str] = None
@@ -14,6 +15,7 @@ class CompanyOut(BaseModel):
         orm_mode = True
 
 
+# Schema for updating company information
 class CompanyUpdate(BaseModel):
     name: Optional[str] = None
     nip: Optional[str] = None

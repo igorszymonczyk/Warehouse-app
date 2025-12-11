@@ -17,8 +17,8 @@ interface InvoiceItemRow {
   product_id: number;
   product_name: string;
   quantity: number;
-  price_net: number; // Teraz edytowalne
-  tax_rate: number;  // Teraz edytowalne
+  price_net: number; // Now editable
+  tax_rate: number;  // Now editable
   current_stock?: number; 
 }
 
@@ -42,7 +42,7 @@ export default function CorrectInvoicePage() {
 
   const loadData = async () => {
     try {
-      const prodRes = await api.get<{ items: Product[] }>("/products?page_size=10000"); // Zwiększony limit
+      const prodRes = await api.get<{ items: Product[] }>("/products?page_size=10000"); // Increased limit
       setAvailableProducts(prodRes.data.items);
 
       const invRes = await api.get(`/invoices/${id}`);
@@ -65,7 +65,7 @@ export default function CorrectInvoicePage() {
       setLoading(false);
     } catch (err) {
       console.error(err);
-      toast.error("Błąd ładowania danych faktury");
+      toast.error("Error loading invoice data");
       navigate("/invoices");
     }
   };
@@ -77,7 +77,7 @@ export default function CorrectInvoicePage() {
     if (!prod) return;
 
     if (items.find((i) => i.product_id === prod.id)) {
-      toast.error("Produkt już jest na liście");
+      toast.error("Product is already in the list");
       return;
     }
 
@@ -101,21 +101,21 @@ export default function CorrectInvoicePage() {
     setItems(newItems);
   };
 
-  // Uniwersalna funkcja zmiany pól w wierszu (ilość, cena, vat)
+  // Universal function to update row fields (qty, price, vat)
   const handleItemChange = (index: number, field: keyof InvoiceItemRow, value: number) => {
     const newItems = [...items];
-    // Walidacja ujemnych wartości
+    // Validate negative values
     if (value < 0) value = 0;
     
-    // @ts-ignore - prosty update pola
+    // @ts-ignore - simple field update
     newItems[index][field] = value;
     setItems(newItems);
   };
 
   const handleSubmit = async () => {
-    if (!buyerName) return toast.error("Nazwa nabywcy jest wymagana");
-    if (items.length === 0) return toast.error("Lista pozycji nie może być pusta");
-    if (!correctionReason) return toast.error("Podaj przyczynę korekty");
+    if (!buyerName) return toast.error("Buyer name is required");
+    if (items.length === 0) return toast.error("Item list cannot be empty");
+    if (!correctionReason) return toast.error("Please provide a correction reason");
 
     const payload = {
       buyer_name: buyerName,
@@ -132,11 +132,11 @@ export default function CorrectInvoicePage() {
 
     try {
       await api.post(`/invoices/${id}/correction`, payload);
-      toast.success("Korekta wystawiona pomyślnie");
+      toast.success("Correction issued successfully");
       navigate("/invoices");
     } catch (err) {
       console.error(err);
-      toast.error("Błąd podczas wystawiania korekty");
+      toast.error("Error issuing correction");
     }
   };
 
@@ -145,45 +145,45 @@ export default function CorrectInvoicePage() {
     return sum + grossItem;
   }, 0);
 
-  if (loading) return <div className="p-6">Ładowanie...</div>;
+  if (loading) return <div className="p-6">Loading...</div>;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <button onClick={() => navigate("/invoices")} className="flex items-center text-gray-600 mb-4 hover:text-black">
-        <ArrowLeft size={18} className="mr-1" /> Powrót
+        <ArrowLeft size={18} className="mr-1" /> Back
       </button>
 
       <div className="bg-yellow-50 border border-yellow-200 p-4 rounded mb-6">
-        <h1 className="text-2xl font-bold text-yellow-800">Wystawianie Korekty</h1>
-        <p className="text-sm text-yellow-700">Możesz edytować nabywcę, ilości, ceny oraz stawki VAT.</p>
+        <h1 className="text-2xl font-bold text-yellow-800">Issue Correction</h1>
+        <p className="text-sm text-yellow-700">You can edit buyer details, quantities, prices, and tax rates.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div className="bg-white p-4 rounded shadow-sm border">
-          <h2 className="font-semibold mb-4 border-b pb-2">Dane Nabywcy (Edycja)</h2>
+          <h2 className="font-semibold mb-4 border-b pb-2">Buyer Details (Edit)</h2>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Nazwa nabywcy *</label>
+              <label className="block text-sm font-medium text-gray-700">Buyer Name *</label>
               <input className="w-full border p-2 rounded" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">NIP</label>
+              <label className="block text-sm font-medium text-gray-700">NIP/VAT ID</label>
               <input className="w-full border p-2 rounded" value={buyerNip} onChange={(e) => setBuyerNip(e.target.value)} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Adres</label>
+              <label className="block text-sm font-medium text-gray-700">Address</label>
               <input className="w-full border p-2 rounded" value={buyerAddress} onChange={(e) => setBuyerAddress(e.target.value)} />
             </div>
           </div>
         </div>
 
         <div className="bg-white p-4 rounded shadow-sm border">
-          <h2 className="font-semibold mb-4 border-b pb-2">Szczegóły Korekty</h2>
+          <h2 className="font-semibold mb-4 border-b pb-2">Correction Details</h2>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Przyczyna korekty *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Correction Reason *</label>
             <textarea
               className="w-full border p-2 rounded h-32 focus:ring-2 focus:ring-yellow-500 outline-none"
-              placeholder="np. Zwrot towaru, Zmiana ceny, Błąd..."
+              placeholder="e.g., Return of goods, Price change, Error..."
               value={correctionReason}
               onChange={(e) => setCorrectionReason(e.target.value)}
             />
@@ -192,7 +192,7 @@ export default function CorrectInvoicePage() {
       </div>
 
       <div className="bg-white p-4 rounded shadow-sm border mb-6">
-        <h2 className="font-semibold mb-4 border-b pb-2">Pozycje faktury (Stan PO korekcie)</h2>
+        <h2 className="font-semibold mb-4 border-b pb-2">Invoice Items (Status AFTER correction)</h2>
         
         <div className="flex gap-2 mb-4">
           <select
@@ -200,27 +200,27 @@ export default function CorrectInvoicePage() {
             value={selectedProductToAdd}
             onChange={(e) => setSelectedProductToAdd(e.target.value)}
           >
-            <option value="">-- Dodaj produkt do listy (opcjonalnie) --</option>
+            <option value="">-- Add product to list (optional) --</option>
             {availableProducts.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name} - {p.sell_price_net} zł
+                {p.name} - {p.sell_price_net} PLN
               </option>
             ))}
           </select>
           <button onClick={handleAddItem} className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded flex items-center gap-1">
-            <Plus size={16} /> Dodaj
+            <Plus size={16} /> Add
           </button>
         </div>
 
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="p-2 text-left">Produkt</th>
-              <th className="p-2 text-right w-32">Cena Netto</th>
+              <th className="p-2 text-left">Product</th>
+              <th className="p-2 text-right w-32">Net Price</th>
               <th className="p-2 text-right w-24">VAT %</th>
-              <th className="p-2 text-right w-24">Ilość</th>
-              <th className="p-2 text-right">Wartość Brutto</th>
-              <th className="p-2 text-center w-16">Usuń</th>
+              <th className="p-2 text-right w-24">Qty</th>
+              <th className="p-2 text-right">Gross Value</th>
+              <th className="p-2 text-center w-16">Remove</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -230,7 +230,7 @@ export default function CorrectInvoicePage() {
                 <tr key={idx}>
                   <td className="p-2">{item.product_name}</td>
                   
-                  {/* Edycja Ceny Netto */}
+                  {/* Edit Net Price */}
                   <td className="p-2 text-right">
                     <input
                       type="number" step="0.01" min="0"
@@ -240,7 +240,7 @@ export default function CorrectInvoicePage() {
                     />
                   </td>
 
-                  {/* Edycja VAT */}
+                  {/* Edit VAT */}
                   <td className="p-2 text-right">
                     <input
                       type="number" step="1" min="0" max="100"
@@ -250,7 +250,7 @@ export default function CorrectInvoicePage() {
                     />
                   </td>
 
-                  {/* Edycja Ilości */}
+                  {/* Edit Quantity */}
                   <td className="p-2 text-right">
                     <input
                       type="number" min="1"
@@ -273,7 +273,7 @@ export default function CorrectInvoicePage() {
         </table>
         
         <div className="mt-4 text-right text-lg font-bold">
-          Razem Brutto (PO korekcie): {totalGross.toFixed(2)} PLN
+          Total Gross (AFTER correction): {totalGross.toFixed(2)} PLN
         </div>
       </div>
 
@@ -283,7 +283,7 @@ export default function CorrectInvoicePage() {
           className="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 flex items-center gap-2 ml-auto shadow"
         >
           <Save size={20} />
-          Zatwierdź Korektę
+          Confirm Correction
         </button>
       </div>
     </div>

@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
-import { Search, PackageMinus, PackagePlus, X, AlertTriangle, Trash2 } from "lucide-react"; // Usunięto History
+import { Search, PackageMinus, PackagePlus, X, AlertTriangle, Trash2 } from "lucide-react"; // Removed History
 import toast from "react-hot-toast";
 import { useForm, type SubmitHandler } from "react-hook-form";
 
-// Typy
+// Types
 type StockMovement = {
   id: number;
   created_at: string;
@@ -80,7 +80,7 @@ export default function StockPage() {
       setData(res.data);
     } catch (err) {
       console.error(err);
-      toast.error("Błąd pobierania historii");
+      toast.error("Error fetching history");
     } finally {
       setLoading(false);
     }
@@ -91,7 +91,7 @@ export default function StockPage() {
         try {
             const res = await api.get<{ items: ProductSimple[] }>("/products?page_size=10000");
             setAllProducts(res.data.items || []);
-        } catch (err) { console.error("Błąd ładowania produktów", err); }
+        } catch (err) { console.error("Error loading products", err); }
     };
     fetchAllProducts();
   }, []);
@@ -113,7 +113,7 @@ export default function StockPage() {
   const onSubmitLoss: SubmitHandler<AdjustmentForm> = async (formData) => {
       if (!selectedProduct) return;
       if (formData.quantity > selectedProduct.stock_quantity) {
-          toast.error("Zbyt duża ilość (brak na stanie)");
+          toast.error("Quantity too high (not enough stock)");
           return;
       }
       try {
@@ -123,21 +123,21 @@ export default function StockPage() {
               reason: formData.reason,
               type: "LOSS"
           });
-          toast.success("Strata zapisana");
+          toast.success("Loss recorded");
           setShowLossModal(false);
           reset();
           setSelectedProduct(null);
           loadMovements();
-      } catch { toast.error("Błąd zapisu"); }
+      } catch { toast.error("Error saving"); }
   };
 
   const addToDeliveryList = (p: ProductSimple) => {
       if (deliveryItems.find(i => i.product.id === p.id)) {
-          toast.error("Ten produkt jest już na liście");
+          toast.error("This product is already on the list");
           setProductSearch("");
           return;
       }
-      if (deliveryQty <= 0) { toast.error("Ilość musi być > 0"); return; }
+      if (deliveryQty <= 0) { toast.error("Quantity must be > 0"); return; }
 
       setDeliveryItems([...deliveryItems, { product: p, quantity: deliveryQty }]);
       setProductSearch("");
@@ -155,18 +155,18 @@ export default function StockPage() {
       try {
           const payload = {
               items: deliveryItems.map(i => ({ product_id: i.product.id, quantity: i.quantity })),
-              reason: "Dostawa towaru",
+              reason: "Goods delivery",
               supplier: deliverySupplier || null
           };
           await api.post("/stock/delivery", payload);
-          toast.success("Dostawa przyjęta pomyślnie!");
+          toast.success("Delivery accepted successfully!");
           setShowDeliveryModal(false);
           setDeliveryItems([]);
           setDeliverySupplier("");
           loadMovements();
       } catch (err) {
           console.error(err);
-          toast.error("Błąd podczas zapisywania dostawy");
+          toast.error("Error saving delivery");
       }
   };
 
@@ -174,31 +174,31 @@ export default function StockPage() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold">
-             Ruchy Magazynowe
+             Stock Movements
         </h1>
         <div className="flex gap-3">
             <button 
                 onClick={() => setShowDeliveryModal(true)}
                 className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center gap-2 shadow-sm"
             >
-                <PackagePlus size={20} /> Przyjęcie dostawy
+                <PackagePlus size={20} /> Receive Delivery
             </button>
             <button 
                 onClick={() => setShowLossModal(true)}
                 className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 flex items-center gap-2 shadow-sm"
             >
-                <PackageMinus size={20} /> Zgłoś stratę
+                <PackageMinus size={20} /> Report Loss
             </button>
         </div>
       </div>
 
-      {/* FILTRY */}
+      {/* FILTERS */}
       <div className="flex gap-4 mb-4 bg-white p-4 rounded shadow-sm border flex-wrap">
           <div className="relative">
               <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
               <input 
                   className="pl-10 border rounded p-2 w-64 focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="Szukaj produktu..."
+                  placeholder="Search product..."
                   value={q}
                   onChange={e => setQ(e.target.value)}
               />
@@ -207,7 +207,7 @@ export default function StockPage() {
               <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
               <input 
                   className="pl-10 border rounded p-2 w-64 focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="Szukaj dostawcy..."
+                  placeholder="Search supplier..."
                   value={supplierFilter}
                   onChange={e => setSupplierFilter(e.target.value)}
               />
@@ -217,31 +217,31 @@ export default function StockPage() {
             value={type}
             onChange={e => setType(e.target.value)}
           >
-              <option value="">Wszystkie typy</option>
-              <option value="IN">Dostawa (IN)</option>
-              <option value="LOSS">Strata/Uszkodzenie (LOSS)</option>
+              <option value="">All types</option>
+              <option value="IN">Delivery (IN)</option>
+              <option value="LOSS">Loss/Damage (LOSS)</option>
           </select>
       </div>
 
-      {/* TABELA */}
-      {loading ? <p>Ładowanie...</p> : (
+      {/* TABLE */}
+      {loading ? <p>Loading...</p> : (
           <div className="bg-white rounded border shadow-sm overflow-hidden">
               <table className="min-w-full text-sm">
                   <thead className="bg-gray-100 text-gray-700">
                       <tr>
-                          <th className="p-3 text-left">Data</th>
-                          <th className="p-3 text-left">Produkt</th>
-                          <th className="p-3 text-right">Ilość</th>
-                          <th className="p-3 text-left pl-8">Dostawca</th>
-                          <th className="p-3 text-left">Powód / Typ</th>
-                          <th className="p-3 text-left">Użytkownik</th>
+                          <th className="p-3 text-left">Date</th>
+                          <th className="p-3 text-left">Product</th>
+                          <th className="p-3 text-right">Qty</th>
+                          <th className="p-3 text-left pl-8">Supplier</th>
+                          <th className="p-3 text-left">Reason / Type</th>
+                          <th className="p-3 text-left">User</th>
                       </tr>
                   </thead>
                   <tbody className="divide-y">
                       {data?.items.map((move) => (
                           <tr key={move.id} className="hover:bg-gray-50">
                               <td className="p-3 text-gray-600">
-                                  {new Date(move.created_at).toLocaleString("pl-PL")}
+                                  {new Date(move.created_at).toLocaleString("en-GB")}
                               </td>
                               <td className="p-3">
                                   <div className="font-medium text-gray-900">{move.product_name}</div>
@@ -250,7 +250,7 @@ export default function StockPage() {
                               
                               <td className="p-3 text-right">
                                    <span className={`font-bold px-2 py-0.5 rounded ${move.qty > 0 ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}`}>
-                                      {move.qty > 0 ? "+" : ""}{move.qty} szt.
+                                      {move.qty > 0 ? "+" : ""}{move.qty} pcs
                                    </span>
                               </td>
                               
@@ -265,38 +265,38 @@ export default function StockPage() {
                           </tr>
                       ))}
                       {data?.items.length === 0 && (
-                          <tr><td colSpan={6} className="p-6 text-center text-gray-500">Brak historii ruchów.</td></tr>
+                          <tr><td colSpan={6} className="p-6 text-center text-gray-500">No movement history.</td></tr>
                       )}
                   </tbody>
               </table>
           </div>
       )}
 
-      {/* Paginacja */}
+      {/* Pagination */}
       {data && (
           <div className="mt-4 flex justify-center gap-4 items-center">
-              <button disabled={page===1} onClick={() => setPage(p=>p-1)} className="px-3 py-1 border rounded disabled:opacity-50">Poprzednia</button>
-              <span className="text-sm">Strona {page} z {Math.ceil(data.total / pageSize)}</span>
-              <button disabled={page >= Math.ceil(data.total/pageSize)} onClick={() => setPage(p=>p+1)} className="px-3 py-1 border rounded disabled:opacity-50">Następna</button>
+              <button disabled={page===1} onClick={() => setPage(p=>p-1)} className="px-3 py-1 border rounded disabled:opacity-50">Previous</button>
+              <span className="text-sm">Page {page} of {Math.ceil(data.total / pageSize)}</span>
+              <button disabled={page >= Math.ceil(data.total/pageSize)} onClick={() => setPage(p=>p+1)} className="px-3 py-1 border rounded disabled:opacity-50">Next</button>
           </div>
       )}
 
-      {/* MODAL - PRZYJĘCIE DOSTAWY */}
+      {/* MODAL - RECEIVE DELIVERY */}
       {showDeliveryModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-lg shadow-xl w-full max-w-lg h-[80vh] flex flex-col">
                   <div className="flex justify-between items-center p-4 border-b bg-green-50">
                       <h3 className="font-bold text-green-800 flex items-center gap-2">
-                          <PackagePlus size={20} /> Przyjęcie dostawy
+                          <PackagePlus size={20} /> Receive Delivery
                       </h3>
                       <button onClick={() => setShowDeliveryModal(false)}><X size={20} className="text-gray-500 hover:text-black"/></button>
                   </div>
                   
                   <div className="p-4 bg-gray-50 border-b">
-                      <label className="block text-xs font-semibold text-gray-500 mb-1">Dostawca (Opcjonalnie)</label>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Supplier (Optional)</label>
                       <input 
                           className="w-full border rounded p-2 focus:ring-2 focus:ring-green-500 outline-none bg-white"
-                          placeholder="Np. Hurtownia ABC..."
+                          placeholder="e.g. Wholesaler ABC..."
                           value={deliverySupplier}
                           onChange={e => setDeliverySupplier(e.target.value)}
                       />
@@ -304,10 +304,10 @@ export default function StockPage() {
                   
                   <div className="p-4 border-b bg-gray-50 flex gap-2 items-end pt-0">
                       <div className="flex-1 relative">
-                          <label className="text-xs font-semibold text-gray-500">Produkt</label>
+                          <label className="text-xs font-semibold text-gray-500">Product</label>
                           <input 
                               className="w-full border rounded p-2 focus:ring-2 focus:ring-green-500 outline-none"
-                              placeholder="Wpisz nazwę/kod..."
+                              placeholder="Enter name/code..."
                               value={productSearch}
                               onChange={e => setProductSearch(e.target.value)}
                           />
@@ -318,18 +318,18 @@ export default function StockPage() {
                                           <div className="font-medium">{p.name}</div>
                                           <div className="text-xs text-gray-500 flex justify-between">
                                               <span>{p.code}</span>
-                                              <span>Obecnie: {p.stock_quantity}</span>
+                                              <span>Stock: {p.stock_quantity}</span>
                                           </div>
                                       </li>
                                   ))}
                                   {filteredProducts.length === 0 && (
-                                      <li className="p-2 text-gray-400 text-center text-xs">Brak wyników</li>
+                                      <li className="p-2 text-gray-400 text-center text-xs">No results</li>
                                   )}
                               </ul>
                           )}
                       </div>
                       <div className="w-24">
-                          <label className="text-xs font-semibold text-gray-500">Ilość</label>
+                          <label className="text-xs font-semibold text-gray-500">Qty</label>
                           <input 
                               type="number" min="1"
                               className="w-full border rounded p-2 text-right"
@@ -342,14 +342,14 @@ export default function StockPage() {
                   <div className="flex-1 overflow-y-auto p-4">
                       {deliveryItems.length === 0 ? (
                           <div className="text-center text-gray-400 mt-10">
-                              Wyszukaj produkt i dodaj go do listy przyjęcia.
+                              Search for a product and add it to the delivery list.
                           </div>
                       ) : (
                           <table className="w-full text-sm">
                               <thead className="text-gray-500 border-b">
                                   <tr>
-                                      <th className="text-left py-2">Produkt</th>
-                                      <th className="text-right py-2">Ilość</th>
+                                      <th className="text-left py-2">Product</th>
+                                      <th className="text-right py-2">Qty</th>
                                       <th className="w-10"></th>
                                   </tr>
                               </thead>
@@ -381,34 +381,34 @@ export default function StockPage() {
                           disabled={deliveryItems.length === 0}
                           className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 disabled:opacity-50 font-medium"
                       >
-                          Zatwierdź dostawę ({deliveryItems.length} poz.)
+                          Confirm Delivery ({deliveryItems.length} items)
                       </button>
                   </div>
               </div>
           </div>
       )}
 
-      {/* MODAL - STRATA */}
+      {/* MODAL - LOSS */}
       {showLossModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
                   <div className="flex justify-between items-center p-4 border-b bg-red-50">
-                      <h3 className="font-bold text-red-800 flex items-center gap-2"><AlertTriangle size={20}/> Zgłoś stratę</h3>
+                      <h3 className="font-bold text-red-800 flex items-center gap-2"><AlertTriangle size={20}/> Report Loss</h3>
                       <button onClick={() => setShowLossModal(false)}><X size={20}/></button>
                   </div>
                   <form onSubmit={handleSubmit(onSubmitLoss)} className="p-6 space-y-4">
                       <div>
-                          <label className="block text-sm font-medium mb-1">Produkt</label>
+                          <label className="block text-sm font-medium mb-1">Product</label>
                           {selectedProduct ? (
                               <div className="p-2 border rounded bg-gray-50 flex justify-between items-center">
                                   <span className="text-sm font-medium truncate w-48">{selectedProduct.name}</span>
-                                  <button type="button" onClick={() => setSelectedProduct(null)} className="text-xs text-red-500 underline">Zmień</button>
+                                  <button type="button" onClick={() => setSelectedProduct(null)} className="text-xs text-red-500 underline">Change</button>
                               </div>
                           ) : (
                               <div className="relative">
                                   <input 
                                       className="w-full border rounded p-2 focus:ring-2 focus:ring-red-500 outline-none"
-                                      placeholder="Szukaj..."
+                                      placeholder="Search..."
                                       value={productSearch}
                                       onChange={e => setProductSearch(e.target.value)}
                                       autoFocus
@@ -420,7 +420,7 @@ export default function StockPage() {
                                                   <div className="font-medium">{p.name}</div>
                                                   <div className="text-xs text-gray-500 flex justify-between">
                                                       <span>{p.code}</span>
-                                                      <span>Stan: {p.stock_quantity}</span>
+                                                      <span>Stock: {p.stock_quantity}</span>
                                                   </div>
                                               </li>
                                           ))}
@@ -430,14 +430,14 @@ export default function StockPage() {
                           )}
                       </div>
                       <div>
-                          <label className="block text-sm font-medium mb-1">Ilość (strata)</label>
+                          <label className="block text-sm font-medium mb-1">Quantity (Loss)</label>
                           <input type="number" min="1" className="w-full border rounded p-2" {...register("quantity", {required: true, min: 1})} />
                       </div>
                       <div>
-                          <label className="block text-sm font-medium mb-1">Powód</label>
+                          <label className="block text-sm font-medium mb-1">Reason</label>
                           <textarea className="w-full border rounded p-2" {...register("reason", {required: true})} />
                       </div>
-                      <button className="w-full bg-red-600 text-white py-2 rounded">Zatwierdź</button>
+                      <button className="w-full bg-red-600 text-white py-2 rounded">Confirm</button>
                   </form>
               </div>
           </div>

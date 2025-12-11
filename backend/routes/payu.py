@@ -31,6 +31,7 @@ def verify_payu_signature(header_signature: str, request_body: bytes) -> bool:
     
     return expected_signature == signature_from_header
 
+# Handle PayU webhook notifications
 @router.post("/notify")
 async def payu_notify(
     request: Request,
@@ -42,7 +43,7 @@ async def payu_notify(
 
     body = await request.body()
 
-    
+    # Attempt to decode body for logging
     try:
         body_text = body.decode("utf-8")
     except Exception:
@@ -50,6 +51,7 @@ async def payu_notify(
 
     logger.info("PayU notify received. header=%s, body_preview=%s", openpayu_signature, body_text[:1000])
 
+    # Validate request signature
     verified = verify_payu_signature(openpayu_signature, body)
     if not verified:
         try:
@@ -63,12 +65,13 @@ async def payu_notify(
     notification_data = json.loads(body)
     payu_order_status = notification_data.get("order", {}).get("status")
     
+    # Process only completed payments
     if payu_order_status == "COMPLETED":
         ext_order_id_str = notification_data.get("order", {}).get("extOrderId")
         if not ext_order_id_str:
             return {"status": "error", "message": "Missing extOrderId"}
 
-        # odcinamy _timestamp
+        # Extract internal order ID from external reference (removes timestamp suffix)
         try:
             order_id = int(ext_order_id_str.split('_')[0])
         except ValueError:
@@ -78,17 +81,17 @@ async def payu_notify(
         if not order:
             return {"status": "error", "message": "Order not found"}
             
-        # Jeśli status jest nadal pending, a PayU potwierdza, uruchamiamy realizację
+        # Update status and trigger fulfillment if not already processed
         if order.status == "pending_payment":
             order.status = "processing"
             order.payment_status = "paid" 
 
             try:
-             
+                # Execute stock deduction and invoice generation
                 _fulfill_order(db, order, request)
                 db.commit()
 
-                # Write audit log
+                # Log successful payment processing
                 try:
                     write_log(
                         db, user_id=order.user_id, action="PAYU_NOTIFY", resource="orders", status="SUCCESS",

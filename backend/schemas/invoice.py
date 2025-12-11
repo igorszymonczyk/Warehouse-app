@@ -3,18 +3,21 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 
+# Input schema for a single line item in an invoice
 class InvoiceItemCreate(BaseModel):
     product_id: int
     quantity: int = Field(gt=0)
     price_net: Optional[float] = None
     tax_rate: Optional[float] = None
 
+# Input schema for creating a new invoice
 class InvoiceCreate(BaseModel):
     buyer_name: str
     buyer_nip: Optional[str] = None
     buyer_address: Optional[str] = None
     items: List[InvoiceItemCreate]
 
+# Output schema for an invoice line item
 class InvoiceItemResponse(BaseModel):
     product_id: int
     product_name: str # Added this
@@ -27,6 +30,7 @@ class InvoiceItemResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# Output schema for the invoice summary
 class InvoiceResponse(BaseModel):
     id: int
     full_number: str
@@ -41,6 +45,7 @@ class InvoiceResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# Detailed output schema for an invoice line item
 class InvoiceItemDetail(BaseModel):
     product_id: int
     product_name: str
@@ -54,6 +59,7 @@ class InvoiceItemDetail(BaseModel):
     class Config:
         from_attributes = True
 
+# Comprehensive output schema for a single invoice (includes corrections)
 class InvoiceDetail(BaseModel):
     id: int
     full_number: str
@@ -73,6 +79,7 @@ class InvoiceDetail(BaseModel):
     class Config:
         from_attributes = True
 
+# Schema for summary representation in lists
 class InvoiceListItem(BaseModel):
     id: int
     full_number: str
@@ -90,12 +97,14 @@ class InvoiceListItem(BaseModel):
     class Config:
         from_attributes = True
 
+# Paginated response wrapper for invoice lists
 class InvoiceListPage(BaseModel):
     items: List[InvoiceListItem]
     total: int
     page: int
     page_size: int
 
+# Input schema for creating a correction invoice
 class InvoiceCorrectionCreate(BaseModel):
     buyer_name: str
     buyer_nip: Optional[str] = None

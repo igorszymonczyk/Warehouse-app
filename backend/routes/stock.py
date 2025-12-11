@@ -13,12 +13,10 @@ import schemas.stock as stock_schemas
 
 router = APIRouter(tags=["Stock"])
 
-# ZMIANA: Dodano "SALESMAN" do dozwolonych ról
+# Check permissions for stock management (Admin, Warehouse, Salesman)
 def _can_manage_stock(user: User) -> bool:
     return (user.role or "").upper() in {"ADMIN", "WAREHOUSE", "SALESMAN"}
 
-# ... (reszta pliku bez zmian)
-# Wklejam początek funkcji list_movements dla kontekstu, reszta pozostaje taka sama
 
 @router.get("/", response_model=stock_schemas.StockMovementPage)
 def list_movements(
@@ -36,13 +34,15 @@ def list_movements(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     query = db.query(StockMovement).join(Product).join(User)
-    # ... (reszta logiki bez zmian)
+    
+    # Filter by product name or code
     if q:
         like = f"%{q}%"
         query = query.filter((Product.name.ilike(like)) | (Product.code.ilike(like)))
     if type:
         query = query.filter(StockMovement.type == type)
 
+    # Sort results
     col = StockMovement.created_at if sort_by == "created_at" else StockMovement.id
     if order == "desc":
         query = query.order_by(col.desc())
@@ -54,7 +54,7 @@ def list_movements(
 
     results = []
     for m in items:
-        # ... (logika mapowania bez zmian)
+        # Normalize movement type
         raw_type = (m.type or "").upper()
         if raw_type == "ADJUST": raw_type = "ADJUSTMENT"
         
@@ -77,7 +77,7 @@ def list_movements(
 
     return {"items": results, "total": total, "page": page, "page_size": page_size}
 
-# ... (pozostałe endpointy adjust i delivery bez zmian, korzystają z zaktualizowanego _can_manage_stock)
+
 @router.post("/adjust", response_model=stock_schemas.StockMovementResponse)
 def adjust_stock(
     payload: stock_schemas.StockMovementCreate,
@@ -88,10 +88,10 @@ def adjust_stock(
     if not _can_manage_stock(current_user):
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    # ... (reszta logiki adjust_stock bez zmian)
     product = db.query(Product).filter(Product.id == payload.product_id).first()
     if not product: raise HTTPException(404, "Product not found")
 
+    # Update stock quantity
     qty_delta = payload.qty 
     new_quantity = product.stock_quantity + qty_delta
     if qty_delta < 0 and new_quantity < 0:
@@ -99,6 +99,7 @@ def adjust_stock(
 
     product.stock_quantity = new_quantity
     
+    # Create movement record
     movement = StockMovement(
         product_id=product.id, user_id=current_user.id,
         qty=qty_delta, reason=payload.reason, type=payload.type, supplier=payload.supplier 
@@ -124,9 +125,9 @@ def receive_delivery(
     if not _can_manage_stock(current_user):
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    # ... (reszta logiki delivery bez zmian)
     if not payload.items: raise HTTPException(400, "Brak produktów")
     count = 0
+    # Process bulk delivery items
     for item in payload.items:
         if item.quantity <= 0: continue
         product = db.query(Product).filter(Product.id == item.product_id).first()

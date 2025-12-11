@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { toMessage } from "../lib/error";
 import { useAuth } from "../store/auth";
 import { Link } from "react-router-dom";
-// Zaimportuj ikony
+// Import icons
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 export default function LoginPage() {
@@ -12,7 +12,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("Admin123!");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
-  // 2Dodaj stan do pokazywania/ukrywania hasła
+  // Add state to toggle password visibility
   const [showPassword, setShowPassword] = useState(false);
 
   const navigate = useNavigate();
@@ -25,8 +25,8 @@ export default function LoginPage() {
     try {
       const res = await api.post("/login", { email, password });
       const token: string | undefined = res.data?.access_token;
-      if (!token) throw new Error("Brak access_token w odpowiedzi");
-      login(token); // zapis przez kontekst
+      if (!token) throw new Error("No access_token in response");
+      login(token); // Save via context
       navigate("/");
     } catch (err) {
       setError(toMessage(err));
@@ -38,7 +38,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen grid place-items-center bg-gray-50">
       <form onSubmit={onSubmit} className="w-full max-w-md bg-white p-6 rounded shadow">
-        <h1 className="text-xl mb-4">Logowanie</h1>
+        <h1 className="text-xl mb-4">Login</h1>
 
         <input
           className="border rounded w-full p-2 mb-4"
@@ -50,15 +50,15 @@ export default function LoginPage() {
     
         <div className="relative mb-4">
           <input
-            className="border rounded w-full p-2 pr-10" // Dodany padding po prawej (pr-10)
-            type={showPassword ? "text" : "password"} // Dynamiczny typ
+            className="border rounded w-full p-2 pr-10" // Added right padding
+            type={showPassword ? "text" : "password"} // Dynamic type
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Hasło"
+            placeholder="Password"
           />
           <button
-            type="button" // Ważne, aby nie wysyłać formularza
-            onClick={() => setShowPassword(!showPassword)} // Przełącznik stanu
+            type="button" // Important: prevent form submission
+            onClick={() => setShowPassword(!showPassword)} // Toggle state
             className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700"
           >
             {showPassword ? <FaEyeSlash /> : <FaEye />}
@@ -72,12 +72,12 @@ export default function LoginPage() {
           disabled={loading}
           className="w-full px-3 py-2 rounded bg-black text-white disabled:opacity-60"
         >
-          {loading ? "Logowanie..." : "Zaloguj"}
+          {loading ? "Logging in..." : "Login"}
         </button>
         <p className="text-center mt-4 text-sm">
-          Nie masz konta?{" "}
+          Don't have an account?{" "}
            <Link to="/register" className="text-blue-600 hover:underline">
-          Zarejestruj się
+          Register
            </Link>
         </p>
       </form>

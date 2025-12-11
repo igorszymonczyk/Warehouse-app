@@ -9,7 +9,7 @@ from utils.tokenJWT import get_current_user
 from models.users import User
 from models.product import Product
 
-# 1. ZMIANA: Zaktualizuj schematy (zgodne z ProductShopResponse)
+# Schema for product display in the shop
 class ProductShopResponse(BaseModel):
     id: int
     name: str
@@ -36,36 +36,34 @@ router = APIRouter(
     tags=["Shop"]
 )
 
-# =========================
-# LISTA UNIKALNYCH KATEGORII
-# =========================
+# Retrieve unique product categories
 @router.get("/categories", response_model=List[str])
 def get_unique_categories(
     db: Session = Depends(get_db),
 ):
-    """Zwraca listę wszystkich unikalnych kategorii produktów."""
-    # Używamy distinct() i filtrujemy NULL-e, które mogą powstać w wyniku importu
+    # Fetch distinct non-null categories
     categories = db.query(Product.category).distinct().filter(Product.category != None).all()
-    # Zwracamy listę czystych stringów
+    # Return list of strings
     return [c[0] for c in categories]
 
 @router.get("/products", response_model=ProductShopPage)
 def list_products_for_shop(
     request: Request,
-    # 2. ZMIANA: Dodajemy filtr kategorii
+    # Search and filter parameters
     q: Optional[str] = Query(None, description="Szukaj po nazwie, kodzie lub kategorii"),
     category: Optional[str] = Query(None, description="Filtruj po kategorii"),
     
     page: int = Query(12, ge=1),
     page_size: int = Query(12, ge=1, le=100),
-    sort_by: Literal["name", "sell_price_net", "stock_quantity"] = "name", # Dodaj opcję sortowania po stanie
+    sort_by: Literal["name", "sell_price_net", "stock_quantity"] = "name", 
     order: Literal["asc", "desc"] = "asc",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user), 
 ):
     query = db.query(Product)
-    query = query.filter(Product.stock_quantity > 0) # Tylko dostępne
+    query = query.filter(Product.stock_quantity > 0) # Filter only available products
 
+    # Apply general search filter
     if q:
         like = f"%{q}%"
         query = query.filter(
@@ -76,14 +74,15 @@ def list_products_for_shop(
             )
         )
     
-    # 3. ZMIANA: Logika filtrowania po kategorii
+    # Filter by specific category
     if category:
         query = query.filter(Product.category.ilike(f"%{category}%"))
 
+    # Configure sorting logic
     allowed = {
         "name": Product.name,
         "sell_price_net": Product.sell_price_net,
-        "stock_quantity": Product.stock_quantity, # Dodajemy sortowanie po stanie
+        "stock_quantity": Product.stock_quantity, 
     }
 
     sort_key = sort_by.lower()

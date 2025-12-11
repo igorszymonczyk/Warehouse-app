@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import toast from "react-hot-toast";
 import { useAuth } from "../store/auth";
 import CustomerShop from "./CustomerShop";
-import WZPage from "./WZ"; // <--- 1. IMPORTUJEMY STRONĘ WZ
+import WZPage from "./WZ"; // <--- 1. IMPORT WZ PAGE
 
 import {
   DollarSign,
@@ -24,7 +24,7 @@ import {
   Legend,
 } from "recharts";
 
-// === TYPY DANYCH ===
+// === DATA TYPES ===
 type StatsData = {
   total_revenue: number;
   total_invoices: number;
@@ -43,7 +43,7 @@ type TopProduct = {
   total_quantity_sold: number;
 };
 
-// === KOMPONENTY KART ===
+// === CARD COMPONENTS ===
 type StatCardProps = {
   title: string;
   value: string | number;
@@ -86,19 +86,19 @@ function StatCard({ title, value, icon, colorClass, to }: StatCardProps) {
   return cardContent;
 }
 
-// === KOMPONENTY WYKRESÓW I LIST ===
+// === CHART AND LIST COMPONENTS ===
 
 function RevenueChart({ data }: { data: ChartDataPoint[] }) {
   return (
     <div className="bg-white p-6 rounded-lg shadow-md h-full">
-      <h3 className="text-lg font-semibold mb-4">Przychód (ostatnie 7 dni)</h3>
+      <h3 className="text-lg font-semibold mb-4">Revenue (last 7 days)</h3>
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={data} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
           <XAxis dataKey="date" stroke="#6b7280" />
           <YAxis stroke="#6b7280" />
           <Tooltip
-            formatter={(value: number) => [`${value.toFixed(2)} zł`, "Przychód"]}
+            formatter={(value: number) => [`${value.toFixed(2)} PLN`, "Revenue"]}
             labelStyle={{ color: "#333" }}
             itemStyle={{ color: "#0d9488" }}
           />
@@ -109,7 +109,7 @@ function RevenueChart({ data }: { data: ChartDataPoint[] }) {
             stroke="#0d9488"
             strokeWidth={2}
             activeDot={{ r: 8 }}
-            name="Przychód"
+            name="Revenue"
           />
         </LineChart>
       </ResponsiveContainer>
@@ -122,10 +122,10 @@ function TopProductsList({ products }: { products: TopProduct[] }) {
     <div className="bg-white p-6 rounded-lg shadow-md h-full">
       <h3 className="text-lg font-semibold mb-4 flex items-center">
         <TrendingUp size={20} className="mr-2 text-blue-600" />
-        Top 5 produktów (ten miesiąc)
+        Top 5 Products (this month)
       </h3>
       {products.length === 0 ? (
-        <p className="text-gray-500 text-sm">Brak danych o sprzedaży w tym miesiącu.</p>
+        <p className="text-gray-500 text-sm">No sales data for this month.</p>
       ) : (
         <ol className="list-decimal list-inside space-y-3">
           {products.map((product) => (
@@ -134,7 +134,7 @@ function TopProductsList({ products }: { products: TopProduct[] }) {
                 {product.product_name}
               </span>
               <span className="text-gray-500 ml-2">
-                ({product.total_quantity_sold} szt.)
+                ({product.total_quantity_sold} pcs.)
               </span>
             </li>
           ))}
@@ -144,7 +144,7 @@ function TopProductsList({ products }: { products: TopProduct[] }) {
   );
 }
 
-// === PULPIT DLA ADMINA / SPRZEDAWCY ===
+// === ADMIN / SALESMAN DASHBOARD ===
 function AdminSalesmanDashboard() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
@@ -174,7 +174,7 @@ function AdminSalesmanDashboard() {
         setTopProducts(topProductsRes.data.data);
       } catch (err) {
         console.error(err);
-        const errorMsg = "Nie udało się załadować danych dashboardu";
+        const errorMsg = "Failed to load dashboard data";
         setError(errorMsg);
         toast.error(errorMsg);
       } finally {
@@ -188,8 +188,8 @@ function AdminSalesmanDashboard() {
   if (loading) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-semibold mb-4">Pulpit</h1>
-        <p>Ładowanie danych...</p>
+        <h1 className="text-2xl font-semibold mb-4">Dashboard</h1>
+        <p>Loading data...</p>
       </div>
     );
   }
@@ -197,7 +197,7 @@ function AdminSalesmanDashboard() {
   if (error) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-semibold mb-4">Pulpit</h1>
+        <h1 className="text-2xl font-semibold mb-4">Dashboard</h1>
         <p className="text-red-500">{error}</p>
       </div>
     );
@@ -208,27 +208,27 @@ function AdminSalesmanDashboard() {
       {stats && (
         <dl className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           <StatCard
-            title="Całkowity przychód"
-            value={`${stats.total_revenue.toFixed(2)} zł`}
+            title="Total Revenue"
+            value={`${stats.total_revenue.toFixed(2)} PLN`}
             icon={<DollarSign size={24} />}
             colorClass="bg-green-600"
           />
           <StatCard
-            title="Faktury w tym miesiącu"
+            title="Invoices this month"
             value={stats.invoices_this_month}
             icon={<Receipt size={24} />}
             colorClass="bg-blue-600"
             to="/invoices"
           />
           <StatCard
-            title="Produkty na wyczerpaniu"
+            title="Low stock products"
             value={stats.low_stock_products}
             icon={<PackageX size={24} />}
             colorClass="bg-red-600"
             to="/products?sort_by=stock_quantity&order=asc"
           />
           <StatCard
-            title="Wszystkie faktury"
+            title="Total Invoices"
             value={stats.total_invoices}
             icon={<Archive size={24} />}
             colorClass="bg-gray-500"
@@ -256,18 +256,18 @@ function CustomerDashboard() {
   );
 }
 
-// === GŁÓWNY KOMPONENT DASHBOARD ===
+// === MAIN DASHBOARD COMPONENT ===
 export default function Dashboard() {
   const { role } = useAuth();
 
-  // 2. ZMIANA: Dla magazyniera wyświetlamy od razu stronę WZ
+  // 2. CHANGE: For warehouse role, display WZ page immediately
   if (role === "warehouse") {
       return <WZPage />;
   }
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Pulpit</h1>
+      <h1 className="text-2xl font-semibold mb-4">Dashboard</h1>
       
       {role === "admin" || role === "salesman" ? (
         <AdminSalesmanDashboard />

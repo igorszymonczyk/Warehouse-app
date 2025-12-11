@@ -5,7 +5,7 @@ import { Trash2, Plus, ArrowLeft, Save, Search, Sparkles } from "lucide-react";
 import { useForm, useFieldArray, type SubmitHandler, type UseFormSetValue } from "react-hook-form";
 import toast from "react-hot-toast"; 
 
-// --- TYPY ---
+// --- TYPES ---
 type RecommendationRule = {
     product_in: string[];
     product_out: string[];
@@ -38,7 +38,7 @@ type InvoiceFormInputs = {
   items: InvoiceItem[];
 };
 
-// --- KOMPONENT WIERSZA (Z OPTYMALIZACJĄ) ---
+// --- ROW COMPONENT (OPTIMIZED) ---
 function InvoiceItemRow({ 
   index, 
   item, 
@@ -54,7 +54,7 @@ function InvoiceItemRow({
     const [localPrice, setLocalPrice] = useState(item.price_net);
     const [localTax, setLocalTax] = useState(item.tax_rate);
 
-    // Synchronizacja, gdyby propsy zmieniły się z zewnątrz (np. inny mechanizm)
+    // Sync if props change externally (e.g., different mechanism updates the item)
     useEffect(() => {
         setLocalQty(item.quantity);
         setLocalPrice(item.price_net);
@@ -64,7 +64,7 @@ function InvoiceItemRow({
     const rowGross = (localPrice * localQty * (1 + localTax / 100)) || 0;
 
     const commitChanges = () => {
-        // Aktualizujemy tylko jeśli wartości są inne, aby uniknąć zbędnych renderów
+        // Update only if values differ to avoid unnecessary renders
         if (item.quantity !== localQty) setValue(`items.${index}.quantity`, localQty);
         if (item.price_net !== localPrice) setValue(`items.${index}.price_net`, localPrice);
         if (item.tax_rate !== localTax) setValue(`items.${index}.tax_rate`, localTax);
@@ -127,7 +127,7 @@ function InvoiceItemRow({
 }
 
 
-// --- GŁÓWNY KOMPONENT ---
+// --- MAIN COMPONENT ---
 export default function CreateInvoice() {
   const navigate = useNavigate();
 
@@ -163,24 +163,24 @@ export default function CreateInvoice() {
 
   const watchedItems = watch("items");
 
-  // Tworzymy klucz (fingerprint) składający się tylko z ID produktów.
-  // Zmieni się tylko gdy dodamy/usuniemy produkt, a nie gdy zmienimy ilość.
+  // Create a key (fingerprint) consisting only of product IDs.
+  // This changes only when we add/remove a product, not when we change quantity/price.
   const productIdsFingerprint = JSON.stringify(watchedItems.map(i => i.product_id).sort());
 
-  // 1. Ładowanie produktów
+  // 1. Load products
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         const res = await api.get<{ items: Product[] }>("/products?page_size=10000");
         setAllProducts(res.data.items || []);
       } catch (err) {
-        console.error("Błąd pobierania produktów:", err);
+        console.error("Error fetching products:", err);
       }
     };
     fetchProducts();
   }, []);
 
-  // 2. REKOMENDACJE (Zależne tylko od fingerprinta ID)
+  // 2. RECOMMENDATIONS (Dependent only on ID fingerprint)
   useEffect(() => {
     if (watchedItems.length === 0) {
         setRecommendations([]);
@@ -223,13 +223,13 @@ export default function CreateInvoice() {
     const timer = setTimeout(loadRecommendations, 500);
     return () => clearTimeout(timer);
 
-  }, [productIdsFingerprint]); // <--- KLUCZOWA ZMIANA: Nie reaguje na zmianę ilości/ceny
+  }, [productIdsFingerprint]); // <--- KEY CHANGE: Does not react to quantity/price changes
 
-  // 3. FILTROWANIE PRODUKTÓW (useMemo dla wydajności)
-  // Obliczamy to tylko gdy zmieni się 'search' lub lista 'productIdsFingerprint'.
-  // Nie przeliczamy tego 10000 razy, gdy zmienisz ilość w input!
+  // 3. PRODUCT FILTERING (useMemo for performance)
+  // Calculated only when 'search' or 'productIdsFingerprint' changes.
+  // We don't recalculate 10000 items when quantity input changes!
   const filteredProducts = useMemo(() => {
-    // Tworzymy Set ID, aby szybciej sprawdzać "notAdded"
+    // Create Set of IDs for faster "notAdded" check
     const addedIds = new Set(watchedItems.map(i => i.product_id));
     const lowerSearch = search.toLowerCase();
 
@@ -240,11 +240,11 @@ export default function CreateInvoice() {
       const notAdded = !addedIds.has(p.id);
       return matchesSearch && notAdded;
     });
-  }, [allProducts, search, productIdsFingerprint]); // <--- Używamy fingerprinta
+  }, [allProducts, search, productIdsFingerprint]); // <--- Using fingerprint
 
   const handleAddProduct = (product: Product) => {
     if (product.stock_quantity <= 0) {
-        toast.error("Brak towaru w magazynie!");
+        toast.error("Out of stock!");
         return;
     }
     append({
@@ -261,17 +261,17 @@ export default function CreateInvoice() {
 
   const onSubmit: SubmitHandler<InvoiceFormInputs> = async (data) => {
     if (data.items.length === 0) {
-      toast.error("Dodaj przynajmniej jeden produkt.");
+      toast.error("Add at least one product.");
       return;
     }
     setIsSubmitting(true);
     try {
       await api.post("/invoices", data);
-      toast.success("Faktura utworzona");
+      toast.success("Invoice created");
       navigate("/invoices");
     } catch (err) {
       console.error(err);
-      toast.error("Błąd tworzenia faktury.");
+      toast.error("Error creating invoice.");
     } finally {
       setIsSubmitting(false);
     }
@@ -279,7 +279,7 @@ export default function CreateInvoice() {
 
   const handleCancel = () => {
     if (watchedItems.length > 0 || watch("buyer_name")) {
-      if (confirm("Anulować?")) navigate("/invoices");
+      if (confirm("Cancel?")) navigate("/invoices");
     } else {
       navigate("/invoices");
     }
@@ -295,45 +295,45 @@ export default function CreateInvoice() {
       <div className="flex-1 min-w-0">
         <form onSubmit={handleSubmit(onSubmit)}>
             <div className="flex items-center justify-between mb-4">
-                <h1 className="text-2xl font-semibold">Nowa faktura</h1>
+                <h1 className="text-2xl font-semibold">New Invoice</h1>
                 <button type="button" onClick={() => navigate("/invoices")} className="text-gray-500 hover:text-black flex items-center">
-                    <ArrowLeft size={18} className="mr-1" /> Powrót
+                    <ArrowLeft size={18} className="mr-1" /> Back
                 </button>
             </div>
 
             <div className="bg-white p-6 rounded shadow-sm border mb-6 grid gap-4">
-                <h2 className="font-medium border-b pb-2 text-gray-700">Dane Nabywcy</h2>
+                <h2 className="font-medium border-b pb-2 text-gray-700">Buyer Details</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="text-sm text-gray-600 block mb-1">Nazwa *</label>
+                        <label className="text-sm text-gray-600 block mb-1">Name *</label>
                         <input
                             className={`border rounded p-2 w-full ${errors.buyer_name ? 'border-red-500' : ''}`}
-                            {...register("buyer_name", { required: "Wymagane" })}
+                            {...register("buyer_name", { required: "Required" })}
                         />
                         {errors.buyer_name && <p className="text-red-500 text-xs">{errors.buyer_name.message}</p>}
                     </div>
                     <div>
-                        <label className="text-sm text-gray-600 block mb-1">NIP</label>
+                        <label className="text-sm text-gray-600 block mb-1">NIP/VAT ID</label>
                         <input className="border rounded p-2 w-full" {...register("buyer_nip")} />
                     </div>
                     <div className="md:col-span-2">
-                        <label className="text-sm text-gray-600 block mb-1">Adres</label>
+                        <label className="text-sm text-gray-600 block mb-1">Address</label>
                         <input className="border rounded p-2 w-full" {...register("buyer_address")} />
                     </div>
                 </div>
             </div>
 
             <div className="bg-white p-6 rounded shadow-sm border mb-6">
-                <h2 className="font-medium border-b pb-2 text-gray-700 mb-4">Pozycje faktury</h2>
+                <h2 className="font-medium border-b pb-2 text-gray-700 mb-4">Invoice Items</h2>
 
-                {/* Wyszukiwarka */}
+                {/* Search */}
                 <div className="relative mb-6">
                     <div className="relative">
                         <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
                         <input
                             ref={inputRef}
                             className="border rounded p-2 pl-10 w-full focus:ring-2 focus:ring-blue-500 outline-none"
-                            placeholder="Wpisz nazwę lub kod produktu..."
+                            placeholder="Enter product name or code..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             onFocus={() => setFocused(true)}
@@ -354,29 +354,29 @@ export default function CreateInvoice() {
                                             <div className="text-xs text-gray-500">{p.code}</div>
                                         </div>
                                         <div className="text-right">
-                                            <div className="font-bold text-gray-700">{p.sell_price_net.toFixed(2)} zł</div>
+                                            <div className="font-bold text-gray-700">{p.sell_price_net.toFixed(2)} PLN</div>
                                             <div className={`text-xs ${p.stock_quantity > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                                Stan: {p.stock_quantity}
+                                                Stock: {p.stock_quantity}
                                             </div>
                                         </div>
                                     </li>
                                 ))
                             ) : (
-                                <li className="px-4 py-3 text-gray-500 text-center">Brak wyników</li>
+                                <li className="px-4 py-3 text-gray-500 text-center">No results</li>
                             )}
                         </ul>
                     )}
                 </div>
 
-                {/* Tabela */}
+                {/* Table */}
                 <table className="min-w-full text-sm mb-4">
                     <thead className="bg-gray-50 text-gray-500">
                         <tr>
-                            <th className="p-3 text-left font-normal">Produkt</th>
-                            <th className="p-3 text-right font-normal w-28">Cena</th>
-                            <th className="p-3 text-right font-normal w-24">Ilość</th>
+                            <th className="p-3 text-left font-normal">Product</th>
+                            <th className="p-3 text-right font-normal w-28">Price</th>
+                            <th className="p-3 text-right font-normal w-24">Qty</th>
                             <th className="p-3 text-right font-normal w-20">VAT</th>
-                            <th className="p-3 text-right font-normal">Wartość</th>
+                            <th className="p-3 text-right font-normal">Value</th>
                             <th className="p-3 text-center w-10"></th>
                         </tr>
                     </thead>
@@ -391,39 +391,39 @@ export default function CreateInvoice() {
                             />
                         ))}
                         {fields.length === 0 && (
-                            <tr><td colSpan={6} className="p-8 text-center text-gray-400 border-dashed border-2 rounded">Dodaj produkty powyżej</td></tr>
+                            <tr><td colSpan={6} className="p-8 text-center text-gray-400 border-dashed border-2 rounded">Add products above</td></tr>
                         )}
                     </tbody>
                 </table>
 
                 <div className="flex justify-end pt-4 border-t">
                     <div className="text-right w-48">
-                        <div className="flex justify-between text-gray-600 mb-1"><span>Netto:</span> <span>{totalNet.toFixed(2)} zł</span></div>
-                        <div className="flex justify-between text-gray-600 mb-2"><span>VAT:</span> <span>{totalVat.toFixed(2)} zł</span></div>
-                        <div className="flex justify-between text-xl font-bold text-gray-800 pt-2 border-t"><span>Razem:</span> <span>{totalGross.toFixed(2)} zł</span></div>
+                        <div className="flex justify-between text-gray-600 mb-1"><span>Net:</span> <span>{totalNet.toFixed(2)} PLN</span></div>
+                        <div className="flex justify-between text-gray-600 mb-2"><span>VAT:</span> <span>{totalVat.toFixed(2)} PLN</span></div>
+                        <div className="flex justify-between text-xl font-bold text-gray-800 pt-2 border-t"><span>Total:</span> <span>{totalGross.toFixed(2)} PLN</span></div>
                     </div>
                 </div>
             </div>
 
             <div className="flex justify-end gap-4">
-                <button type="button" onClick={handleCancel} className="px-6 py-2 border rounded hover:bg-gray-50 text-gray-700">Anuluj</button>
+                <button type="button" onClick={handleCancel} className="px-6 py-2 border rounded hover:bg-gray-50 text-gray-700">Cancel</button>
                 <button type="submit" disabled={isSubmitting} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded shadow-md disabled:opacity-50 flex items-center gap-2">
-                    <Save size={18}/> {isSubmitting ? "Zapisywanie..." : "Wystaw Fakturę"}
+                    <Save size={18}/> {isSubmitting ? "Saving..." : "Issue Invoice"}
                 </button>
             </div>
         </form>
       </div>
 
-      {/* PRAWA KOLUMNA: Rekomendacje */}
+      {/* RIGHT COLUMN: Recommendations */}
       <div className="w-80 shrink-0">
         <div className="bg-gradient-to-br from-blue-50 to-white border border-blue-100 p-4 rounded-lg shadow-sm sticky top-6">
             <h3 className="font-semibold text-blue-800 flex items-center gap-2 mb-3">
                 <Sparkles size={18} />
-                Sugerowane produkty
+                Suggested Products
             </h3>
             
             {loadingRecs ? (
-                <div className="text-center py-8 text-blue-400 text-sm animate-pulse">Szukam propozycji...</div>
+                <div className="text-center py-8 text-blue-400 text-sm animate-pulse">Looking for suggestions...</div>
             ) : recommendations.length > 0 ? (
                 <div className="space-y-3">
                     {recommendations.map(rec => (
@@ -431,14 +431,14 @@ export default function CreateInvoice() {
                             <div className="text-sm font-medium text-gray-800 leading-tight mb-1">{rec.name}</div>
                             <div className="text-xs text-gray-500 mb-2">{rec.code}</div>
                             <div className="flex justify-between items-center">
-                                <span className="font-bold text-gray-700">{rec.sell_price_net.toFixed(2)} zł</span>
+                                <span className="font-bold text-gray-700">{rec.sell_price_net.toFixed(2)} PLN</span>
                                 <button 
                                     type="button" 
                                     onClick={() => handleAddProduct(rec)}
                                     disabled={rec.stock_quantity <= 0}
                                     className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    <Plus size={12}/> {rec.stock_quantity > 0 ? 'Dodaj' : 'Brak'}
+                                    <Plus size={12}/> {rec.stock_quantity > 0 ? 'Add' : 'N/A'}
                                 </button>
                             </div>
                         </div>
@@ -447,8 +447,8 @@ export default function CreateInvoice() {
             ) : (
                 <div className="text-center py-8 text-gray-400 text-sm italic">
                     {watchedItems.length === 0 
-                        ? "Dodaj produkty, aby zobaczyć sugestie." 
-                        : "Brak dodatkowych sugestii."}
+                        ? "Add products to see suggestions." 
+                        : "No additional suggestions."}
                 </div>
             )}
         </div>

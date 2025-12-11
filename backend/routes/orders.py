@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 import json
 import httpx
 import time
-from datetime import datetime # <--- 1. DODANO IMPORT
+from datetime import datetime
 
 from database import get_db
 import logging
@@ -28,13 +28,15 @@ from sqlalchemy import func
 router = APIRouter(prefix="/orders", tags=["Orders"])
 logger = logging.getLogger(__name__)
 
-# ... (funkcje _is_admin_or_sales, _cart_open, _order_to_out BEZ ZMIAN) ...
+# Check permissions for Admin or Salesman roles
 def _is_admin_or_sales(user: User) -> bool:
     return (user.role or "").upper() in {"ADMIN", "SALESMAN"}
 
+# Retrieve the user's active open cart
 def _cart_open(db: Session, user_id: int) -> Cart:
     return db.query(Cart).filter(Cart.user_id == user_id, Cart.status == "open").first()
 
+# Map Order model to OrderResponse schema
 def _order_to_out(order: Order) -> OrderResponse:
     items: List[OrderItemOut] = []
     for it in order.items:
@@ -56,19 +58,19 @@ def _order_to_out(order: Order) -> OrderResponse:
 
 def _fulfill_order(db: Session, order: Order, request: Request):
     """
-    Realizuje zamówienie: zdejmuje stan, tworzy fakturę i WZ.
+    Executes order fulfillment: stock deduction, invoice generation, and WZ document creation.
     """
     db.refresh(order)
     for item in order.items:
         db.refresh(item)
 
-    # 1. ZDJĘCIE STANU
+    # 1. Deduct stock quantity
     for item in order.items:
         product = db.query(Product).filter(Product.id == item.product_id).with_for_update().first()
         if product:
             product.stock_quantity -= item.qty
 
-    # 2. TWORZENIE FAKTURY i WZ
+    # 2. Calculate totals and prepare Invoice/WZ items
     total_net, total_vat, total_gross = 0.0, 0.0, 0.0
     invoice_items, wz_items_json = [], []
 
@@ -94,7 +96,7 @@ def _fulfill_order(db: Session, order: Order, request: Request):
             "quantity": quantity, "location": prod.location or ""
         })
 
-    # ADRESY
+    # Address formatting
     billing_addr = f"{order.invoice_address_street}, {order.invoice_address_zip} {order.invoice_address_city}"
     
     shipping_addr = None
@@ -103,34 +105,35 @@ def _fulfill_order(db: Session, order: Order, request: Request):
     else:
         shipping_addr = billing_addr
 
-    # NUMERACJA FAKTUR
+    # Generate sequential invoice number
     last_number = db.query(func.max(Invoice.number)).filter(
         (Invoice.is_correction == False) | (Invoice.is_correction == None)
     ).scalar()
     new_number = (last_number or 0) + 1
 
-    # Data utworzenia (wspólna dla faktury i WZ)
+    # Common creation timestamp
     now = datetime.now()
 
+    # Create Invoice record
     invoice = Invoice(
         user_id=order.user_id, order_id=order.id, payment_status=PaymentStatus.PAID,
         buyer_name=order.invoice_buyer_name, buyer_nip=order.invoice_buyer_nip,
         buyer_address=billing_addr,    
         shipping_address=shipping_addr, 
         created_by=order.user_id,
-        created_at=now, # Jawne przypisanie daty
+        created_at=now, 
         total_net=total_net, total_vat=total_vat, total_gross=total_gross, items=invoice_items,
         number=new_number
     )
     db.add(invoice)
     db.flush()
 
-    # TWORZENIE WZ
+    # Create Warehouse Document (WZ)
     warehouse_doc = WarehouseDocument(
         invoice_id=invoice.id, 
         buyer_name=invoice.buyer_name, 
-        invoice_date=now, # Data faktury
-        created_at=now,   # <--- 2. JAWNE PRZYPISANIE DATY UTWORZENIA
+        invoice_date=now, 
+        created_at=now,   
         items_json=json.dumps(wz_items_json), 
         status=WarehouseStatus.NEW,
         shipping_address=shipping_addr 
@@ -143,7 +146,7 @@ def _fulfill_order(db: Session, order: Order, request: Request):
         meta={"order_id": order.id, "invoice_id": invoice.id, "wz_id": warehouse_doc.id}
     )
 
-# ... (reszta pliku: endpointy initiate_payment, list_my_orders, get_order_detail, update_order_status BEZ ZMIAN) ...
+# Initiate payment process, create order, and trigger fulfillment
 @router.post("/initiate-payment", response_model=PaymentInitiationResponse)
 async def initiate_payment(
     payload: OrderCreatePayload,
@@ -155,6 +158,7 @@ async def initiate_payment(
     if not cart or not cart.items:
         raise HTTPException(status_code=400, detail="Cart is empty")
 
+    # Validate stock and calculate total
     product_cache, total_gross = {}, 0.0
     for ci in cart.items:
         prod = db.query(Product).filter(Product.id == ci.product_id).first()
@@ -163,6 +167,7 @@ async def initiate_payment(
         product_cache[ci.product_id] = prod
         total_gross += ci.qty * ci.unit_price_snapshot * (1 + prod.tax_rate / 100)
 
+    # Prepare order data
     order_data = payload.model_dump()
     if not order_data.get("shipping_address_street"):
         order_data["shipping_address_street"] = order_data["invoice_address_street"]
@@ -179,6 +184,7 @@ async def initiate_payment(
     )
     db.add(order)
     
+    # Move cart items to order items
     order_items = [OrderItem(
         order=order, product_id=ci.product_id, qty=ci.qty, unit_price=ci.unit_price_snapshot
     ) for ci in cart.items]
@@ -188,6 +194,7 @@ async def initiate_payment(
     db.commit()
     db.refresh(order)
 
+    # Prepare PayU request data
     payu_products = [{
         "name": product_cache[it.product_id].name,
         "quantity": int(it.qty) if it.qty.is_integer() else it.qty,
@@ -221,6 +228,7 @@ async def initiate_payment(
         "products": payu_products
     }
 
+    # Attempt immediate order fulfillment (Invoice/WZ creation)
     try:
         order.status = "processing"
         _fulfill_order(db, order, request)
@@ -230,6 +238,7 @@ async def initiate_payment(
         logger.error(f"Failed to fulfill order immediately: {e}")
         raise HTTPException(status_code=500, detail=f"Błąd generowania faktury: {e}")
     
+    # Call PayU API
     try:
         token = await payu_client.get_auth_token()
         payu_response = await payu_client.create_order(token, payu_order_data)
@@ -251,6 +260,7 @@ async def initiate_payment(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# List user orders, syncing status with warehouse documents
 @router.get("", response_model=OrdersPage)
 def list_my_orders(
     page: int = Query(1, ge=1),
@@ -279,6 +289,7 @@ def list_my_orders(
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
+# Get details of a specific order
 @router.get("/{order_id}", response_model=OrderResponse)
 def get_order_detail(
     order_id: int,
@@ -294,6 +305,7 @@ def get_order_detail(
     return _order_to_out(o)
 
 
+# Manually update order status (Admin/Sales only)
 @router.patch("/{order_id}/status", response_model=OrderResponse)
 def update_order_status(
     order_id: int,

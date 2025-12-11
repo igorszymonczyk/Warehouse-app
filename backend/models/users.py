@@ -3,10 +3,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey, CheckConstraint
 from sqlalchemy.orm import relationship
 from database import Base
 
-# Model User
-# Przechowuje podstawowe dane konta użytkownika, takie jak adres e-mail,
-# hasło w postaci hashu oraz rolę systemową. Stanowi uproszczony model
-# uwierzytelniania i autoryzacji w aplikacji.
+# Represents a user account with authentication details and system role
 class User(Base):
     __tablename__ = "users"
 

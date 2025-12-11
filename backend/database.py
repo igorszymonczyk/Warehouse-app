@@ -3,19 +3,19 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-#adres bazy danych SQLite
+# SQLite database connection URL
 SQLALCHEMY_DATABASE_URL = "sqlite:///./database_warehouseapp.db"
 
-# Tworzenie silnika bazy danych
+# Create the SQLAlchemy engine (SQLite-specific thread check disabled)
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
 )
-# Tworzenie sesji
+# Configure the session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-# Podstawa dla modeli
+# Base class for all ORM models
 Base = declarative_base()
 
-# Dependency do uzyskiwania sesji bazy danych
+# Dependency to provide a database session
 def get_db():
     db = SessionLocal()
     try:
@@ -23,10 +23,6 @@ def get_db():
     finally:
         db.close()
 
-# Inicjalizacja bazy danych
+# Initialize the database schema
 def init_db():
     Base.metadata.create_all(bind=engine)
-
-
-
-

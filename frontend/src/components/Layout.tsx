@@ -27,7 +27,7 @@ export default function Layout() {
       <header className="flex items-center justify-between p-4 border-b bg-white">
         <nav className="flex items-center space-x-2">
           
-          {/* Ukrywamy "Pulpit" dla Magazyniera */}
+          {/* Hide "Pulpit" for Warehouse role */}
           {role !== "warehouse" && (
             <NavLink
               to="/"
@@ -38,7 +38,7 @@ export default function Layout() {
             </NavLink>
           )}
           
-          {/* ----- Admin / Sprzedawca ----- */}
+          {/* ----- Admin / Salesman ----- */}
           {(role === "admin" || role === "salesman") && (
             <>
               <NavLink
@@ -62,8 +62,8 @@ export default function Layout() {
             </>
           )}
 
-          {/* ----- RUCHY MAGAZYNOWE (Admin + Magazynier + Sprzedawca) ----- */}
-          {/* ZMIANA: Dodano wspólną sekcję dla wszystkich ról obsługujących magazyn */}
+          {/* ----- STOCK MOVEMENTS (Admin + Warehouse + Salesman) ----- */}
+          {/* CHANGE: Added common section for all stock-handling roles */}
           {(role === "admin" || role === "warehouse" || role === "salesman") && (
               <NavLink
                 to="/stock"
@@ -73,7 +73,7 @@ export default function Layout() {
               </NavLink>
           )}
 
-          {/* ----- Admin (dodatkowo) ----- */}
+          {/* ----- Admin (additional) ----- */}
           {role === "admin" && (
             <>
               <NavLink
@@ -91,7 +91,7 @@ export default function Layout() {
             </>
           )}
 
-          {/* ----- Magazynier (Specyficzne linki, jeśli nie zostały pokryte wyżej) ----- */}
+          {/* ----- Warehouse (Specific links if not covered above) ----- */}
           {role === "warehouse" && (
             <>
               <NavLink
@@ -100,7 +100,7 @@ export default function Layout() {
               >
                 WZ
               </NavLink>
-              {/* Link "Ruchy Magazynowe" jest teraz obsłużony wyżej */}
+              {/* "Stock Movements" link is now handled above */}
               <NavLink
                 to="/products"
                 className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
@@ -110,7 +110,7 @@ export default function Layout() {
             </>
           )}
 
-          {/* ----- Klient ----- */}
+          {/* ----- Customer ----- */}
           {role === "customer" && (
             <>
               <NavLink
@@ -130,7 +130,7 @@ export default function Layout() {
 
         </nav>
 
-        {/* Akcje po prawej (koszyk + wyloguj) */}
+        {/* Right side actions (cart + logout) */}
         <div className="flex items-center space-x-4">
           {role === "customer" && (
             <NavLink

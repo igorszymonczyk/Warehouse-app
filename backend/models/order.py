@@ -11,19 +11,19 @@ class Order(Base):
     total_amount = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
-    # Płatności
+    # Payment integration details
     payu_order_id = Column(String, nullable=True)
     payment_url = Column(String, nullable=True)
     payment_status = Column(String, default="pending")
 
-    # --- DANE DO FAKTURY (BILLING) ---
+    # Billing address and invoice details
     invoice_buyer_name = Column(String, nullable=True)
     invoice_buyer_nip = Column(String, nullable=True)
     invoice_address_street = Column(String, nullable=True)
     invoice_address_zip = Column(String, nullable=True)
     invoice_address_city = Column(String, nullable=True)
 
-    # DANE DO WYSYŁKI 
+    # Shipping address details
     shipping_address_street = Column(String, nullable=True)
     shipping_address_zip = Column(String, nullable=True)
     shipping_address_city = Column(String, nullable=True)

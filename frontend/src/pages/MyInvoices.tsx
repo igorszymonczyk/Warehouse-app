@@ -5,7 +5,7 @@ import { useAuth } from "../store/auth";
 import toast from "react-hot-toast";
 import { Download, AlertCircle, CheckCircle } from "lucide-react";
 
-// Typy pasujące do Invoice z backendu
+// Types matching backend Invoice model
 type Invoice = {
   id: number;
   order_id: number;
@@ -21,50 +21,50 @@ type PaginatedInvoices = {
   page_size: number;
 };
 
-// Mapa statusów
+// Status map
 const statusMap = {
-  pending: { text: "Oczekuje na płatność", icon: <AlertCircle className="text-yellow-500" />, color: "text-yellow-600" },
-  paid: { text: "Opłacona", icon: <CheckCircle className="text-green-500" />, color: "text-green-600" },
-  cancelled: { text: "Anulowana", icon: <AlertCircle className="text-red-500" />, color: "text-red-600" },
+  pending: { text: "Pending payment", icon: <AlertCircle className="text-yellow-500" />, color: "text-yellow-600" },
+  paid: { text: "Paid", icon: <CheckCircle className="text-green-500" />, color: "text-green-600" },
+  cancelled: { text: "Cancelled", icon: <AlertCircle className="text-red-500" />, color: "text-red-600" },
 };
 
-// Komponent karty faktury
+// Invoice Card Component
 function InvoiceCard({ invoice }: { invoice: Invoice }) {
   const [loadingPdf, setLoadingPdf] = useState(false);
   
-  const formattedDate = new Date(invoice.created_at).toLocaleDateString("pl-PL");
+  const formattedDate = new Date(invoice.created_at).toLocaleDateString("en-GB");
   const status = statusMap[invoice.payment_status] || statusMap.pending;
 
   const handleDownload = async () => {
     setLoadingPdf(true);
-    toast.loading("Generowanie PDF...");
+    toast.loading("Generating PDF...");
     
     try {
-      // 1. Wygeneruj PDF
+      // 1. Generate PDF
       await api.post(`/invoices/${invoice.id}/pdf`);
       
-      // 2. Pobierz PDF
+      // 2. Download PDF
       const res = await api.get(`/invoices/${invoice.id}/download`, {
-        responseType: 'blob', // Ważne: pobieramy jako plik
+        responseType: 'blob', // Important: download as blob
       });
       
-      // 3. Wymuś pobranie w przeglądarce
+      // 3. Force browser download
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Faktura-INV-${invoice.id}.pdf`);
+      link.setAttribute('download', `Invoice-INV-${invoice.id}.pdf`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
       toast.dismiss();
-      toast.success("PDF pobrany!");
+      toast.success("PDF downloaded!");
 
     } catch (err) {
       console.error(err);
       toast.dismiss();
-      toast.error("Nie udało się pobrać PDF");
+      toast.error("Failed to download PDF");
     } finally {
       setLoadingPdf(false);
     }
@@ -73,9 +73,9 @@ function InvoiceCard({ invoice }: { invoice: Invoice }) {
   return (
     <div className="bg-white p-4 rounded-lg shadow-md border flex justify-between items-center">
       <div>
-        <h2 className="text-lg font-semibold">Faktura INV-{invoice.id}</h2>
+        <h2 className="text-lg font-semibold">Invoice INV-{invoice.id}</h2>
         <p className="text-sm text-gray-500">
-          Data wystawienia: {formattedDate} | Powiązana z zamówieniem #{invoice.order_id}
+          Issue Date: {formattedDate} | Linked to Order #{invoice.order_id}
         </p>
         <div className={`flex items-center gap-2 mt-2 font-medium ${status.color}`}>
           {status.icon}
@@ -83,21 +83,21 @@ function InvoiceCard({ invoice }: { invoice: Invoice }) {
         </div>
       </div>
       <div className="text-right">
-        <p className="text-xl font-bold mb-2">{invoice.total_gross.toFixed(2)} zł</p>
+        <p className="text-xl font-bold mb-2">{invoice.total_gross.toFixed(2)} PLN</p>
         <button
           onClick={handleDownload}
           disabled={loadingPdf}
           className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:bg-gray-400"
         >
           <Download size={16} />
-          {loadingPdf ? "Generuję..." : "Pobierz PDF"}
+          {loadingPdf ? "Generating..." : "Download PDF"}
         </button>
       </div>
     </div>
   );
 }
 
-// Komponent strony
+// Page Component
 export default function MyInvoicesPage() {
   const { role } = useAuth();
   const [data, setData] = useState<PaginatedInvoices | null>(null);
@@ -108,14 +108,14 @@ export default function MyInvoicesPage() {
     const loadInvoices = async () => {
       setLoading(true);
       try {
-        // Używamy nowego endpointu /me
+        // Using new endpoint /me
         const res = await api.get<PaginatedInvoices>("/invoices/me", {
           params: { page, page_size: 5 },
         });
         setData(res.data);
       } catch (err) {
         console.error(err);
-        toast.error("Nie udało się pobrać faktur");
+        toast.error("Failed to fetch invoices");
       } finally {
         setLoading(false);
       }
@@ -123,13 +123,13 @@ export default function MyInvoicesPage() {
     loadInvoices();
   }, [page]);
 
-  if (role !== "customer") return <div>Brak dostępu</div>;
+  if (role !== "customer") return <div>Access denied</div>;
 
   if (loading && !data) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-semibold mb-4">Moje faktury</h1>
-        <p>Ładowanie...</p>
+        <h1 className="text-2xl font-semibold mb-4">My Invoices</h1>
+        <p>Loading...</p>
       </div>
     );
   }
@@ -137,8 +137,8 @@ export default function MyInvoicesPage() {
   if (!data || data.items.length === 0) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-semibold mb-4">Moje faktury</h1>
-        <p>Nie masz jeszcze żadnych faktur.</p>
+        <h1 className="text-2xl font-semibold mb-4">My Invoices</h1>
+        <p>You don't have any invoices yet.</p>
       </div>
     );
   }
@@ -147,7 +147,7 @@ export default function MyInvoicesPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Moje faktury</h1>
+      <h1 className="text-2xl font-semibold mb-4">My Invoices</h1>
       
       <div className="space-y-4">
         {data.items.map((invoice) => (
@@ -155,24 +155,24 @@ export default function MyInvoicesPage() {
         ))}
       </div>
 
-      {/* Paginacja */}
+      {/* Pagination */}
       <div className="mt-6 flex items-center justify-center gap-3">
         <button
           className="border rounded px-3 py-1 disabled:opacity-50"
           disabled={page === 1}
           onClick={() => setPage((p) => p - 1)}
         >
-          Poprzednia
+          Previous
         </button>
         <span>
-          Strona {page} / {totalPages}
+          Page {page} / {totalPages}
         </span>
         <button
           className="border rounded px-3 py-1 disabled:opacity-50"
           disabled={page >= totalPages}
           onClick={() => setPage((p) => p + 1)}
         >
-          Następna
+          Next
         </button>
       </div>
     </div>

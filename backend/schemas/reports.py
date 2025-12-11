@@ -3,8 +3,7 @@ from datetime import datetime, date
 from typing import List, Optional
 from pydantic import BaseModel
 
-# --- Low stock ---
-
+# Schemas for low stock alerting
 class LowStockItem(BaseModel):
     product_id: int
     name: str
@@ -17,8 +16,7 @@ class LowStockPage(BaseModel):
     page: int
     page_size: int
 
-# --- Sales summary ---
-
+# Schemas for sales performance summaries
 class SalesSummaryItem(BaseModel):
     date: date
     orders: int

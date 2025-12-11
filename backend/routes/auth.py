@@ -11,21 +11,13 @@ from sqlalchemy import func
 
 router = APIRouter(tags=["Auth"])
 
-# Endpointy autoryzacyjne
-# --------------------------------
-# Moduł Auth obsługuje:
-# - rejestrację nowych użytkowników,
-# - logowanie i generowanie tokenów JWT,
-# - pobieranie informacji o aktualnym zalogowanym użytkowniku.
-# Każda operacja logowana jest w systemie audytu.
-
-# Rejestracja nowego użytkownika.
+# Register a new user
 @router.post("/register", response_model=schemas.UserResponse)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db), request: Request = None):
-    # Normalizacja e-maila (małe litery)
+    # Normalize email input
     normalized_email = user.email.strip().lower()
 
-    # Sprawdzenie, czy użytkownik już istnieje
+    # Check for existing user
     db_user = db.query(models.User).filter(func.lower(models.User.email) == normalized_email).first()
     if db_user:
         if request:
@@ -40,14 +32,14 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db), request: R
             )
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Tworzenie nowego użytkownika i zapis w bazie
+    # Create new user instance with hashed password
     hashed_password = get_password_hash(user.password)
     new_user = models.User(email=normalized_email, password_hash=hashed_password, role="customer", first_name=user.first_name, last_name=user.last_name)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
-    # Logowanie pomyślnej rejestracji
+    # Log successful registration event
     if request:
         write_log(
             db,
@@ -62,22 +54,22 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db), request: R
     return new_user
 
 
-# Logowanie użytkownika
+# Authenticate user and issue JWT token
 @router.post("/login", response_model=schemas.Token)
 def login(payload: schemas.UserLogin, db: Session = Depends(get_db), request: Request = None):
     db_user = db.query(models.User).filter(models.User.email == payload.email).first()
 
-    # Weryfikacja poświadczeń i logowanie nieudanych prób
+    # Validate credentials and log failure on error
     if not db_user or not verify_password(payload.password, db_user.password_hash):
         if request:
             write_log(db, user_id=(db_user.id if db_user else None), action="LOGIN", resource="auth",
                       status="FAIL", ip=request.client.host, meta={"email": payload.email})
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    # Tworzenie tokenu JWT
+    # Generate access token
     access_token = create_access_token(data={"sub": db_user.email, "role": db_user.role})
 
-    # Logowanie udanego logowania
+    # Log successful login event
     if request:
         write_log(db, user_id=db_user.id, action="LOGIN", resource="auth",
                   status="SUCCESS", ip=request.client.host, meta={"email": db_user.email})
@@ -85,9 +77,7 @@ def login(payload: schemas.UserLogin, db: Session = Depends(get_db), request: Re
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-# Pobranie informacji o aktualnie zalogowanym użytkowniku
-# Przydatne do testów frontu lub weryfikacji tokena JWT
+# Retrieve current authenticated user details
 @router.get("/me", response_model=schemas.UserResponse)
 def me(current_user: models.User = Depends(get_current_user)):
     return current_user
-    
