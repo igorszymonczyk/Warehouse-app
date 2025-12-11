@@ -183,22 +183,29 @@ export default function WZPage() {
   const [total, setTotal] = useState(0);
   const pageSize = 10;
 
-  // ZMIANA: Typ sortowania zawiera teraz "id"
   const [sortBy, setSortBy] = useState<"created_at" | "status" | "buyer_name" | "id">("created_at");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   
   const [searchParams, setSearchParams] = useSearchParams();
   const docIdParam = searchParams.get('doc_id');
   const currentDocId = docIdParam ? parseInt(docIdParam, 10) : null;
-  
+
+  // === UŻYCIE NOWEGO ENDPOINTU ===
+  const fetchActiveCount = useCallback(async () => {
+      try {
+          const res = await api.get<{ total: number }>("/warehouse-documents/active-count");
+          setActiveCount(res.data.total);
+      } catch (err) {
+          console.error("Błąd pobierania licznika WZ", err);
+      }
+  }, []);
+
   const handleViewDetail = useCallback((id: number) => {
       setSearchParams({ doc_id: String(id) });
   }, [setSearchParams]);
   
   const handleCloseDetail = useCallback(() => {
       setSearchParams({});
-      load(); 
-      fetchActiveCount(); 
   }, [setSearchParams]);
 
   const toggleSort = (field: typeof sortBy) => {
@@ -241,43 +248,42 @@ export default function WZPage() {
     }
   }, [buyer, status, fromDt, toDt, sortBy, order, page, currentDocId]);
 
-  const fetchActiveCount = async () => {
-      try {
-          const res = await api.get<{ total: number }>("/warehouse-documents", {
-              params: {
-                  status: ["NEW", "IN_PROGRESS"],
-                  page_size: 1, 
-              }
-          });
-          setActiveCount(res.data.total);
-      } catch (err) {
-          console.error("Błąd pobierania licznika WZ", err);
+  useEffect(() => {
+      if (!currentDocId) {
+          load();
+          fetchActiveCount();
       }
-  };
+  }, [currentDocId, fetchActiveCount, load]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      setPage(1);
-      load();
+        if (!currentDocId) {
+            setPage(1);
+            load();
+        }
     }, 300);
     return () => clearTimeout(timeout);
   }, [buyer, status, fromDt, toDt, sortBy, order]);
 
-  useEffect(() => { load(); }, [page]);
+  useEffect(() => { 
+      if (!currentDocId) load(); 
+  }, [page]);
 
   useEffect(() => {
       fetchActiveCount();
-  }, []);
+  }, [fetchActiveCount]);
   
   const changeStatus = async (id: number, newStatus: WZStatus) => {
     try {
       await api.patch(`/warehouse-documents/${id}/status`, { status: newStatus });
       toast.success(`Status WZ ${id} zmieniony na ${newStatus}`);
+      
       setRows((r) => r.map((x) => (x.id === id ? { ...x, status: newStatus } : x)));
-      fetchActiveCount(); 
+      
+      // Odśwież licznik z backendu po zmianie statusu
+      await fetchActiveCount(); 
     } catch {
       toast.error("Nie udało się zmienić statusu");
-      throw new Error("Błąd"); 
     }
   };
 
@@ -322,7 +328,7 @@ export default function WZPage() {
     <div className="p-6">
       <h1 className="text-xl font-semibold mb-4">Wydania zewnętrzne (WZ)</h1>
 
-      {/* Box statusu (bez zmian) */}
+      {/* Box statusu */}
       <div className={`mb-6 p-4 rounded-lg shadow-sm border flex items-center justify-between ${activeCount > 0 ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'}`}>
           <div className="flex items-center gap-3">
               <div className={`p-2 rounded-full ${activeCount > 0 ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
@@ -347,7 +353,7 @@ export default function WZPage() {
           )}
       </div>
 
-      {/* NOWY KONTENER STYLU LOGI (FILTRY) */}
+      {/* FILTRY */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
         <div className="flex flex-wrap items-end gap-3">
           <div>
@@ -402,7 +408,6 @@ export default function WZPage() {
         <table className="min-w-full text-sm bg-white">
           <thead className="bg-gray-100">
             <tr>
-              {/* ZMIANA: Kliknięcie w ID sortuje po ID */}
               <th className="p-3 border-r cursor-pointer select-none hover:bg-gray-200" onClick={() => toggleSort("id")}>
                 <div className="flex items-center gap-1 font-semibold text-gray-700">
                     ID
