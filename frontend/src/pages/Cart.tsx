@@ -47,10 +47,10 @@ function RecommendationCard({ product, setCart }: { product: RecommendedProduct,
               qty: 1,
           });
           setCart(res.data);
-          toast.success(`Added: ${product.name}`);
+          toast.success(`Dodano: ${product.name}`);
       } catch (err: unknown) { 
           console.error(err);
-          toast.error("Error: Failed to add product");
+          toast.error("Błąd: Nie udało się dodać produktu");
       } finally {
           setIsAdding(false);
       }
@@ -62,14 +62,14 @@ function RecommendationCard({ product, setCart }: { product: RecommendedProduct,
               {fullImageUrl ? (
                   <img src={fullImageUrl} alt={product.name} className="w-full h-full object-cover" />
               ) : (
-                  <span className="text-gray-400 text-xs">No image</span>
+                  <span className="text-gray-400 text-xs">Brak zdjęcia</span>
               )}
           </div>
           <div className="p-2 flex flex-col justify-between flex-grow">
               <div>
                   <h4 className="text-sm font-semibold text-gray-800 line-clamp-2 h-10">{product.name}</h4>
                   <p className="text-xs font-bold text-green-700 mt-1">
-                      {price_gross.toFixed(2)} PLN
+                      {price_gross.toFixed(2)} zł
                   </p>
               </div>
               <button
@@ -77,7 +77,7 @@ function RecommendationCard({ product, setCart }: { product: RecommendedProduct,
                   disabled={isAdding || product.stock_quantity <= 0}
                   className="mt-2 w-full text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
               >
-                  {product.stock_quantity <= 0 ? "Out of stock" : (isAdding ? "Adding..." : "Add to cart")}
+                  {product.stock_quantity <= 0 ? "Brak" : (isAdding ? "Dodawanie..." : "Dodaj do koszyka")}
               </button>
           </div>
       </div>
@@ -109,11 +109,11 @@ function CartItemRow({ item, onUpdate, onDelete }: { item: any, onUpdate: (id: n
             <div className="flex-grow">
                 <p className="font-semibold text-gray-800">{item.name}</p>
                 <p className="text-sm font-medium text-gray-500">
-                    Price: {item.unit_price.toFixed(2)} PLN
+                    Cena: {item.unit_price.toFixed(2)} zł
                 </p>
             </div>
             <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500 mr-1">Qty:</span>
+                <span className="text-sm text-gray-500 mr-1">Ilość:</span>
                 <input 
                     type="number"
                     min="1"
@@ -125,7 +125,7 @@ function CartItemRow({ item, onUpdate, onDelete }: { item: any, onUpdate: (id: n
                 />
             </div>
             <p className="w-24 text-right font-semibold">
-                {item.line_total.toFixed(2)} PLN
+                {item.line_total.toFixed(2)} zł
             </p>
             <button
                 onClick={() => onDelete(item.id)}
@@ -154,20 +154,20 @@ export default function CartPage() {
       const res = await api.put(`/cart/items/${itemId}`, { qty: newQty });
       setCart(res.data);
     } catch {
-      toast.error("Error: Failed to update cart");
+      toast.error("Błąd: Nie udało się zaktualizować koszyka");
     }
   };
 
   const handleDeleteItem = async (itemId: number) => {
-    if (!window.confirm("Are you sure you want to remove this item from the cart?")) {
+    if (!window.confirm("Czy na pewno chcesz usunąć ten produkt z koszyka?")) {
       return;
     }
     try {
       const res = await api.delete(`/cart/items/${itemId}`);
       setCart(res.data);
-      toast.success("Item removed from cart");
+      toast.success("Produkt usunięty z koszyka");
     } catch {
-      toast.error("Error: Failed to remove item");
+      toast.error("Błąd: Nie udało się usunąć produktu");
     }
   };
   
@@ -201,7 +201,7 @@ export default function CartPage() {
             setRecommendedProducts(filteredDetails as RecommendedProduct[]);
         }
       } catch (err) {
-        console.error("Error loading recommendations:", err);
+        console.error("Błąd ładowania rekomendacji:", err);
       } finally {
         setLoadingRecs(false);
       }
@@ -211,20 +211,20 @@ export default function CartPage() {
   }, [cart]); 
 
   if (role !== "customer") {
-    return <div>Access denied</div>;
+    return <div>Brak dostępu</div>;
   }
 
   if (!cart || cart.items.length === 0) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-semibold mb-4">My Cart</h1>
+        <h1 className="text-2xl font-semibold mb-4">Mój koszyk</h1>
         <div className="bg-white p-6 rounded-lg shadow-md text-center">
-          <p className="text-gray-600">Your cart is empty.</p>
+          <p className="text-gray-600">Twój koszyk jest pusty.</p>
           <Link
             to="/"
             className="mt-4 inline-block bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700 transition"
           >
-            Back to shop
+            Wróć do sklepu
           </Link>
         </div>
       </div>
@@ -233,7 +233,7 @@ export default function CartPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">My Cart</h1>
+      <h1 className="text-2xl font-semibold mb-4">Mój koszyk</h1>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 bg-white p-6 rounded-lg shadow-md">
@@ -251,29 +251,29 @@ export default function CartPage() {
 
         <div className="md:col-span-1">
           <div className="bg-white p-6 rounded-lg shadow-md sticky top-6">
-            <h2 className="text-lg font-semibold mb-4">Summary</h2>
+            <h2 className="text-lg font-semibold mb-4">Podsumowanie</h2>
             <div className="flex justify-between text-xl font-bold mb-4">
               {/* CHANGE: Added gross information */}
-              <span>Total (gross):</span>
-              <span>{cart.total.toFixed(2)} PLN</span>
+              <span>Suma (brutto):</span>
+              <span>{cart.total.toFixed(2)} zł</span>
             </div>
             <Link
               to="/checkout"
               className="block text-center w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition"
             >
-              Proceed to checkout
+              Przejdź do kasy
             </Link>
           </div>
         </div>
       </div>
       
       {loadingRecs ? (
-          <p className="mt-8 text-center text-sm text-gray-500">Analyzing shopping patterns...</p>
+          <p className="mt-8 text-center text-sm text-gray-500">Analizowanie wzorców zakupowych...</p>
       ) : (
           recommendedProducts.length > 0 && (
               <div className="mt-8">
                   <h2 className="text-xl font-semibold mb-4 flex items-center text-blue-700">
-                      Other customers often choose:
+                      Inni klienci często wybierają:
                       <Lightbulb size={20} className="ml-2" />
                   </h2>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">

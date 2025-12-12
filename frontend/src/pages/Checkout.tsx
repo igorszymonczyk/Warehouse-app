@@ -54,17 +54,17 @@ export default function CheckoutPage() {
 
   const handlePay = async () => {
     if (!cart || cart.items.length === 0) {
-      toast.error("Cart is empty");
+      toast.error("Koszyk jest pusty");
       return;
     }
     if (!invoiceData.buyer_name || !invoiceData.street || !invoiceData.zip || !invoiceData.city) {
-      toast.error("Please fill in buyer details (Invoice)");
+      toast.error("Uzupełnij dane nabywcy (Faktura)");
       return;
     }
 
     if (!sameAsInvoice) {
         if (!shippingData.street || !shippingData.zip || !shippingData.city) {
-            toast.error("Please fill in shipping address");
+            toast.error("Uzupełnij adres dostawy");
             return;
         }
     }
@@ -90,55 +90,55 @@ export default function CheckoutPage() {
       if (redirect_url) {
         window.location.href = redirect_url;
       } else {
-        toast.success("Order accepted (test mode)");
+        toast.success("Zamówienie przyjęte (tryb testowy)");
       }
     } catch (err: any) {
       console.error(err);
-      toast.error(err.response?.data?.detail || "Error creating order");
+      toast.error(err.response?.data?.detail || "Błąd przy tworzeniu zamówienia");
     } finally {
       setLoading(false);
     }
   };
 
   if (!cart || cart.items.length === 0) {
-    return <div className="p-6 text-center">Your cart is empty.</div>;
+    return <div className="p-6 text-center">Twój koszyk jest pusty.</div>;
   }
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">Order Summary</h1>
+      <h1 className="text-2xl font-bold mb-6 text-gray-800">Podsumowanie zamówienia</h1>
       
       <div className="grid grid-cols-1 gap-6">
         
         {/* Form */}
         <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-lg font-semibold mb-4 border-b pb-2">1. Buyer Details (Invoice)</h2>
+          <h2 className="text-lg font-semibold mb-4 border-b pb-2">1. Dane Nabywcy (Faktura)</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormInput 
-              label="Company Name / Full Name" 
+              label="Nazwa firmy / Imię i Nazwisko" 
               id="buyer_name" 
               value={invoiceData.buyer_name} 
               onChange={e => setInvoiceData({...invoiceData, buyer_name: e.target.value})} 
               required 
             />
             <FormInput 
-              label="NIP/VAT ID (optional)" 
+              label="NIP (opcjonalnie)" 
               id="buyer_nip" 
               value={invoiceData.buyer_nip} 
               onChange={e => setInvoiceData({...invoiceData, buyer_nip: e.target.value})} 
             />
             
             <div className="sm:col-span-2">
-                <FormInput label="Street and number" id="street" value={invoiceData.street} onChange={e => setInvoiceData({...invoiceData, street: e.target.value})} required />
+                <FormInput label="Ulica i numer" id="street" value={invoiceData.street} onChange={e => setInvoiceData({...invoiceData, street: e.target.value})} required />
             </div>
-            <FormInput label="Zip Code" id="zip" value={invoiceData.zip} onChange={e => setInvoiceData({...invoiceData, zip: e.target.value})} required />
-            <FormInput label="City" id="city" value={invoiceData.city} onChange={e => setInvoiceData({...invoiceData, city: e.target.value})} required />
+            <FormInput label="Kod pocztowy" id="zip" value={invoiceData.zip} onChange={e => setInvoiceData({...invoiceData, zip: e.target.value})} required />
+            <FormInput label="Miasto" id="city" value={invoiceData.city} onChange={e => setInvoiceData({...invoiceData, city: e.target.value})} required />
           </div>
 
           {/* Shipping Address Section */}
           <div className="mt-6 pt-4 border-t">
             <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-green-700">2. Shipping Address</h2>
+                <h2 className="text-lg font-semibold text-green-700">2. Adres Dostawy</h2>
                 <label className="flex items-center text-sm text-gray-600 cursor-pointer">
                     <input 
                         type="checkbox" 
@@ -146,17 +146,17 @@ export default function CheckoutPage() {
                         checked={sameAsInvoice}
                         onChange={e => setSameAsInvoice(e.target.checked)}
                     />
-                    Same as invoice
+                    Taki sam jak na fakturze
                 </label>
             </div>
 
             {!sameAsInvoice && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 p-4 rounded border border-gray-200">
                     <div className="sm:col-span-2">
-                        <FormInput label="Street and number" id="ship_street" value={shippingData.street} onChange={e => setShippingData({...shippingData, street: e.target.value})} required />
+                        <FormInput label="Ulica i numer" id="ship_street" value={shippingData.street} onChange={e => setShippingData({...shippingData, street: e.target.value})} required />
                     </div>
-                    <FormInput label="Zip Code" id="ship_zip" value={shippingData.zip} onChange={e => setShippingData({...shippingData, zip: e.target.value})} required />
-                    <FormInput label="City" id="ship_city" value={shippingData.city} onChange={e => setShippingData({...shippingData, city: e.target.value})} required />
+                    <FormInput label="Kod pocztowy" id="ship_zip" value={shippingData.zip} onChange={e => setShippingData({...shippingData, zip: e.target.value})} required />
+                    <FormInput label="Miasto" id="ship_city" value={shippingData.city} onChange={e => setShippingData({...shippingData, city: e.target.value})} required />
                 </div>
             )}
           </div>
@@ -166,24 +166,24 @@ export default function CheckoutPage() {
             disabled={loading}
             className="mt-6 w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50"
           >
-            {loading ? "Processing..." : `Place order and pay (${cart.total.toFixed(2)} PLN)`}
+            {loading ? "Przetwarzanie..." : `Złóż zamówienie i zapłać (${cart.total.toFixed(2)} zł)`}
           </button>
         </div>
 
         {/* Cart Summary */}
         <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold mb-4">Your Cart</h2>
+            <h2 className="text-lg font-semibold mb-4">Twój koszyk</h2>
             <ul className="divide-y divide-gray-200 text-sm">
               {cart.items.map((item) => (
                 <li key={item.id} className="py-2 flex justify-between">
                   <span>{item.name} <span className="text-gray-500">x {item.qty}</span></span>
-                  <span className="font-semibold">{item.line_total.toFixed(2)} PLN</span>
+                  <span className="font-semibold">{item.line_total.toFixed(2)} zł</span>
                 </li>
               ))}
             </ul>
             <div className="flex justify-between text-xl font-bold mt-4 pt-4 border-t">
-              <span>Total:</span>
-              <span>{cart.total.toFixed(2)} PLN</span>
+              <span>Suma:</span>
+              <span>{cart.total.toFixed(2)} zł</span>
             </div>
         </div>
 

@@ -62,8 +62,8 @@ export default function UsersPage() {
       setData(res.data);
     } catch (err) {
       console.error(err);
-      setError("Failed to fetch users");
-      toast.error("Failed to fetch users"); 
+      setError("Nie udało się pobrać użytkowników");
+      toast.error("Nie udało się pobrać użytkowników"); 
     } finally {
       setLoading(false);
     }
@@ -92,21 +92,21 @@ export default function UsersPage() {
 
   const changeRole = async (id: number, newRole: string) => {
     if (!isValidRole(newRole)) {
-      toast.error("Unknown role");
+      toast.error("Nieznana rola");
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to change the user's role to "${newRole}"?`)) {
+    if (!window.confirm(`Czy na pewno zmienić rolę użytkownika na "${newRole}"?`)) {
        load(); 
        return;
     }
     
     try {
       await api.put(`/users/${id}/role`, { role: newRole });
-      toast.success("Role updated!");
+      toast.success("Rola została zaktualizowana!");
       load(); 
     } catch {
-      toast.error("Error changing user role");
+      toast.error("Błąd przy zmianie roli użytkownika");
     }
   };
 
@@ -116,11 +116,11 @@ export default function UsersPage() {
     setDeleteLoading(true);
     try {
       await api.delete(`/users/${userToDelete.id}`);
-      toast.success(`User ${userToDelete.email} deleted!`);
+      toast.success(`Użytkownik ${userToDelete.email} usunięty!`);
       setUserToDelete(null);
       load(); 
     } catch {
-      toast.error("Error deleting user");
+      toast.error("Błąd przy usuwaniu użytkownika");
     } finally {
       setDeleteLoading(false);
     }
@@ -130,13 +130,13 @@ export default function UsersPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">User Management</h1>
+      <h1 className="text-2xl font-semibold mb-4">Zarządzanie użytkownikami</h1>
 
       {/* FILTERS CONTAINER */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="block text-sm text-gray-700 mb-1">Search by email</label>
+            <label className="block text-sm text-gray-700 mb-1">Szukaj po e-mailu</label>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -146,22 +146,22 @@ export default function UsersPage() {
           </div>
           {/* CHANGE: Last name filter to the right of email */}
           <div>
-            <label className="block text-sm text-gray-700 mb-1">Search by last name</label>
+            <label className="block text-sm text-gray-700 mb-1">Szukaj po nazwisku</label>
             <input
               value={lastNameFilter}
               onChange={(e) => setLastNameFilter(e.target.value)}
-              placeholder="last name"
+              placeholder="nazwisko"
               className="border px-3 py-2 rounded w-64"
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-700 mb-1">Role</label>
+            <label className="block text-sm text-gray-700 mb-1">Rola</label>
             <select
               value={role || ""}
               onChange={(e) => setRole(e.target.value || undefined)}
               className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">All</option>
+              <option value="">Wszystkie</option>
               <option value="customer">customer</option>
               <option value="salesman">salesman</option>
               <option value="admin">admin</option>
@@ -171,7 +171,7 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {loading && <p>Loading…</p>}
+      {loading && <p>Ładowanie…</p>}
       {error && <p className="text-red-600">{error}</p>}
 
       {!loading && data && (
@@ -201,12 +201,12 @@ export default function UsersPage() {
                   {/* CHANGE: First Name and Last Name columns */}
                   <th className="p-3 border-b text-left" onClick={() => toggleSort("first_name")}>
                     <div className="flex items-center gap-1 cursor-pointer hover:bg-gray-200 p-1 rounded">
-                        First Name <ArrowUpDown size={14} className={sortBy === "first_name" ? (order === "asc" ? "rotate-180 text-black" : "text-black") : "text-gray-400"} />
+                        Imię <ArrowUpDown size={14} className={sortBy === "first_name" ? (order === "asc" ? "rotate-180 text-black" : "text-black") : "text-gray-400"} />
                     </div>
                   </th>
                   <th className="p-3 border-b text-left" onClick={() => toggleSort("last_name")}>
                     <div className="flex items-center gap-1 cursor-pointer hover:bg-gray-200 p-1 rounded">
-                        Last Name <ArrowUpDown size={14} className={sortBy === "last_name" ? (order === "asc" ? "rotate-180 text-black" : "text-black") : "text-gray-400"} />
+                        Nazwisko <ArrowUpDown size={14} className={sortBy === "last_name" ? (order === "asc" ? "rotate-180 text-black" : "text-black") : "text-gray-400"} />
                     </div>
                   </th>
                   <th
@@ -232,7 +232,7 @@ export default function UsersPage() {
                     onClick={() => toggleSort("role")}
                   >
                     <div className="flex items-center gap-1">
-                      Role
+                      Rola
                       <ArrowUpDown
                         size={14}
                         className={
@@ -245,7 +245,7 @@ export default function UsersPage() {
                       />
                     </div>
                   </th>
-                  <th className="p-3 border-b text-center w-24">Actions</th>
+                  <th className="p-3 border-b text-center w-24">Akcje</th>
                 </tr>
               </thead>
               <tbody>
@@ -272,7 +272,7 @@ export default function UsersPage() {
                         <button
                           onClick={() => setUserToDelete(u)}
                           className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                          title="Delete user"
+                          title="Usuń użytkownika"
                         >
                           <Trash2 size={18} />
                         </button>
@@ -289,17 +289,17 @@ export default function UsersPage() {
               disabled={page === 1}
               onClick={() => setPage((p) => p - 1)}
             >
-              Previous
+              Poprzednia
             </button>
             <span className="text-sm font-medium">
-              Page {page} of {totalPages}
+              Strona {page} z {totalPages}
             </span>
             <button
               className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50 text-sm"
               disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
             >
-              Next
+              Następna
             </button>
           </div>
         </>

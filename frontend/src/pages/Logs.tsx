@@ -58,7 +58,7 @@ export default function LogsPage() {
         setTotal(res.data.total);
       } catch (err) {
         console.error(err);
-        toast.error("Failed to fetch logs");
+        toast.error("Nie udało się pobrać logów");
       } finally {
         setLoading(false);
       }
@@ -77,7 +77,7 @@ export default function LogsPage() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold">
-            System Logs
+            Logi Systemowe
         </h1>
       </div>
 
@@ -86,10 +86,10 @@ export default function LogsPage() {
           
           
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">User ID</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">ID Użytkownika</label>
             <input 
                 type="number" 
-                placeholder="e.g. 12"
+                placeholder="np. 12"
                 className="border rounded px-3 py-2 w-32 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
                 value={searchUserId}
                 onChange={(e) => {setSearchUserId(e.target.value); setPage(1);}}
@@ -98,10 +98,10 @@ export default function LogsPage() {
 
          
           <div className="relative">
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Action</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Akcja</label>
             <input 
                 type="text" 
-                placeholder="e.g. LOGIN"
+                placeholder="np. LOGIN"
                 className="border rounded pl-8 pr-3 py-2 w-40 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
                 value={searchAction}
                 onChange={(e) => {setSearchAction(e.target.value); setPage(1);}}
@@ -111,10 +111,10 @@ export default function LogsPage() {
 
          
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Resource</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Zasób</label>
             <input 
                 type="text" 
-                placeholder="e.g. auth"
+                placeholder="np. auth"
                 className="border rounded px-3 py-2 w-32 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
                 value={searchResource}
                 onChange={(e) => {setSearchResource(e.target.value); setPage(1);}}
@@ -129,7 +129,7 @@ export default function LogsPage() {
                 value={searchStatus}
                 onChange={(e) => {setSearchStatus(e.target.value); setPage(1);}}
             >
-                <option value="">All</option>
+                <option value="">Wszystkie</option>
                 <option value="SUCCESS">SUCCESS</option>
                 <option value="FAIL">FAIL</option>
             </select>
@@ -137,7 +137,7 @@ export default function LogsPage() {
 
         
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Date From</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Data od</label>
             <input 
                 type="date"
                 className="border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -147,7 +147,7 @@ export default function LogsPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Date To</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Data do</label>
             <input 
                 type="date"
                 className="border rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -164,30 +164,30 @@ export default function LogsPage() {
             <tr>
             
               <th className="px-4 py-3">ID</th>
-              <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3">User (ID)</th>
-              <th className="px-4 py-3">Action</th>
-              <th className="px-4 py-3">Resource</th>
+              <th className="px-4 py-3">Data</th>
+              <th className="px-4 py-3">Użytkownik (ID)</th>
+              <th className="px-4 py-3">Akcja</th>
+              <th className="px-4 py-3">Zasób</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">IP</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {loading ? (
-                <tr><td colSpan={7} className="p-4 text-center text-gray-500">Loading...</td></tr>
+                <tr><td colSpan={7} className="p-4 text-center text-gray-500">Ładowanie...</td></tr>
             ) : logs.length === 0 ? (
-                <tr><td colSpan={7} className="p-4 text-center text-gray-500">No logs found matching criteria</td></tr>
+                <tr><td colSpan={7} className="p-4 text-center text-gray-500">Brak logów spełniających kryteria</td></tr>
             ) : (
                 logs.map((log) => (
                 <tr key={log.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 font-mono text-gray-500">{log.id}</td>
                     
                     <td className="px-4 py-3 text-gray-800 whitespace-nowrap">
-                        {new Date(log.ts).toLocaleString("en-GB")}
+                        {new Date(log.ts).toLocaleString("pl-PL")}
                     </td>
 
                     <td className="px-4 py-3">
-                        {log.user_id ? <span className="font-bold text-blue-600">#{log.user_id}</span> : <span className="text-gray-400 italic">Guest</span>}
+                        {log.user_id ? <span className="font-bold text-blue-600">#{log.user_id}</span> : <span className="text-gray-400 italic">Gość</span>}
                     </td>
                     
                     <td className="px-4 py-3 font-semibold text-gray-800">{log.action}</td>
@@ -218,17 +218,17 @@ export default function LogsPage() {
           disabled={page === 1 || loading}
           className="px-4 py-2 border rounded disabled:opacity-50 bg-white hover:bg-gray-50 text-sm"
         >
-          Previous
+          Poprzednia
         </button>
         <span className="text-gray-600 text-sm">
-          Page {page} of {totalPages}
+          Strona {page} z {totalPages}
         </span>
         <button
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           disabled={page >= totalPages || loading}
           className="px-4 py-2 border rounded disabled:opacity-50 bg-white hover:bg-gray-50 text-sm"
         >
-          Next
+          Następna
         </button>
       </div>
     </div>

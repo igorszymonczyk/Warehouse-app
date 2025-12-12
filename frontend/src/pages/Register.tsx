@@ -25,29 +25,29 @@ export default function RegisterPage() {
     // Password validation
 
     if (password.length < 8) {
-      toast.error("Password must be at least 8 characters long.");
+      toast.error("Hasło musi mieć co najmniej 8 znaków.");
       setLoading(false);
       return;
     }
    
     if (!/[A-Z]/.test(password)) {
-      toast.error("Password must contain at least one uppercase letter.");
+      toast.error("Hasło musi zawierać co najmniej jedną dużą literę.");
       setLoading(false);
       return;
     }
     
     if (!/[0-9]/.test(password)) {
-      toast.error("Password must contain at least one number.");
+      toast.error("Hasło musi zawierać co najmniej jedną cyfrę.");
       setLoading(false);
       return;
     }
     if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-      toast.error("Password must contain at least one special character (e.g., !@#$).");
+      toast.error("Hasło musi zawierać co najmniej jeden znak specjalny (np. !@#$).");
       setLoading(false);
       return;
     }
     if (password !== confirmPassword) {
-      toast.error("Passwords do not match.");
+      toast.error("Hasła nie są zgodne.");
       setLoading(false);
       return;
     }
@@ -60,7 +60,7 @@ export default function RegisterPage() {
         first_name,
         last_name,
       });
-      toast.success("Registration successful! You can now log in.");
+      toast.success("Rejestracja zakończona sukcesem! Możesz się teraz zalogować.");
       navigate("/login");
     } catch (err) {
       toast.error(toMessage(err));
@@ -72,20 +72,20 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen grid place-items-center bg-gray-50">
       <form onSubmit={onSubmit} className="w-full max-w-md bg-white p-6 rounded shadow">
-        <h1 className="text-xl mb-4 font-semibold">Register</h1>
+        <h1 className="text-xl mb-4 font-semibold">Rejestracja</h1>
 
         <input
           className="border rounded w-full p-2 mb-3"
           value={first_name}
           onChange={(e) => setFirst_name(e.target.value)}
-          placeholder="First Name"
+          placeholder="Imię"
           required
         />
         <input
           className="border rounded w-full p-2 mb-3"
           value={last_name}
           onChange={(e) => setLast_name(e.target.value)}
-          placeholder="Last Name"
+          placeholder="Nazwisko"
           required
         />
         <input
@@ -104,7 +104,7 @@ export default function RegisterPage() {
             type={showPassword ? "text" : "password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password (min. 8 chars, A-Z, 0-9, !@#)"
+            placeholder="Hasło (min. 8 znaków, A-Z, 0-9, !@#)"
             required
           />
           <button
@@ -123,7 +123,7 @@ export default function RegisterPage() {
             type={showConfirmPassword ? "text" : "password"}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Confirm Password"
+            placeholder="Potwierdź hasło"
             required
           />
           <button
@@ -140,13 +140,13 @@ export default function RegisterPage() {
           disabled={loading}
           className="w-full px-3 py-2 rounded bg-black text-white disabled:opacity-60"
         >
-          {loading ? "Registering..." : "Register"}
+          {loading ? "Rejestrowanie..." : "Zarejestruj się"}
         </button>
 
         <p className="text-center mt-4 text-sm">
-          Already have an account?{" "}
+          Masz już konto?{" "}
           <Link to="/login" className="text-blue-600 hover:underline">
-            Log in
+            Zaloguj się
           </Link>
         </p>
       </form>

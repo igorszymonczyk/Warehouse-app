@@ -19,7 +19,7 @@ export default function InvoiceDetailPage() {
         setInvoice(res.data);
       } catch (err) {
         console.error(err);
-        toast.error("Failed to load invoice details");
+        toast.error("Nie udało się pobrać szczegółów faktury");
         navigate("/invoices");
       } finally {
         setLoading(false);
@@ -31,7 +31,7 @@ export default function InvoiceDetailPage() {
   const downloadPdf = async () => {
       if (!invoice) return;
       setDownloading(true);
-      const toastId = toast.loading("Downloading PDF...");
+      const toastId = toast.loading("Pobieranie PDF...");
       try {
         await api.post(`/invoices/${invoice.id}/pdf`);
         const res = await api.get(`/invoices/${invoice.id}/download`, { responseType: 'blob' });
@@ -39,21 +39,21 @@ export default function InvoiceDetailPage() {
         const link = document.createElement('a');
         link.href = url;
         // Adjust filename for download
-        link.setAttribute('download', `Invoice-${invoice.full_number.replace('/', '_')}.pdf`);
+        link.setAttribute('download', `Faktura-INV-${invoice.id}.pdf`);
         document.body.appendChild(link);
         link.click();
         link.remove();
         window.URL.revokeObjectURL(url);
-        toast.success("PDF Downloaded", { id: toastId });
+        toast.success("Pobrano PDF", { id: toastId });
       } catch (err) {
         console.error(err);
-        toast.error("Error downloading PDF", { id: toastId });
+        toast.error("Błąd pobierania PDF", { id: toastId });
       } finally {
         setDownloading(false);
       }
   };
 
-  if (loading) return <div className="p-6 text-gray-500">Loading...</div>;
+  if (loading) return <div className="p-6 text-gray-500">Ładowanie...</div>;
   if (!invoice) return null;
 
   const isCorrection = invoice.is_correction;
@@ -65,16 +65,16 @@ export default function InvoiceDetailPage() {
         className="flex items-center text-gray-600 mb-6 hover:text-black transition-colors"
       >
         <ArrowLeft size={18} className="mr-1" />
-        Back to list
+        Powrót do listy
       </button>
 
       {isCorrection && (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r shadow-sm flex items-start gap-3">
           <AlertCircle className="text-yellow-600 mt-0.5" />
           <div>
-            <h3 className="font-bold text-yellow-800">This is a correction invoice</h3>
+            <h3 className="font-bold text-yellow-800">To jest faktura korygująca</h3>
             <p className="text-sm text-yellow-700 mt-1">
-              Related to Invoice ID: <span 
+              Dotyczy faktury o ID: <span 
                 className="font-medium underline cursor-pointer hover:text-yellow-900"
                 onClick={() => navigate(`/invoices/${invoice.parent_id}`)}
               >
@@ -83,7 +83,7 @@ export default function InvoiceDetailPage() {
             </p>
             {invoice.correction_reason && (
               <p className="text-sm text-yellow-800 mt-2">
-                <strong>Correction Reason:</strong> {invoice.correction_reason}
+                <strong>Powód korekty:</strong> {invoice.correction_reason}
               </p>
             )}
           </div>
@@ -94,12 +94,12 @@ export default function InvoiceDetailPage() {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              {isCorrection ? "CORRECTION" : "Invoice"} {invoice.full_number}
+              {isCorrection ? "KOREKTA" : "Faktura"} {invoice.full_number}
             </h1>
             <p className="text-gray-500 text-sm">
-              Issue Date: {new Date(invoice.created_at).toLocaleString("en-GB")}
+              Data wystawienia: {new Date(invoice.created_at).toLocaleString("pl-PL")}
             </p>
-            <p className="text-gray-400 text-xs mt-1">System ID: {invoice.id}</p>
+            <p className="text-gray-400 text-xs mt-1">ID systemowe: {invoice.id}</p>
           </div>
           <button
             onClick={downloadPdf}
@@ -107,17 +107,17 @@ export default function InvoiceDetailPage() {
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
           >
             <Download size={18} />
-            {downloading ? "Downloading..." : "Download PDF"}
+            {downloading ? "Pobieranie..." : "Pobierz PDF"}
           </button>
         </div>
 
         <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* BUYER */}
           <div>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Buyer (Invoice)</h3>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Nabywca (Faktura)</h3>
             <div className="text-gray-900 font-medium text-lg">{invoice.buyer_name}</div>
             <div className="text-gray-600">
-              {invoice.buyer_nip && <p>NIP/VAT ID: {invoice.buyer_nip}</p>}
+              {invoice.buyer_nip && <p>NIP: {invoice.buyer_nip}</p>}
               {invoice.buyer_address && <p>{invoice.buyer_address}</p>}
             </div>
           </div>
@@ -126,28 +126,28 @@ export default function InvoiceDetailPage() {
           <div className="md:text-right">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center md:justify-end gap-1">
                <Truck size={14} />
-               Shipping Address
+               Adres Dostawy
             </h3>
             <div className="text-gray-700 font-medium bg-gray-50 p-3 rounded inline-block text-left">
                 {invoice.shipping_address ? (
                     <span className="whitespace-pre-wrap">{invoice.shipping_address}</span>
                 ) : (
-                    <span className="italic text-gray-400">Same as buyer</span>
+                    <span className="italic text-gray-400">Taki sam jak nabywcy</span>
                 )}
             </div>
             
             <div className="mt-4 space-y-1">
               <div className="flex justify-end gap-4 text-gray-600">
-                <span>Net Total:</span>
-                <span className="font-medium">{invoice.total_net.toFixed(2)} PLN</span>
+                <span>Suma Netto:</span>
+                <span className="font-medium">{invoice.total_net.toFixed(2)} zł</span>
               </div>
               <div className="flex justify-end gap-4 text-gray-600">
-                <span>VAT Total:</span>
-                <span className="font-medium">{invoice.total_vat.toFixed(2)} PLN</span>
+                <span>Suma VAT:</span>
+                <span className="font-medium">{invoice.total_vat.toFixed(2)} zł</span>
               </div>
               <div className="flex justify-end gap-4 text-xl font-bold text-gray-900 mt-2 border-t pt-2">
-                <span>Total Due:</span>
-                <span>{invoice.total_gross.toFixed(2)} PLN</span>
+                <span>Do zapłaty:</span>
+                <span>{invoice.total_gross.toFixed(2)} zł</span>
               </div>
             </div>
           </div>
@@ -157,16 +157,16 @@ export default function InvoiceDetailPage() {
       {/* ITEMS TABLE */}
       <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
         <div className="bg-gray-50 px-6 py-3 border-b">
-          <h3 className="font-semibold text-gray-700">Document Items</h3>
+          <h3 className="font-semibold text-gray-700">Pozycje na dokumencie</h3>
         </div>
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-gray-500">
             <tr>
-              <th className="px-6 py-3 text-left font-medium">Product</th>
-              <th className="px-6 py-3 text-right font-medium">Net Price</th>
+              <th className="px-6 py-3 text-left font-medium">Produkt</th>
+              <th className="px-6 py-3 text-right font-medium">Cena Netto</th>
               <th className="px-6 py-3 text-right font-medium">VAT</th>
-              <th className="px-6 py-3 text-right font-medium">Qty</th>
-              <th className="px-6 py-3 text-right font-medium">Gross Value</th>
+              <th className="px-6 py-3 text-right font-medium">Ilość</th>
+              <th className="px-6 py-3 text-right font-medium">Wartość Brutto</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">

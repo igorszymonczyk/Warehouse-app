@@ -38,7 +38,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen grid place-items-center bg-gray-50">
       <form onSubmit={onSubmit} className="w-full max-w-md bg-white p-6 rounded shadow">
-        <h1 className="text-xl mb-4">Login</h1>
+        <h1 className="text-xl mb-4">Logowanie</h1>
 
         <input
           className="border rounded w-full p-2 mb-4"
@@ -54,7 +54,7 @@ export default function LoginPage() {
             type={showPassword ? "text" : "password"} // Dynamic type
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
+            placeholder="Hasło"
           />
           <button
             type="button" // Important: prevent form submission
@@ -72,12 +72,12 @@ export default function LoginPage() {
           disabled={loading}
           className="w-full px-3 py-2 rounded bg-black text-white disabled:opacity-60"
         >
-          {loading ? "Logging in..." : "Login"}
+          {loading ? "Logowanie..." : "Zaloguj"}
         </button>
         <p className="text-center mt-4 text-sm">
-          Don't have an account?{" "}
+          Nie masz konta?{" "}
            <Link to="/register" className="text-blue-600 hover:underline">
-          Register
+          Zarejestruj się
            </Link>
         </p>
       </form>

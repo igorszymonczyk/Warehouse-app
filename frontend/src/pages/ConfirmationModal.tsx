@@ -20,7 +20,7 @@ export default function ConfirmationModal({
   onConfirm,
   title,
   children,
-  confirmText = "Confirm",
+  confirmText = "Potwierdź",
   confirmVariant = "primary",
   isLoading = false,
 }: Props) {
@@ -67,14 +67,14 @@ export default function ConfirmationModal({
             disabled={isLoading}
             className={`${baseButton} bg-gray-200 hover:bg-gray-300 text-gray-800`}
           >
-            Cancel
+            Anuluj
           </button>
           <button
             onClick={onConfirm}
             disabled={isLoading}
             className={confirmClass}
           >
-            {isLoading ? "Processing..." : confirmText}
+            {isLoading ? "Przetwarzanie..." : confirmText}
           </button>
         </div>
       </div>

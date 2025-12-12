@@ -20,7 +20,7 @@ export default function CompanyDataModal({ open, onClose }: Props) {
         }
       } catch (err) {
         console.error(err);
-        toast.error("Failed to fetch company data");
+        toast.error("Nie udało się pobrać danych firmy");
       } finally {
         setLoading(false);
       }
@@ -32,11 +32,11 @@ export default function CompanyDataModal({ open, onClose }: Props) {
     try {
       setLoading(true);
       await api.patch("/company/", company);
-      toast.success("Company details saved");
+      toast.success("Dane firmy zapisane");
       onClose();
     } catch (err) {
       console.error(err);
-      toast.error("Error saving company details");
+      toast.error("Błąd zapisu danych firmy");
     } finally {
       setLoading(false);
     }
@@ -47,22 +47,22 @@ export default function CompanyDataModal({ open, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded p-6 w-full max-w-lg">
-        <h3 className="text-lg font-semibold mb-4">Company Details (for Invoices)</h3>
+        <h3 className="text-lg font-semibold mb-4">Dane firmy (na fakturze)</h3>
         <div className="space-y-3">
           <div>
-            <label className="block text-sm">Company Name</label>
+            <label className="block text-sm">Nazwa firmy</label>
             <input className="border px-2 py-1 w-full" value={company.name} onChange={(e) => setCompany({ ...company, name: e.target.value })} />
           </div>
           <div>
-            <label className="block text-sm">NIP/VAT ID</label>
+            <label className="block text-sm">NIP</label>
             <input className="border px-2 py-1 w-full" value={company.nip} onChange={(e) => setCompany({ ...company, nip: e.target.value })} />
           </div>
           <div>
-            <label className="block text-sm">Address</label>
+            <label className="block text-sm">Adres</label>
             <textarea className="border px-2 py-1 w-full" rows={3} value={company.address} onChange={(e) => setCompany({ ...company, address: e.target.value })} />
           </div>
           <div>
-            <label className="block text-sm">Phone</label>
+            <label className="block text-sm">Telefon</label>
             <input className="border px-2 py-1 w-full" value={company.phone || ""} onChange={(e) => setCompany({ ...company, phone: e.target.value })} />
           </div>
           <div>
@@ -72,8 +72,8 @@ export default function CompanyDataModal({ open, onClose }: Props) {
         </div>
 
         <div className="mt-4 flex justify-end gap-3">
-          <button className="px-3 py-1 border rounded" onClick={onClose} disabled={loading}>Cancel</button>
-          <button className="px-3 py-1 bg-blue-600 text-white rounded" onClick={save} disabled={loading}>Save</button>
+          <button className="px-3 py-1 border rounded" onClick={onClose} disabled={loading}>Anuluj</button>
+          <button className="px-3 py-1 bg-blue-600 text-white rounded" onClick={save} disabled={loading}>Zapisz</button>
         </div>
       </div>
     </div>

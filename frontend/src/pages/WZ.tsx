@@ -52,8 +52,8 @@ function WZDetailView({ docId, onBack, onChangeStatus }: { docId: number, onBack
             setError(null);
         } catch (err) {
             console.error(err);
-            setError("Failed to fetch WZ details.");
-            toast.error("Error loading document details.");
+            setError("Nie udało się pobrać szczegółów WZ.");
+            toast.error("Błąd ładowania szczegółów dokumentu.");
         } finally {
             setLoading(false);
         }
@@ -68,7 +68,7 @@ function WZDetailView({ docId, onBack, onChangeStatus }: { docId: number, onBack
         fetchDetail();
     };
 
-    if (loading) return <div className="p-6 text-center"><Loader2 className="animate-spin inline mr-2" size={20} /> Loading WZ #{docId} details...</div>;
+    if (loading) return <div className="p-6 text-center"><Loader2 className="animate-spin inline mr-2" size={20} /> Ładowanie szczegółów WZ #{docId}...</div>;
     if (error) return <div className="text-red-600 mb-4">{error}</div>;
     if (!detail) return null;
     
@@ -77,10 +77,10 @@ function WZDetailView({ docId, onBack, onChangeStatus }: { docId: number, onBack
     return (
         <div className="p-6 bg-white shadow-lg rounded-lg">
             <button onClick={onBack} className="flex items-center text-blue-600 hover:underline mb-4">
-                <ArrowLeft size={16} className="mr-2" /> Back to list
+                <ArrowLeft size={16} className="mr-2" /> Wróć do listy
             </button>
             <div className="flex justify-between items-start border-b pb-4 mb-4">
-                <h1 className="text-2xl font-bold">Delivery Note Details WZ-{detail.id}</h1>
+                <h1 className="text-2xl font-bold">Szczegóły Wydania WZ-{detail.id}</h1>
                  <span className={`px-3 py-1 rounded-full text-sm font-bold 
                         ${detail.status === 'RELEASED' ? 'bg-green-100 text-green-800' : 
                           detail.status === 'CANCELLED' ? 'bg-red-100 text-red-800' : 
@@ -92,24 +92,24 @@ function WZDetailView({ docId, onBack, onChangeStatus }: { docId: number, onBack
             
             <div className="grid grid-cols-2 gap-4 text-sm mb-6 bg-gray-50 p-4 rounded">
                 <div>
-                    <p className="text-gray-500">Recipient:</p>
+                    <p className="text-gray-500">Odbiorca:</p>
                     <p className="font-semibold text-lg">{detail.buyer_name}</p>
                 </div>
                 <div>
-                    <p className="text-gray-500">Creation Date:</p>
-                    <p className="font-semibold">{detail.created_at ? new Date(detail.created_at).toLocaleString("en-GB") : "No date"}</p>
+                    <p className="text-gray-500">Data Utworzenia:</p>
+                    <p className="font-semibold">{detail.created_at ? new Date(detail.created_at).toLocaleString("pl-PL") : "Brak daty"}</p>
                 </div>
                 
                 {detail.shipping_address && (
                     <div className="col-span-2 border-t pt-2 mt-2">
-                        <p className="text-gray-500">Delivery Address:</p>
+                        <p className="text-gray-500">Adres Dostawy:</p>
                         <p className="font-semibold text-gray-800 whitespace-pre-wrap">{detail.shipping_address}</p>
                     </div>
                 )}
                 
                 <div>
-                    <p className="text-gray-500">Linked Invoice ID:</p>
-                    <p className="font-semibold">{detail.invoice_id ? `INV-${detail.invoice_id}` : 'None (Created from Order)'}</p>
+                    <p className="text-gray-500">ID Faktury powiązanej:</p>
+                    <p className="font-semibold">{detail.invoice_id ? `INV-${detail.invoice_id}` : 'Brak (Utworzono z Zamówienia)'}</p>
                 </div>
             </div>
 
@@ -120,7 +120,7 @@ function WZDetailView({ docId, onBack, onChangeStatus }: { docId: number, onBack
                         onClick={() => handleStatusChange('IN_PROGRESS')}
                         className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition shadow"
                     >
-                        Start Picking
+                        Rozpocznij kompletację
                     </button>
                 )}
                 {detail.status === 'IN_PROGRESS' && (
@@ -128,7 +128,7 @@ function WZDetailView({ docId, onBack, onChangeStatus }: { docId: number, onBack
                         onClick={() => handleStatusChange('RELEASED')}
                         className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition shadow"
                     >
-                        Release Goods (Finish)
+                        Wydaj towar (Zakończ)
                     </button>
                 )}
                 {isEditable && (
@@ -136,19 +136,19 @@ function WZDetailView({ docId, onBack, onChangeStatus }: { docId: number, onBack
                         onClick={() => handleStatusChange('CANCELLED')}
                         className="bg-red-100 text-red-700 border border-red-200 px-4 py-2 rounded hover:bg-red-200 transition ml-auto"
                     >
-                        Cancel Document
+                        Anuluj dokument
                     </button>
                 )}
             </div>
 
-            <h2 className="text-xl font-semibold mb-3">Product List</h2>
+            <h2 className="text-xl font-semibold mb-3">Lista Produktów do Wydania</h2>
             <table className="w-full text-sm border rounded-lg overflow-hidden">
                 <thead className="bg-gray-100">
                     <tr>
-                        <th className="p-3 text-left font-semibold">Product Name</th>
-                        <th className="p-3 text-left font-semibold">Code</th>
-                        <th className="p-3 text-right font-semibold">Qty</th>
-                        <th className="p-3 text-right font-semibold">Location</th>
+                        <th className="p-3 text-left font-semibold">Nazwa Produktu</th>
+                        <th className="p-3 text-left font-semibold">Kod</th>
+                        <th className="p-3 text-right font-semibold">Ilość</th>
+                        <th className="p-3 text-right font-semibold">Lokalizacja</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -196,7 +196,7 @@ export default function WZPage() {
           const res = await api.get<{ total: number }>("/warehouse-documents/active-count");
           setActiveCount(res.data.total);
       } catch (err) {
-          console.error("Error fetching WZ counter", err);
+          console.error("Błąd pobierania licznika WZ", err);
       }
   }, []);
 
@@ -218,7 +218,7 @@ export default function WZPage() {
 
   const load = useCallback(async () => {
     if (fromDt && toDt && new Date(toDt) < new Date(fromDt)) {
-      setError("'To' date cannot be earlier than 'From' date");
+      setError("Data 'do' nie może być wcześniejsza niż 'od'");
       return;
     }
     if (currentDocId) return; 
@@ -241,8 +241,8 @@ export default function WZPage() {
       setRows(res.data.items ?? []);
       setTotal(res.data.total ?? 0);
     } catch {
-      setError("Failed to fetch WZ documents");
-      toast.error("Error loading WZ list");
+      setError("Nie udało się pobrać dokumentów WZ");
+      toast.error("Błąd ładowania listy WZ");
     } finally {
       setLoading(false);
     }
@@ -276,14 +276,14 @@ export default function WZPage() {
   const changeStatus = async (id: number, newStatus: WZStatus) => {
     try {
       await api.patch(`/warehouse-documents/${id}/status`, { status: newStatus });
-      toast.success(`WZ ${id} status changed to ${newStatus}`);
+      toast.success(`Status WZ ${id} zmieniony na ${newStatus}`);
       
       setRows((r) => r.map((x) => (x.id === id ? { ...x, status: newStatus } : x)));
       
       // Refresh counter after status change
       await fetchActiveCount(); 
     } catch {
-      toast.error("Failed to change status");
+      toast.error("Nie udało się zmienić statusu");
     }
   };
 
@@ -291,7 +291,7 @@ export default function WZPage() {
     if (downloadingId === id) return;
     
     setDownloadingId(id);
-    const toastId = toast.loading("Generating and downloading WZ...");
+    const toastId = toast.loading("Generowanie i pobieranie WZ...");
 
     try {
         await api.post(`/warehouse-documents/${id}/pdf`);
@@ -309,10 +309,10 @@ export default function WZPage() {
         link.remove();
         window.URL.revokeObjectURL(url);
         
-        toast.success("WZ Document downloaded!", { id: toastId });
+        toast.success("Dokument WZ pobrany!", { id: toastId });
     } catch (err) {
         console.error(err);
-        toast.error("Failed to download PDF file", { id: toastId });
+        toast.error("Nie udało się pobrać pliku PDF", { id: toastId });
     } finally {
         setDownloadingId(null);
     }
@@ -326,7 +326,7 @@ export default function WZPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-semibold mb-4">Warehouse Documents (WZ)</h1>
+      <h1 className="text-xl font-semibold mb-4">Wydania zewnętrzne (WZ)</h1>
 
       {/* Status Box */}
       <div className={`mb-6 p-4 rounded-lg shadow-sm border flex items-center justify-between ${activeCount > 0 ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'}`}>
@@ -336,10 +336,10 @@ export default function WZPage() {
               </div>
               <div>
                   <h3 className="font-semibold text-lg text-gray-800">
-                      {activeCount > 0 ? "Warehouse Action Required" : "No Pending Actions"}
+                      {activeCount > 0 ? "Wymagana akcja magazynu" : "Brak zaległości"}
                   </h3>
                   <p className="text-sm text-gray-600">
-                      WZ documents pending or in progress: <span className="font-bold text-lg ml-1">{activeCount}</span>
+                      Dokumenty WZ oczekujące lub w trakcie realizacji: <span className="font-bold text-lg ml-1">{activeCount}</span>
                   </p>
               </div>
           </div>
@@ -348,7 +348,7 @@ export default function WZPage() {
                 onClick={() => { setStatus("NEW"); setPage(1); }}
                 className="px-4 py-2 bg-white border border-orange-300 text-orange-700 font-medium rounded hover:bg-orange-50 transition"
               >
-                  Show New
+                  Pokaż nowe
               </button>
           )}
       </div>
@@ -357,11 +357,11 @@ export default function WZPage() {
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="block text-sm text-gray-700 mb-1">Recipient</label>
+            <label className="block text-sm text-gray-700 mb-1">Odbiorca</label>
             <input
               value={buyer}
               onChange={(e) => setBuyer(e.target.value)}
-              placeholder="Recipient Name"
+              placeholder="Nazwa odbiorcy"
               className="border px-3 py-2 rounded w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -372,15 +372,15 @@ export default function WZPage() {
               onChange={(e) => setStatus(e.target.value)}
               className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">All</option>
-              <option value="NEW">New</option>
-              <option value="IN_PROGRESS">In Progress</option>
-              <option value="RELEASED">Released</option>
-              <option value="CANCELLED">Cancelled</option>
+              <option value="">Wszystkie</option>
+              <option value="NEW">Nowy</option>
+              <option value="IN_PROGRESS">W trakcie realizacji</option>
+              <option value="RELEASED">Wydane</option>
+              <option value="CANCELLED">Anulowany</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm text-gray-700 mb-1">Date From</label>
+            <label className="block text-sm text-gray-700 mb-1">Data od</label>
             <input
               type="date"
               value={fromDt}
@@ -389,7 +389,7 @@ export default function WZPage() {
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-700 mb-1">Date To</label>
+            <label className="block text-sm text-gray-700 mb-1">Data do</label>
             <input
               type="date"
               value={toDt}
@@ -401,7 +401,7 @@ export default function WZPage() {
       </div>
 
       {error && <div className="text-red-600 mb-2">{error}</div>}
-      {loading && <div>Loading...</div>}
+      {loading && <div>Ładowanie...</div>}
 
       {/* TABLE */}
       <div className="overflow-x-auto border rounded shadow-sm">
@@ -416,7 +416,7 @@ export default function WZPage() {
               </th>
               <th className="p-3 border-r cursor-pointer select-none hover:bg-gray-200" onClick={() => toggleSort("buyer_name")}>
                 <div className="flex items-center gap-1 font-semibold text-gray-700">
-                    Recipient 
+                    Odbiorca 
                     <ArrowUpDown size={14} className={sortBy === "buyer_name" ? "text-blue-600" : "text-gray-400"}/>
                 </div>
               </th>
@@ -428,11 +428,11 @@ export default function WZPage() {
               </th>
               <th className="p-3 border-r font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-200" onClick={() => toggleSort("created_at")}>
                   <div className="flex items-center gap-1 font-semibold text-gray-700">
-                    Date
+                    Data
                     <ArrowUpDown size={14} className={sortBy === "created_at" ? "text-blue-600" : "text-gray-400"}/>
                   </div>
               </th>
-              <th className="p-3 font-semibold text-center text-gray-700">Actions</th>
+              <th className="p-3 font-semibold text-center text-gray-700">Akcje</th>
             </tr>
           </thead>
           <tbody>
@@ -460,15 +460,15 @@ export default function WZPage() {
                           changeStatus(r.id, e.target.value as WzItem["status"])
                         }
                       >
-                        <option value="NEW">New</option>
-                        <option value="IN_PROGRESS">In Progress</option>
-                        <option value="RELEASED">Released</option>
-                        <option value="CANCELLED">Cancelled</option>
+                        <option value="NEW">Nowy</option>
+                        <option value="IN_PROGRESS">W trakcie</option>
+                        <option value="RELEASED">Wydane</option>
+                        <option value="CANCELLED">Anulowany</option>
                       </select>
                   </div>
                 </td>
                 <td className="p-3 border-r text-gray-600">
-                    {new Date(r.created_at).toLocaleString("en-GB")}
+                    {new Date(r.created_at).toLocaleString("pl-PL")}
                 </td>
                 <td className="p-3 border-r text-center">
                     <button
@@ -482,12 +482,12 @@ export default function WZPage() {
                             ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
                             : "bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
                             }`}
-                        title="Download PDF"
+                        title="Pobierz PDF"
                     >
                         {downloadingId === r.id ? (
                             <>
                                 <Loader2 size={14} className="animate-spin" />
-                                Downloading...
+                                Pobieranie...
                             </>
                         ) : (
                             <>
@@ -502,7 +502,7 @@ export default function WZPage() {
             {!loading && rows.length === 0 && (
               <tr>
                 <td colSpan={5} className="p-8 text-center text-gray-500">
-                  No WZ documents found.
+                  Brak dokumentów WZ.
                 </td>
               </tr>
             )}
@@ -517,17 +517,17 @@ export default function WZPage() {
           disabled={page === 1}
           onClick={() => setPage((p) => p - 1)}
         >
-          Previous
+          Poprzednia
         </button>
         <span className="text-sm font-medium text-gray-700">
-          Page {page} of {totalPages}
+          Strona {page} z {totalPages}
         </span>
         <button
           className="border rounded px-4 py-2 disabled:opacity-50 hover:bg-gray-50 text-sm"
           disabled={page >= totalPages}
           onClick={() => setPage((p) => p + 1)}
         >
-          Next
+          Następna
         </button>
       </div>
     </div>

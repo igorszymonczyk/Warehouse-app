@@ -41,11 +41,11 @@ function ProductCard({ product }: { product: Product }) {
     
   const handleAddToCart = async () => {
     if (quantity < 1) {
-        toast.error("Quantity must be at least 1");
+        toast.error("Ilość musi być co najmniej 1");
         return;
     }
     if (quantity > product.stock_quantity) {
-        toast.error(`Maximum available quantity is ${product.stock_quantity}`);
+        toast.error(`Maksymalna dostępna ilość to ${product.stock_quantity}`);
         return;
     }
 
@@ -56,11 +56,11 @@ function ProductCard({ product }: { product: Product }) {
         qty: quantity,
       });
       setCart(res.data);
-      toast.success(`Added to cart: ${quantity}x ${product.name}`);
+      toast.success(`Dodano do koszyka: ${quantity}x ${product.name}`);
       setQuantity(1); // Reset after adding
     } catch (err: unknown) {
       console.error(err);
-      let msg = "Failed to add product"; 
+      let msg = "Nie udało się dodać produktu"; 
       if (typeof err === 'object' && err !== null && 'response' in err) {
         const response = (err as { response?: { data?: { detail?: string } } }).response;
         if (response?.data?.detail) {
@@ -93,7 +93,7 @@ function ProductCard({ product }: { product: Product }) {
             loading="lazy"
           />
         ) : (
-          <span className="text-gray-400 text-sm">No image</span>
+          <span className="text-gray-400 text-sm">Brak zdjęcia</span>
         )}
       </div>
       
@@ -101,18 +101,18 @@ function ProductCard({ product }: { product: Product }) {
         <h3 className="text-md font-semibold text-gray-800 line-clamp-2 h-12 mb-1" title={product.name}>
           {product.name}
         </h3>
-        <p className="text-xs text-gray-500 mb-1">Code: {product.code}</p>
+        <p className="text-xs text-gray-500 mb-1">Kod: {product.code}</p>
         <div className="flex justify-between items-center mb-3">
             <span className={`text-xs font-medium px-2 py-1 rounded-full ${!isOutOfStock ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                {!isOutOfStock ? 'Available' : 'Unavailable'}
+                {!isOutOfStock ? 'Dostępny' : 'Niedostępny'}
             </span>
-            <span className="text-xs text-gray-400">Stock: {product.stock_quantity}</span>
+            <span className="text-xs text-gray-400">Stan: {product.stock_quantity}</span>
         </div>
 
         <div className="mt-auto">
           <p className="text-xl font-bold text-gray-900 mb-3">
-            {price_gross.toFixed(2)} PLN
-            <span className="text-xs font-normal text-gray-500 ml-1">gross</span>
+            {price_gross.toFixed(2)} zł
+            <span className="text-xs font-normal text-gray-500 ml-1">brutto</span>
           </p>
 
           <div className="flex gap-2">
@@ -137,10 +137,10 @@ function ProductCard({ product }: { product: Product }) {
               >
                 <ShoppingCart size={16} className="mr-2" />
                 {isOutOfStock
-                  ? "N/A"
+                  ? "Brak"
                   : isAdding
                   ? "..."
-                  : "Add to cart"}
+                  : "Do koszyka"}
               </button>
           </div>
         </div>
@@ -199,8 +199,8 @@ export default function CustomerShop() {
         setTotalPages(Math.ceil(res.data.total / res.data.page_size));
       } catch (err) {
         console.error(err);
-        setError("Failed to load products.");
-        toast.error("Error loading shop.");
+        setError("Nie udało się załadować produktów.");
+        toast.error("Błąd ładowania sklepu.");
       } finally {
         setLoading(false);
       }
@@ -223,8 +223,8 @@ export default function CustomerShop() {
   return (
     <div className="mt-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Product Catalog</h2>
-        <span className="text-sm text-gray-500">Pages found: {totalPages}</span>
+        <h2 className="text-2xl font-bold text-gray-800">Katalog produktów</h2>
+        <span className="text-sm text-gray-500">Znaleziono stron: {totalPages}</span>
       </div>
       
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-8">
@@ -239,7 +239,7 @@ export default function CustomerShop() {
                             setPage(1); 
                             setSearch(e.target.value);
                         }}
-                        placeholder="Search by name..."
+                        placeholder="Szukaj po nazwie..."
                         className="border border-gray-300 rounded-md w-full py-2 pl-10 pr-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     />
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -255,7 +255,7 @@ export default function CustomerShop() {
                         disabled={categoryLoading}
                         className="border border-gray-300 px-3 py-2 rounded-md w-full focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
                     >
-                        <option value="">All categories</option>
+                        <option value="">Wszystkie kategorie</option>
                         {allCategories.map(cat => (
                             <option key={cat} value={cat}>{cat}</option>
                         ))}
@@ -264,38 +264,38 @@ export default function CustomerShop() {
             </div>
 
             <div className="flex gap-2 w-full md:w-auto justify-end">
-                <span className="text-sm text-gray-500 self-center mr-1">Sort by:</span>
+                <span className="text-sm text-gray-500 self-center mr-1">Sortuj:</span>
                 <button
                     onClick={() => toggleSort("name")}
                     className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition ${sortBy === "name" ? "bg-blue-100 text-blue-700 border border-blue-300" : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"}`}
                 >
-                    Name
+                    Nazwa
                     {sortBy === "name" && <ArrowUpDown size={14} className={order === 'desc' ? 'rotate-180' : ''} />}
                 </button>
                 <button
                     onClick={() => toggleSort("sell_price_net")}
                     className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition ${sortBy === "sell_price_net" ? "bg-blue-100 text-blue-700 border border-blue-300" : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"}`}
                 >
-                    Price
+                    Cena
                     {sortBy === "sell_price_net" && <ArrowUpDown size={14} className={order === 'desc' ? 'rotate-180' : ''} />}
                 </button>
             </div>
           </div>
       </div>
 
-      {loading && <div className="text-center py-10 text-gray-500">Loading products...</div>}
+      {loading && <div className="text-center py-10 text-gray-500">Ładowanie produktów...</div>}
       {error && <div className="text-center py-10 text-red-500 bg-red-50 rounded-lg">{error}</div>}
 
       {!loading && !error && (
         <>
           {products.length === 0 ? (
              <div className="text-center py-16 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                <p className="text-gray-500 text-lg">No products found matching the criteria.</p>
+                <p className="text-gray-500 text-lg">Nie znaleziono produktów spełniających kryteria.</p>
                 <button 
                     onClick={() => {setSearch(""); setCategoryFilter(undefined);}}
                     className="mt-4 text-blue-600 hover:underline"
                 >
-                    Clear filters
+                    Wyczyść filtry
                 </button>
              </div>
           ) : (
@@ -312,17 +312,17 @@ export default function CustomerShop() {
                   disabled={page === 1}
                   onClick={() => setPage((p) => p - 1)}
                 >
-                  Previous
+                  Poprzednia
                 </button>
                 <span className="text-sm text-gray-600 font-medium">
-                  Page {page} of {totalPages}
+                  Strona {page} z {totalPages}
                 </span>
                 <button
                   className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={page >= totalPages}
                   onClick={() => setPage((p) => p + 1)}
                 >
-                  Next
+                  Następna
                 </button>
               </div>
             </>

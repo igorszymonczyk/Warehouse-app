@@ -174,7 +174,7 @@ export default function CreateInvoice() {
         const res = await api.get<{ items: Product[] }>("/products?page_size=10000");
         setAllProducts(res.data.items || []);
       } catch (err) {
-        console.error("Error fetching products:", err);
+        console.error("Błąd pobierania produktów:", err);
       }
     };
     fetchProducts();
@@ -244,7 +244,7 @@ export default function CreateInvoice() {
 
   const handleAddProduct = (product: Product) => {
     if (product.stock_quantity <= 0) {
-        toast.error("Out of stock!");
+        toast.error("Brak towaru w magazynie!");
         return;
     }
     append({
@@ -261,17 +261,17 @@ export default function CreateInvoice() {
 
   const onSubmit: SubmitHandler<InvoiceFormInputs> = async (data) => {
     if (data.items.length === 0) {
-      toast.error("Add at least one product.");
+      toast.error("Dodaj przynajmniej jeden produkt.");
       return;
     }
     setIsSubmitting(true);
     try {
       await api.post("/invoices", data);
-      toast.success("Invoice created");
+      toast.success("Faktura utworzona");
       navigate("/invoices");
     } catch (err) {
       console.error(err);
-      toast.error("Error creating invoice.");
+      toast.error("Błąd tworzenia faktury.");
     } finally {
       setIsSubmitting(false);
     }
@@ -279,7 +279,7 @@ export default function CreateInvoice() {
 
   const handleCancel = () => {
     if (watchedItems.length > 0 || watch("buyer_name")) {
-      if (confirm("Cancel?")) navigate("/invoices");
+      if (confirm("Anulować?")) navigate("/invoices");
     } else {
       navigate("/invoices");
     }
@@ -295,36 +295,36 @@ export default function CreateInvoice() {
       <div className="flex-1 min-w-0">
         <form onSubmit={handleSubmit(onSubmit)}>
             <div className="flex items-center justify-between mb-4">
-                <h1 className="text-2xl font-semibold">New Invoice</h1>
+                <h1 className="text-2xl font-semibold">Nowa faktura</h1>
                 <button type="button" onClick={() => navigate("/invoices")} className="text-gray-500 hover:text-black flex items-center">
-                    <ArrowLeft size={18} className="mr-1" /> Back
+                    <ArrowLeft size={18} className="mr-1" /> Powrót
                 </button>
             </div>
 
             <div className="bg-white p-6 rounded shadow-sm border mb-6 grid gap-4">
-                <h2 className="font-medium border-b pb-2 text-gray-700">Buyer Details</h2>
+                <h2 className="font-medium border-b pb-2 text-gray-700">Dane Nabywcy</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="text-sm text-gray-600 block mb-1">Name *</label>
+                        <label className="text-sm text-gray-600 block mb-1">Nazwa *</label>
                         <input
                             className={`border rounded p-2 w-full ${errors.buyer_name ? 'border-red-500' : ''}`}
-                            {...register("buyer_name", { required: "Required" })}
+                            {...register("buyer_name", { required: "Wymagane" })}
                         />
                         {errors.buyer_name && <p className="text-red-500 text-xs">{errors.buyer_name.message}</p>}
                     </div>
                     <div>
-                        <label className="text-sm text-gray-600 block mb-1">NIP/VAT ID</label>
+                        <label className="text-sm text-gray-600 block mb-1">NIP</label>
                         <input className="border rounded p-2 w-full" {...register("buyer_nip")} />
                     </div>
                     <div className="md:col-span-2">
-                        <label className="text-sm text-gray-600 block mb-1">Address</label>
+                        <label className="text-sm text-gray-600 block mb-1">Adres</label>
                         <input className="border rounded p-2 w-full" {...register("buyer_address")} />
                     </div>
                 </div>
             </div>
 
             <div className="bg-white p-6 rounded shadow-sm border mb-6">
-                <h2 className="font-medium border-b pb-2 text-gray-700 mb-4">Invoice Items</h2>
+                <h2 className="font-medium border-b pb-2 text-gray-700 mb-4">Pozycje faktury</h2>
 
                 {/* Search */}
                 <div className="relative mb-6">
@@ -333,7 +333,7 @@ export default function CreateInvoice() {
                         <input
                             ref={inputRef}
                             className="border rounded p-2 pl-10 w-full focus:ring-2 focus:ring-blue-500 outline-none"
-                            placeholder="Enter product name or code..."
+                            placeholder="Wpisz nazwę lub kod produktu..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             onFocus={() => setFocused(true)}
@@ -354,15 +354,15 @@ export default function CreateInvoice() {
                                             <div className="text-xs text-gray-500">{p.code}</div>
                                         </div>
                                         <div className="text-right">
-                                            <div className="font-bold text-gray-700">{p.sell_price_net.toFixed(2)} PLN</div>
+                                            <div className="font-bold text-gray-700">{p.sell_price_net.toFixed(2)} zł</div>
                                             <div className={`text-xs ${p.stock_quantity > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                                Stock: {p.stock_quantity}
+                                                Stan: {p.stock_quantity}
                                             </div>
                                         </div>
                                     </li>
                                 ))
                             ) : (
-                                <li className="px-4 py-3 text-gray-500 text-center">No results</li>
+                                <li className="px-4 py-3 text-gray-500 text-center">Brak wyników</li>
                             )}
                         </ul>
                     )}
@@ -372,11 +372,11 @@ export default function CreateInvoice() {
                 <table className="min-w-full text-sm mb-4">
                     <thead className="bg-gray-50 text-gray-500">
                         <tr>
-                            <th className="p-3 text-left font-normal">Product</th>
-                            <th className="p-3 text-right font-normal w-28">Price</th>
-                            <th className="p-3 text-right font-normal w-24">Qty</th>
+                            <th className="p-3 text-left font-normal">Produkt</th>
+                            <th className="p-3 text-right font-normal w-28">Cena</th>
+                            <th className="p-3 text-right font-normal w-24">Ilość</th>
                             <th className="p-3 text-right font-normal w-20">VAT</th>
-                            <th className="p-3 text-right font-normal">Value</th>
+                            <th className="p-3 text-right font-normal">Wartość</th>
                             <th className="p-3 text-center w-10"></th>
                         </tr>
                     </thead>
@@ -391,24 +391,24 @@ export default function CreateInvoice() {
                             />
                         ))}
                         {fields.length === 0 && (
-                            <tr><td colSpan={6} className="p-8 text-center text-gray-400 border-dashed border-2 rounded">Add products above</td></tr>
+                            <tr><td colSpan={6} className="p-8 text-center text-gray-400 border-dashed border-2 rounded">Dodaj produkty powyżej</td></tr>
                         )}
                     </tbody>
                 </table>
 
                 <div className="flex justify-end pt-4 border-t">
                     <div className="text-right w-48">
-                        <div className="flex justify-between text-gray-600 mb-1"><span>Net:</span> <span>{totalNet.toFixed(2)} PLN</span></div>
-                        <div className="flex justify-between text-gray-600 mb-2"><span>VAT:</span> <span>{totalVat.toFixed(2)} PLN</span></div>
-                        <div className="flex justify-between text-xl font-bold text-gray-800 pt-2 border-t"><span>Total:</span> <span>{totalGross.toFixed(2)} PLN</span></div>
+                        <div className="flex justify-between text-gray-600 mb-1"><span>Netto:</span> <span>{totalNet.toFixed(2)} zł</span></div>
+                        <div className="flex justify-between text-gray-600 mb-2"><span>VAT:</span> <span>{totalVat.toFixed(2)} zł</span></div>
+                        <div className="flex justify-between text-xl font-bold text-gray-800 pt-2 border-t"><span>Razem:</span> <span>{totalGross.toFixed(2)} zł</span></div>
                     </div>
                 </div>
             </div>
 
             <div className="flex justify-end gap-4">
-                <button type="button" onClick={handleCancel} className="px-6 py-2 border rounded hover:bg-gray-50 text-gray-700">Cancel</button>
+                <button type="button" onClick={handleCancel} className="px-6 py-2 border rounded hover:bg-gray-50 text-gray-700">Anuluj</button>
                 <button type="submit" disabled={isSubmitting} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded shadow-md disabled:opacity-50 flex items-center gap-2">
-                    <Save size={18}/> {isSubmitting ? "Saving..." : "Issue Invoice"}
+                    <Save size={18}/> {isSubmitting ? "Zapisywanie..." : "Wystaw Fakturę"}
                 </button>
             </div>
         </form>
@@ -419,11 +419,11 @@ export default function CreateInvoice() {
         <div className="bg-gradient-to-br from-blue-50 to-white border border-blue-100 p-4 rounded-lg shadow-sm sticky top-6">
             <h3 className="font-semibold text-blue-800 flex items-center gap-2 mb-3">
                 <Sparkles size={18} />
-                Suggested Products
+                Sugerowane produkty
             </h3>
             
             {loadingRecs ? (
-                <div className="text-center py-8 text-blue-400 text-sm animate-pulse">Looking for suggestions...</div>
+                <div className="text-center py-8 text-blue-400 text-sm animate-pulse">Szukam propozycji...</div>
             ) : recommendations.length > 0 ? (
                 <div className="space-y-3">
                     {recommendations.map(rec => (
@@ -431,14 +431,14 @@ export default function CreateInvoice() {
                             <div className="text-sm font-medium text-gray-800 leading-tight mb-1">{rec.name}</div>
                             <div className="text-xs text-gray-500 mb-2">{rec.code}</div>
                             <div className="flex justify-between items-center">
-                                <span className="font-bold text-gray-700">{rec.sell_price_net.toFixed(2)} PLN</span>
+                                <span className="font-bold text-gray-700">{rec.sell_price_net.toFixed(2)} zł</span>
                                 <button 
                                     type="button" 
                                     onClick={() => handleAddProduct(rec)}
                                     disabled={rec.stock_quantity <= 0}
                                     className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    <Plus size={12}/> {rec.stock_quantity > 0 ? 'Add' : 'N/A'}
+                                    <Plus size={12}/> {rec.stock_quantity > 0 ? 'Dodaj' : 'Brak'}
                                 </button>
                             </div>
                         </div>
@@ -447,8 +447,8 @@ export default function CreateInvoice() {
             ) : (
                 <div className="text-center py-8 text-gray-400 text-sm italic">
                     {watchedItems.length === 0 
-                        ? "Add products to see suggestions." 
-                        : "No additional suggestions."}
+                        ? "Dodaj produkty, aby zobaczyć sugestie." 
+                        : "Brak dodatkowych sugestii."}
                 </div>
             )}
         </div>
