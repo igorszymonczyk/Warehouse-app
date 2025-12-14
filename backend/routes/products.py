@@ -22,7 +22,7 @@ from models.product import Product
 import schemas.product as product_schemas
 from urllib.parse import urljoin
 
-# Import systemu rekomendacji (z fallbackiem)
+# Import recommendation system with fallback
 try:
     from utils.recommender import get_recommendations
 except ImportError:
@@ -38,12 +38,12 @@ def _full_url(request: Request, path: Union[str, None]) -> Union[str, None]:
 
 router = APIRouter(tags=["Products"])
 
-# Ścieżka do zapisu plików
+# Directory for file uploads
 UPLOAD_DIR = Path("static/uploads")
 
 # ---- HELPERS ----
 def _role_ok(user: User) -> bool:
-    """Zezwól na dostęp dla ADMIN/SALESMAN."""
+    """Allow access for ADMIN/SALESMAN roles."""
     role = (user.role or "").upper()
     return role in {"ADMIN", "SALESMAN"}
 
@@ -51,7 +51,7 @@ def _can_edit(user: User) -> bool:
     return _role_ok(user)
 
 def _can_manage_stock(user: User) -> bool:
-    """Zezwól na dostęp dla ADMIN/SALESMAN/WAREHOUSE."""
+    """Allow access for ADMIN/SALESMAN/WAREHOUSE roles."""
     role = (user.role or "").upper()
     return role in {"ADMIN", "SALESMAN", "WAREHOUSE"}
 
@@ -66,32 +66,30 @@ def _get_unique_values(db: Session, column: ColumnElement) -> List[str]:
     return [v[0] for v in values]
 
 
-# ==========================================
-#  REKOMENDACJE
-# ==========================================
+#  RECOMMENDATIONS
 @router.post("/products/recommend", response_model=List[product_schemas.ProductResponse])
 def recommend_products_endpoint(
     payload: ProductNameList,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Zwraca listę sugerowanych produktów na podstawie nazw już wybranych."""
+    """Returns a list of suggested products based on selected item names."""
     if not payload.product_names:
         return []
 
-    # 1. Pobierz nazwy rekomendowanych produktów
+    # 1. Get recommended product names
     suggested_names = get_recommendations(payload.product_names)
 
     if not suggested_names:
         return []
 
-    # 2. Pobierz obiekty z bazy
+    # 2. Fetch product objects from database
     suggested_products = db.query(Product).filter(
         Product.name.in_(suggested_names),
         Product.stock_quantity > 0
     ).limit(5).all()
 
-    # Serializacja
+    # Serialize response
     product_fields = list(product_schemas.ProductResponse.model_fields.keys())
     serialized = []
     for p in suggested_products:
@@ -101,9 +99,7 @@ def recommend_products_endpoint(
     return serialized
 
 
-# =========================
-# LISTA PRODUKTÓW
-# =========================
+# PRODUCT LIST
 @router.get("/products", response_model=product_schemas.ProductListPage)
 def list_products(
     request: Request,
@@ -114,7 +110,7 @@ def list_products(
     location: Optional[str] = Query(None),
     
     page: int = Query(1, ge=1),
-    # ZWIĘKSZONY LIMIT DLA WYSZUKIWANIA FRONTENDOWEGO
+    # Increased page size limit for frontend usage
     page_size: int = Query(10, ge=1, le=10000), 
     sort_by: str = Query("id"),
     order: str = Query("asc", regex="^(asc|desc)$"),
@@ -160,9 +156,7 @@ def list_products(
     return {"items": serialized, "total": total, "page": page, "page_size": page_size}
 
 
-# =========================
-# ENDPOINTY POMOCNICZE
-# =========================
+# HELPER ENDPOINTS
 @router.get("/products/unique/categories", response_model=List[str])
 def get_product_categories(db: Session = Depends(get_db)):
     return _get_unique_values(db, Product.category)
@@ -176,9 +170,7 @@ def get_product_locations(db: Session = Depends(get_db)):
     return _get_unique_values(db, Product.location)
 
 
-# =========================
-# POJEDYNCZY PRODUKT
-# =========================
+# SINGLE PRODUCT
 @router.get("/products/{product_id}", response_model=product_schemas.ProductResponse)
 def get_product(
     product_id: int, request: Request,
@@ -196,9 +188,7 @@ def get_product(
     return product_schemas.ProductResponse.model_validate(data)
 
 
-# =========================
-# DODAWANIE PRODUKTU
-# =========================
+# ADD PRODUCT
 @router.post("/products", response_model=product_schemas.ProductResponse)
 def add_product(
     request: Request,
@@ -264,9 +254,7 @@ def add_product(
     return product_schemas.ProductResponse.model_validate(data)
 
 
-# =========================
-# AKTUALIZACJA PRODUKTU (PUT - Pełna)
-# =========================
+# PRODUCT UPDATE (PUT - Full)
 @router.put("/products/{product_id}", response_model=product_schemas.ProductResponse)
 def update_product(
     product_id: int, updated_data: product_schemas.ProductCreate,
@@ -295,16 +283,14 @@ def update_product(
     return product_schemas.ProductResponse.model_validate(data)
 
 
-# =========================
-# CZĘŚCIOWA EDYCJA PRODUKTU (PATCH) - NAPRAWIONA (Form + File)
-# =========================
+# PRODUCT EDIT (PATCH) - Partial (Form + File)
 @router.patch("/products/{product_id}/edit", response_model=product_schemas.ProductOut)
 def edit_product(
     product_id: int,
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    # ZMIANA: Parametry jako Form(...) i File(...) aby obsłużyć multipart/form-data
+    # Params as Form(...) and File(...) to handle multipart/form-data
     file: Optional[UploadFile] = File(None),
     name: Optional[str] = Form(None),
     code: Optional[str] = Form(None),
@@ -325,7 +311,7 @@ def edit_product(
     if not p:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # Obsługa pliku
+    # Handle file upload
     if file:
         if file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
             raise HTTPException(status_code=400, detail="Invalid file type")
@@ -350,7 +336,7 @@ def edit_product(
         finally:
             file.file.close()
 
-    # Aktualizacja pól (jeśli przesłane)
+    # Update fields if provided
     if name is not None: p.name = name
     if code is not None:
         c = _norm_code(code)
@@ -385,9 +371,7 @@ def edit_product(
     return product_schemas.ProductOut.model_validate(out)
 
 
-# =========================
-# MASOWE SZCZEGÓŁY
-# =========================
+# BULK DETAILS
 @router.post("/products/details", response_model=List[product_schemas.ProductResponse])
 def get_products_by_names(
     payload: ProductNameList, request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
@@ -403,9 +387,7 @@ def get_products_by_names(
     return serialized
 
 
-# =========================
-# USUWANIE
-# =========================
+# DELETE PRODUCT
 @router.delete("/products/{product_id}")
 def delete_product(
     product_id: int, request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user),

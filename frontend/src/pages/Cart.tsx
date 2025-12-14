@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 import { Trash2, Lightbulb} from "lucide-react";
 
-// === TYPY DANYCH ===
+// === DATA TYPES ===
 
 type RecommendedProduct = {
   id: number;
@@ -24,7 +24,7 @@ type RecommendationRule = {
     lift: string;
 };
 
-// === KOMPONENTY POMOCNICZE ===
+// === HELPER COMPONENTS ===
 
 function RecommendationCard({ product, setCart }: { product: RecommendedProduct, setCart: (cart: Cart | null) => void }) {
   const [isAdding, setIsAdding] = useState(false);
@@ -84,7 +84,7 @@ function RecommendationCard({ product, setCart }: { product: RecommendedProduct,
   );
 }
 
-// --- KOMPONENT WIERSZA KOSZYKA ---
+// --- CART ITEM ROW COMPONENT ---
 function CartItemRow({ item, onUpdate, onDelete }: { item: any, onUpdate: (id: number, q: number) => void, onDelete: (id: number) => void }) {
     const [localQty, setLocalQty] = useState(item.qty);
 
@@ -137,7 +137,7 @@ function CartItemRow({ item, onUpdate, onDelete }: { item: any, onUpdate: (id: n
     );
 }
 
-// === GŁÓWNA STRONA KOSZYKA ===
+// === MAIN CART PAGE ===
 
 export default function CartPage() {
   const { cart, setCart, role } = useAuth();
@@ -253,7 +253,7 @@ export default function CartPage() {
           <div className="bg-white p-6 rounded-lg shadow-md sticky top-6">
             <h2 className="text-lg font-semibold mb-4">Podsumowanie</h2>
             <div className="flex justify-between text-xl font-bold mb-4">
-              {/* ZMIANA: Dodano informację o brutto */}
+              {/* CHANGE: Added gross information */}
               <span>Suma (brutto):</span>
               <span>{cart.total.toFixed(2)} zł</span>
             </div>

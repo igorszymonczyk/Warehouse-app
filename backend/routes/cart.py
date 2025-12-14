@@ -13,10 +13,12 @@ from schemas.cart import CartAddItem, CartUpdateItem, CartOut, CartItemOut
 router = APIRouter(prefix="/cart", tags=["Cart"])
 
 def _ensure_client(user: User):
+    # Validate user authentication
     if not user or not user.id:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 def _get_open_cart(db: Session, user_id: int) -> Cart:
+    # Retrieve active cart or create a new one
     cart = db.query(Cart).filter(Cart.user_id == user_id, Cart.status == "open").first()
     if not cart:
         cart = Cart(user_id=user_id, status="open")
@@ -27,21 +29,21 @@ def _get_open_cart(db: Session, user_id: int) -> Cart:
 
 def _cart_to_out(cart: Cart) -> CartOut:
     items_out = []
-    total_gross = 0.0 # ZMIANA: Liczymy sumę brutto
+    total_gross = 0.0 # Calculate total gross amount
 
     for it in cart.items:
         name = it.product.name if it.product else ""
         
-        # ZMIANA: Pobieramy VAT z produktu, domyślnie 23%
+        # Determine tax rate (default to 23% if missing)
         tax_rate = it.product.tax_rate if (it.product and it.product.tax_rate is not None) else 23.0
         
-        # Cena netto z koszyka (snapshot)
+        # Use stored net price snapshot
         price_net = it.unit_price_snapshot
         
-        # Obliczamy cenę brutto jednostkową
+        # Calculate unit gross price
         price_gross = price_net * (1 + tax_rate / 100.0)
         
-        # Wartość linii brutto
+        # Calculate line total gross
         line_total_gross = price_gross * it.qty
         
         total_gross += line_total_gross
@@ -51,8 +53,8 @@ def _cart_to_out(cart: Cart) -> CartOut:
             product_id=it.product_id,
             name=name,
             qty=it.qty,
-            unit_price=round(price_gross, 2), # ZMIANA: Zwracamy cenę brutto
-            line_total=round(line_total_gross, 2) # ZMIANA: Zwracamy sumę brutto
+            unit_price=round(price_gross, 2), # Return gross unit price
+            line_total=round(line_total_gross, 2) # Return line total gross
         ))
         
     return CartOut(items=items_out, total=round(total_gross, 2))
@@ -67,6 +69,7 @@ def get_cart(
     cart = _get_open_cart(db, current_user.id)
     out = _cart_to_out(cart)
 
+    # Log cart view action
     write_log(
         db,
         user_id=current_user.id,
@@ -92,6 +95,7 @@ def add_to_cart(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
+    # Validate stock availability
     if product.stock_quantity is not None and payload.qty > product.stock_quantity:
         raise HTTPException(status_code=400, detail="Insufficient stock")
 
@@ -102,7 +106,7 @@ def add_to_cart(
     if item:
         item.qty += payload.qty
     else:
-        # Zapisujemy cenę NETTO w bazie (dla spójności księgowej), ale wyświetlać będziemy brutto
+        # Save NET price snapshot for consistency, display will use gross
         item = CartItem(
             cart_id=cart.id,
             product_id=product.id,
@@ -141,6 +145,7 @@ def update_cart_item(
     if not item:
         raise HTTPException(status_code=404, detail="Cart item not found")
 
+    # Validate stock for the new quantity
     product = db.query(Product).filter(Product.id == item.product_id).first()
     if product and product.stock_quantity is not None and payload.qty > product.stock_quantity:
         raise HTTPException(status_code=400, detail="Insufficient stock")

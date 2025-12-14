@@ -2,10 +2,10 @@
 
 from pathlib import Path
 from typing import List, Any
-# Importujemy modele tylko dla type hintingu
+# Import models solely for type hinting
 from models.invoice import Invoice, InvoiceItem 
 
-# Konfiguracja ścieżek
+# Path configuration
 STORAGE_DIR = Path("storage/invoices")
 FONT_DIR = Path("assets/fonts")
 FONT_REGULAR_PATH = FONT_DIR / "DejaVuSans.ttf"
@@ -18,13 +18,13 @@ def ensure_storage_dir() -> None:
     STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 def get_pdf_path(invoice_id: int) -> Path:
-    """Zwraca ścieżkę do pliku PDF dla danej faktury."""
+    """Returns the filesystem path for a specific invoice PDF."""
     ensure_storage_dir()
     return STORAGE_DIR / f"INV-{invoice_id}.pdf"
 
 _fonts_inited = False
 def _init_fonts():
-    """Initializes Polish character fonts in ReportLab."""
+    """Initializes TrueType fonts to support UTF-8 characters in ReportLab."""
     global _fonts_inited, FONT_BOLD_NAME
     if _fonts_inited:
         return
@@ -52,12 +52,8 @@ def _init_fonts():
 
 def generate_invoice_pdf(invoice: Invoice, items: List[InvoiceItem], out_path: Path, company: dict | None = None) -> None:
     """
-    Generuje PDF faktury z układem:
-    - Nagłówek (z obsługą korekty i sekwencji numeracji)
-    - Sprzedawca (lewo) + Nabywca Było/Jest (prawo)
-    - Tabela produktów (Było/Jest dla korekty)
-    - Podsumowanie
-    - Stopka z podpisami
+    Generates PDF invoice with header, parties, items table, and summary.
+    Handles layout for standard invoices and corrections.
     """
     try:
         from reportlab.lib.pagesizes import A4
@@ -72,7 +68,7 @@ def generate_invoice_pdf(invoice: Invoice, items: List[InvoiceItem], out_path: P
     c = canvas.Canvas(str(out_path), pagesize=A4)
     width, height = A4
 
-    # Funkcja pomocnicza do rysowania tekstów
+    # Helper function to render text with alignment and color
     def draw_text(x, y, text, font=FONT_REGULAR_NAME, size=10, align="left", color=(0,0,0)):
         c.setFillColorRGB(*color)
         c.setFont(font, size)
@@ -83,17 +79,16 @@ def generate_invoice_pdf(invoice: Invoice, items: List[InvoiceItem], out_path: P
             c.drawCentredString(x, y, text_str)
         else:
             c.drawString(x, y, text_str)
-        c.setFillColorRGB(0,0,0) # Reset koloru
+        c.setFillColorRGB(0,0,0) # Reset color
 
-    # Sprawdzamy czy to korekta
+    # Check if the document is a correction invoice
     is_correction = getattr(invoice, "is_correction", False)
     parent = getattr(invoice, "parent", None)
 
-    # --- 1. NAGŁÓWEK ---
+    # --- 1. HEADER SECTION ---
     y = height - 20 * mm
     
-    # Pobieramy pełny numer z modelu (obsługa FK, FK1 itd.)
-    # Fallback do INV-{id} gdyby property nie istniało
+    # Retrieve full invoice number, fallback to ID if missing
     full_number = getattr(invoice, "full_number", f"INV-{invoice.id}")
 
     if is_correction:
@@ -108,10 +103,10 @@ def generate_invoice_pdf(invoice: Invoice, items: List[InvoiceItem], out_path: P
     
     draw_text(190 * mm, y, f"Data wystawienia: {getattr(invoice, 'created_at', '')}", size=10, align="right")
     
-    # Dodatkowe info dla korekty
+    # Add reference data for correction invoices
     if is_correction and parent:
         y -= 5 * mm
-        # Tutaj również możemy użyć full_number rodzica jeśli jest dostępny
+        # Use parent number if available
         parent_number = getattr(parent, "full_number", f"INV-{parent.id}")
         draw_text(190 * mm, y, f"Dotyczy faktury: {parent_number} z dnia {getattr(parent, 'created_at', '')}", size=9, align="right")
         
@@ -124,10 +119,10 @@ def generate_invoice_pdf(invoice: Invoice, items: List[InvoiceItem], out_path: P
     c.line(20 * mm, y, 190 * mm, y)
     y -= 10 * mm
 
-    # --- 2. KOLUMNY: SPRZEDAWCA vs NABYWCA ---
+    # --- 2. COLUMNS: SELLER vs BUYER ---
     y_start_columns = y
     
-    # >> Lewa kolumna: SPRZEDAWCA
+    # >> Left column: Seller details
     draw_text(20 * mm, y, "SPRZEDAWCA:", font=FONT_BOLD_NAME)
     y -= 5 * mm
     
@@ -156,10 +151,10 @@ def generate_invoice_pdf(invoice: Invoice, items: List[InvoiceItem], out_path: P
     else:
         draw_text(20 * mm, y, "Brak danych firmy w systemie")
 
-    # >> Prawa kolumna: NABYWCA
+    # >> Right column: Buyer details
     y = y_start_columns 
     
-    # Helper do rysowania bloku nabywcy
+    # Helper to render buyer information block
     def draw_buyer_block(start_y, label, name, nip, address, is_gray=False):
         local_y = start_y
         color = (0.5, 0.5, 0.5) if is_gray else (0, 0, 0)
@@ -184,32 +179,32 @@ def generate_invoice_pdf(invoice: Invoice, items: List[InvoiceItem], out_path: P
         
         return local_y
 
-    # Logika wyświetlania nabywcy
+    # Logic to display buyer details (handles corrections)
     if is_correction and parent:
-        # 1. Dane aktualne (po korekcie)
+        # 1. Current data (after correction)
         y = draw_buyer_block(y, "NABYWCA (PO KOREKCIE):", invoice.buyer_name, invoice.buyer_nip, invoice.buyer_address)
         
-        # 2. Dane pierwotne (przed korektą) - rysujemy poniżej, na szaro
+        # 2. Original data (before correction) rendered in gray
         y -= 5 * mm
         draw_buyer_block(y, "NABYWCA (PRZED KOREKTĄ):", parent.buyer_name, parent.buyer_nip, parent.buyer_address, is_gray=True)
     else:
-        # Standardowy widok
+        # Standard view
         draw_buyer_block(y, "NABYWCA:", invoice.buyer_name, invoice.buyer_nip, invoice.buyer_address)
 
-    # Ustawiamy Y poniżej najdłuższej kolumny
+    # Adjust Y position based on the tallest column
     y = y_start_columns - 70 * mm if is_correction else y_start_columns - 50 * mm
 
-    # --- 3. TABELA POZYCJI (Helper) ---
+    # --- 3. ITEMS TABLE (Helper) ---
     def draw_items_table(current_y, table_title, items_list):
-        # Tytuł tabeli
+        # Table title
         draw_text(20 * mm, current_y, table_title, font=FONT_BOLD_NAME, size=10)
         
-        # --- FIX: Zwiększony odstęp, aby szary pasek nie zasłaniał tytułu ---
+        # --- FIX: Adjust spacing to prevent header overlap ---
         current_y -= 10 * mm 
 
-        # Nagłówek tabeli (szary pasek)
+        # Table header with gray background
         c.setFillColorRGB(0.95, 0.95, 0.95)
-        # Prostokąt tła nagłówka
+        # Header background rectangle
         c.rect(20 * mm, current_y - 2*mm, 170 * mm, 8 * mm, fill=1, stroke=0)
         c.setFillColorRGB(0, 0, 0)
 
@@ -222,7 +217,7 @@ def generate_invoice_pdf(invoice: Invoice, items: List[InvoiceItem], out_path: P
         c.drawRightString(185 * mm, current_y, "Wartość brutto")
         current_y -= 8 * mm
 
-        # Wiersze
+        # Table rows
         c.setFont(FONT_REGULAR_NAME, 9)
         idx = 1
         for it in items_list:
@@ -241,7 +236,7 @@ def generate_invoice_pdf(invoice: Invoice, items: List[InvoiceItem], out_path: P
             current_y -= 6 * mm
             idx += 1
 
-            # Obsługa nowej strony
+            # Handle pagination
             if current_y < 40 * mm: 
                 c.showPage()
                 current_y = height - 20 * mm
@@ -249,23 +244,23 @@ def generate_invoice_pdf(invoice: Invoice, items: List[InvoiceItem], out_path: P
         
         return current_y
 
-    # Rysowanie tabel(i)
+    # Render tables
     if is_correction and parent:
-        # Tabela 1: Stan przed korektą (items z rodzica)
+        # Table 1: Original state (Before)
         parent_items = getattr(parent, "items", [])
         y = draw_items_table(y, "TREŚĆ KORYGOWANA (BYŁO):", parent_items)
         
         y -= 10 * mm
         
-        # Tabela 2: Stan po korekcie (items z obecnej faktury)
+        # Table 2: Corrected state (After)
         y = draw_items_table(y, "TREŚĆ PO KOREKCIE (JEST):", items)
     else:
-        # Standardowa jedna tabela
+        # Standard single table
         y = draw_items_table(y, "POZYCJE FAKTURY:", items)
 
-    # --- 4. PODSUMOWANIE ---
+    # --- 4. SUMMARY SECTION ---
     y -= 5 * mm
-    # Sprawdzenie miejsca na podsumowanie
+    # Check for available space
     if y < 40 * mm:
         c.showPage()
         y = height - 30 * mm
@@ -284,7 +279,7 @@ def generate_invoice_pdf(invoice: Invoice, items: List[InvoiceItem], out_path: P
     c.drawRightString(150 * mm, y, "RAZEM BRUTTO:")
     c.drawRightString(185 * mm, y, f"{invoice.total_gross:.2f} PLN")
 
-    # --- 5. STOPKA (PODPISY) ---
+    # --- 5. FOOTER (Signatures) ---
     y_signatures = 35 * mm
     
     if y < y_signatures + 20 * mm:
@@ -293,12 +288,12 @@ def generate_invoice_pdf(invoice: Invoice, items: List[InvoiceItem], out_path: P
     c.setLineWidth(0.5)
     c.setFont(FONT_REGULAR_NAME, 8)
     
-    # Lewy podpis
+    # Left signature line
     c.line(25 * mm, y_signatures, 85 * mm, y_signatures)
     c.drawCentredString(55 * mm, y_signatures - 4 * mm, "Imię, nazwisko i podpis osoby")
     c.drawCentredString(55 * mm, y_signatures - 8 * mm, "upoważnionej do wystawienia dokumentu")
 
-    # Prawy podpis
+    # Right signature line
     c.line(125 * mm, y_signatures, 185 * mm, y_signatures)
     c.drawCentredString(155 * mm, y_signatures - 4 * mm, "Imię, nazwisko i podpis osoby")
     c.drawCentredString(155 * mm, y_signatures - 8 * mm, "upoważnionej do odebrania dokumentu")

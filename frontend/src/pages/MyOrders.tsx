@@ -85,7 +85,7 @@ function OrderCard({ order }: { order: Order }) {
 
   return (
     <div className="bg-white rounded-lg shadow-md border overflow-hidden">
-      {/* Sekcja klikalna (nagłówek) */}
+      {/* Clickable Header Section */}
       <div
         className="p-4 cursor-pointer hover:bg-gray-50 transition"
         onClick={() => setIsExpanded(!isExpanded)}

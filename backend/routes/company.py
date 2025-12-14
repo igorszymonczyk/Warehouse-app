@@ -10,26 +10,24 @@ from schemas.company import CompanyOut, CompanyUpdate
 
 router = APIRouter(prefix="/company", tags=["Company"])
 
-# Moduł Company
-# Obsługuje informacje o firmie: odczyt danych oraz aktualizację.
-# Aktualizacja dostępna tylko dla administratora. Każda zmiana logowana jest w systemie audytu.
+# Handles company information retrieval and administrative updates
 
 def _is_admin(user: User) -> bool:
-    # Prosta weryfikacja roli administratora
+    # Check if the user has administrative privileges
     return (user.role or "").upper() == "ADMIN"
 
 
-# Pobranie danych firmy
+# Retrieve company details
 @router.get("/", response_model=CompanyOut)
 def get_company(db: Session = Depends(get_db)):
     c = db.query(Company).first()
     if not c:
-        # Jeśli brak danych, zwracamy pusty obiekt domyślny
+        # Return default empty object if no company record exists
         return CompanyOut(id=0, name=None, nip=None, address=None)
     return c
 
 
-# Aktualizacja danych firmy
+# Update company details (Admin only)
 @router.patch("/", response_model=CompanyOut)
 def update_company(payload: CompanyUpdate, request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not _is_admin(current_user):
@@ -40,7 +38,7 @@ def update_company(payload: CompanyUpdate, request: Request, db: Session = Depen
         c = Company()
         db.add(c)
 
-    # Aktualizacja pól, jeśli zostały przekazane
+    # Update fields if provided in the payload
     if payload.name is not None:
         c.name = payload.name
     if payload.nip is not None:
@@ -55,7 +53,7 @@ def update_company(payload: CompanyUpdate, request: Request, db: Session = Depen
     db.commit()
     db.refresh(c)
 
-    # Logowanie zmiany danych firmy
+    # Log the company update action
     write_log(
         db,
         user_id=current_user.id,

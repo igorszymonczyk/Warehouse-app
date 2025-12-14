@@ -10,12 +10,14 @@ class StockMovement(Base):
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
+    # Quantity involved in the movement
     qty = Column(Integer, nullable=False) 
     
     reason = Column(String, nullable=True)
-    type = Column(String, nullable=False) # IN, OUT, LOSS, ADJUSTMENT
+    # Movement classification (e.g., IN, OUT, LOSS, ADJUSTMENT)
+    type = Column(String, nullable=False)
     
-    # NOWE POLE
+    # Supplier associated with the movement
     supplier = Column(String, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

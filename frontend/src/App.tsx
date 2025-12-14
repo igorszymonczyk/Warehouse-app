@@ -9,6 +9,7 @@ import Register from "./pages/Register";
 export default function App() {
   return (
     <Routes>
+      {/* Protected Route: Dashboard (accessible only to logged-in users) */}
       <Route
         path="/"
         element={
@@ -17,8 +18,12 @@ export default function App() {
           </Protected>
         }
       />
+      
+      {/* Public Routes */}
       <Route path="/register" element={<Register />} />
       <Route path="/login" element={<LoginPage />} />
+      
+      {/* Fallback Route: Redirect unknown paths to home */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

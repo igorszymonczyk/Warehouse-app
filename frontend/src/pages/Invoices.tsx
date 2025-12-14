@@ -11,7 +11,7 @@ export default function InvoicesPage() {
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
   const [q, setQ] = useState("");
-  const [searchId, setSearchId] = useState(""); // Nowy stan dla ID
+  const [searchId, setSearchId] = useState(""); // New state for ID filtering
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [dateError, setDateError] = useState<string | null>(null);
@@ -30,7 +30,7 @@ export default function InvoicesPage() {
       const res = await api.get<Page<Invoice>>("/invoices", {
         params: {
           q: q || undefined,
-          search_id: searchId || undefined, // Przekazujemy ID do backendu
+          search_id: searchId || undefined, // Pass ID to backend
           page,
           page_size: pageSize,
           sort_by: sortBy,
@@ -41,7 +41,7 @@ export default function InvoicesPage() {
       });
       setData(res.data);
     } catch (err) {
-      console.error("Błąd przy pobieraniu faktur:", err);
+      console.error("Error fetching invoices:", err);
       toast.error("Nie udało się załadować listy faktur");
     } finally {
       setLoading(false);
@@ -122,10 +122,10 @@ export default function InvoicesPage() {
         </button>
       </div>
 
-      {/* NOWY KONTENER STYLU LOGI */}
+      {/* FILTERS CONTAINER */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
         <div className="flex flex-wrap items-end gap-3">
-          {/* Szukaj po ID */}
+          {/* Search by ID */}
           <div>
             <label className="block text-sm text-gray-700 mb-1">Szukaj ID</label>
             <input
@@ -136,7 +136,7 @@ export default function InvoicesPage() {
             />
           </div>
 
-          {/* Szukaj klienta */}
+          {/* Search by Client */}
           <div>
             <label className="block text-sm text-gray-700 mb-1">Szukaj klienta / NIP</label>
             <input
@@ -194,7 +194,7 @@ export default function InvoicesPage() {
                       <td className="p-3 border-r text-gray-900 font-medium">
                         <div className="flex items-center gap-2">
                            {isCorrection && <CornerDownRight size={16} className="text-gray-400 ml-2" />}
-                           {/* Poprawne wyświetlanie numeru faktury z właściwości full_number */}
+                           {/* Correctly display invoice number */}
                            <span>{inv.full_number}</span>
                         </div>
                       </td>

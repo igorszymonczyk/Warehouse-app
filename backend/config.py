@@ -3,8 +3,7 @@ from pydantic_settings import BaseSettings
 from typing import ClassVar
 from pathlib import Path
 
-# Build an absolute path to the .env file
-# This is more reliable than a relative path
+# Resolve absolute path to the .env file for reliable loading
 env_path = Path(__file__).parent.parent / ".env"
 
 class Settings(BaseSettings):
@@ -20,8 +19,7 @@ class Settings(BaseSettings):
     PAYU_SECOND_KEY_MD5: str
     FRONTEND_URL: str
     
-    # Domyślny URL backendu dla powiadomień PayU.
-    # W środowisku produkcyjnym powinien to być publiczny adres Twojej aplikacji.
+    # Public backend URL used for PayU notifications (webhook)
     BACKEND_URL: str = "http://127.0.0.1:8000"
 
     class Config:

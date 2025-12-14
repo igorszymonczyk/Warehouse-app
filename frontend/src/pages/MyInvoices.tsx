@@ -5,7 +5,7 @@ import { useAuth } from "../store/auth";
 import toast from "react-hot-toast";
 import { Download, AlertCircle, CheckCircle } from "lucide-react";
 
-// Typy pasujące do Invoice z backendu
+// Types matching backend Invoice model
 type Invoice = {
   id: number;
   order_id?: number; // Backend może zwrócić null/undefined
@@ -21,14 +21,14 @@ type PaginatedInvoices = {
   page_size: number;
 };
 
-// Mapa statusów
+// Status map
 const statusMap = {
   pending: { text: "Oczekuje na płatność", icon: <AlertCircle className="text-yellow-500" />, color: "text-yellow-600" },
   paid: { text: "Opłacona", icon: <CheckCircle className="text-green-500" />, color: "text-green-600" },
   cancelled: { text: "Anulowana", icon: <AlertCircle className="text-red-500" />, color: "text-red-600" },
 };
 
-// Komponent karty faktury
+// Invoice Card Component
 function InvoiceCard({ invoice }: { invoice: Invoice }) {
   const [loadingPdf, setLoadingPdf] = useState(false);
   
@@ -40,15 +40,15 @@ function InvoiceCard({ invoice }: { invoice: Invoice }) {
     toast.loading("Generowanie PDF...");
     
     try {
-      // 1. Wygeneruj PDF
+      // 1. Generate PDF
       await api.post(`/invoices/${invoice.id}/pdf`);
       
-      // 2. Pobierz PDF
+      // 2. Download PDF
       const res = await api.get(`/invoices/${invoice.id}/download`, {
-        responseType: 'blob', // Ważne: pobieramy jako plik
+        responseType: 'blob', // Important: download as blob
       });
       
-      // 3. Wymuś pobranie w przeglądarce
+      // 3. Force browser download
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -98,7 +98,7 @@ function InvoiceCard({ invoice }: { invoice: Invoice }) {
   );
 }
 
-// Komponent strony
+// Page Component
 export default function MyInvoicesPage() {
   const { role } = useAuth();
   const [data, setData] = useState<PaginatedInvoices | null>(null);
@@ -109,7 +109,7 @@ export default function MyInvoicesPage() {
     const loadInvoices = async () => {
       setLoading(true);
       try {
-        // Używamy nowego endpointu /me
+        // Using new endpoint /me
         const res = await api.get<PaginatedInvoices>("/invoices/me", {
           params: { page, page_size: 5 },
         });
@@ -156,7 +156,7 @@ export default function MyInvoicesPage() {
         ))}
       </div>
 
-      {/* Paginacja */}
+      {/* Pagination */}
       <div className="mt-6 flex items-center justify-center gap-3">
         <button
           className="border rounded px-3 py-1 disabled:opacity-50"

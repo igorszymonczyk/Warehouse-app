@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import toast from "react-hot-toast";
 import { useAuth } from "../store/auth";
 import CustomerShop from "./CustomerShop";
-import WZPage from "./WZ"; // <--- 1. IMPORTUJEMY STRONĘ WZ
+import WZPage from "./WZ"; // <--- 1. IMPORT WZ PAGE
 
 import {
   DollarSign,
@@ -24,7 +24,7 @@ import {
   Legend,
 } from "recharts";
 
-// === TYPY DANYCH ===
+// === DATA TYPES ===
 type StatsData = {
   total_revenue: number;
   total_invoices: number;
@@ -43,7 +43,7 @@ type TopProduct = {
   total_quantity_sold: number;
 };
 
-// === KOMPONENTY KART ===
+// === CARD COMPONENTS ===
 type StatCardProps = {
   title: string;
   value: string | number;
@@ -86,7 +86,7 @@ function StatCard({ title, value, icon, colorClass, to }: StatCardProps) {
   return cardContent;
 }
 
-// === KOMPONENTY WYKRESÓW I LIST ===
+// === CHART AND LIST COMPONENTS ===
 
 function RevenueChart({ data }: { data: ChartDataPoint[] }) {
   return (
@@ -144,7 +144,7 @@ function TopProductsList({ products }: { products: TopProduct[] }) {
   );
 }
 
-// === PULPIT DLA ADMINA / SPRZEDAWCY ===
+// === ADMIN / SALESMAN DASHBOARD ===
 function AdminSalesmanDashboard() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
@@ -256,11 +256,11 @@ function CustomerDashboard() {
   );
 }
 
-// === GŁÓWNY KOMPONENT DASHBOARD ===
+// === MAIN DASHBOARD COMPONENT ===
 export default function Dashboard() {
   const { role } = useAuth();
 
-  // 2. ZMIANA: Dla magazyniera wyświetlamy od razu stronę WZ
+  // 2. CHANGE: For warehouse role, display WZ page immediately
   if (role === "warehouse") {
       return <WZPage />;
   }

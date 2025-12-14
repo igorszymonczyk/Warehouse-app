@@ -10,7 +10,7 @@ from typing import List
 from database import get_db
 from utils.tokenJWT import get_current_user
 from models.users import User
-# 1. ZMIANA: Importujemy Invoice, InvoiceItem i Product
+# Import necessary models for statistics
 from models.invoice import Invoice, InvoiceItem
 from models.product import Product
 
@@ -19,10 +19,10 @@ router = APIRouter(
     tags=["Stats"]
 )
 
-# Próg dla niskiego stanu magazynowego
+# Threshold for low stock alert
 LOW_STOCK_THRESHOLD = 10
 
-# === Schematy odpowiedzi Pydantic ===
+# === Pydantic Response Schemas ===
 
 class StatsSummary(BaseModel):
     total_revenue: float
@@ -37,21 +37,21 @@ class DailyRevenue(BaseModel):
 class DailyRevenueResponse(BaseModel):
     data: List[DailyRevenue]
 
-# 2. ZMIANA: Nowe schematy dla Top 5 Produktów
+# Schema for top selling products
 class TopProduct(BaseModel):
     product_id: int
     product_name: str
     total_quantity_sold: int
 
     class Config:
-        # Pozwala na tworzenie modelu Pydantic z obiektu ORM
+        # Enable ORM mode
         from_attributes = True 
 
 class TopProductsResponse(BaseModel):
     data: List[TopProduct]
 
 
-# === Endpoint 1: Podsumowanie (Karty) ===
+# === Endpoint 1: Dashboard Summary ===
 
 @router.get("/summary", response_model=StatsSummary)
 def get_stats_summary(
@@ -61,14 +61,14 @@ def get_stats_summary(
     if (current_user.role or "").upper() not in {"ADMIN", "SALESMAN"}:
         raise HTTPException(status_code=403, detail="Not authorized to view stats")
 
-    # 1. Całkowity przychód
+    # Calculate total historical revenue
     total_revenue_query = db.query(func.sum(Invoice.total_gross)).scalar()
     total_revenue = total_revenue_query or 0.0
 
-    # 2. Łączna liczba faktur
+    # Count total invoices
     total_invoices = db.query(Invoice).count()
 
-    # 3. Faktury w bieżącym miesiącu
+    # Count invoices created in the current month
     current_month = datetime.utcnow().month
     current_year = datetime.utcnow().year
     
@@ -77,7 +77,7 @@ def get_stats_summary(
         extract('year', Invoice.created_at) == current_year
     ).count()
 
-    # 4. Produkty z niskim stanem magazynowym
+    # Count products below stock threshold
     low_stock_products = db.query(Product).filter(
         Product.stock_quantity < LOW_STOCK_THRESHOLD
     ).count()
@@ -89,7 +89,7 @@ def get_stats_summary(
         low_stock_products=low_stock_products
     )
 
-# === Endpoint 2: Dane do wykresu ===
+# === Endpoint 2: Chart Data ===
 
 @router.get("/daily-revenue", response_model=DailyRevenueResponse)
 def get_daily_revenue_stats(
@@ -102,6 +102,7 @@ def get_daily_revenue_stats(
     today = datetime.utcnow().date()
     seven_days_ago = today - timedelta(days=6)
 
+    # Aggregate revenue by date for the last week
     sales_data = (
         db.query(
             func.date(Invoice.created_at).label("date"),
@@ -116,6 +117,7 @@ def get_daily_revenue_stats(
     sales_by_date = {str(row.date): row.revenue for row in sales_data}
     result_data = []
 
+    # Fill missing dates with zero revenue
     for i in range(7):
         current_date = seven_days_ago + timedelta(days=i)
         date_str = current_date.strftime("%Y-%m-%d")
@@ -125,7 +127,7 @@ def get_daily_revenue_stats(
 
     return DailyRevenueResponse(data=result_data)
 
-# === Endpoint 3: Top 5 Produktów (NOWY) ===
+# === Endpoint 3: Top 5 Products ===
 
 @router.get("/top-products", response_model=TopProductsResponse)
 def get_top_products_stats(
@@ -135,12 +137,11 @@ def get_top_products_stats(
     if (current_user.role or "").upper() not in {"ADMIN", "SALESMAN"}:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # Filtrujemy sprzedaż z bieżącego miesiąca i roku
+    # Filter by current month and year
     current_month = datetime.utcnow().month
     current_year = datetime.utcnow().year
 
-    # Zapytanie, które łączy produkty z pozycjami faktur i fakturami (dla daty)
-    # Grupuje po produktach, sumuje ich sprzedaną ilość i sortuje
+    # Aggregate sales quantity by product, sort descending, and limit to top 5
     top_products_query = (
         db.query(
             Product.id.label("product_id"),

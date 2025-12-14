@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
-import { Search, PackageMinus, PackagePlus, X, AlertTriangle, Trash2 } from "lucide-react"; // Usunięto History
+import { Search, PackageMinus, PackagePlus, X, AlertTriangle, Trash2 } from "lucide-react"; // Removed History
 import toast from "react-hot-toast";
 import { useForm, type SubmitHandler } from "react-hook-form";
 
-// Typy
+// Types
 type StockMovement = {
   id: number;
   created_at: string;
@@ -91,7 +91,7 @@ export default function StockPage() {
         try {
             const res = await api.get<{ items: ProductSimple[] }>("/products?page_size=10000");
             setAllProducts(res.data.items || []);
-        } catch (err) { console.error("Błąd ładowania produktów", err); }
+        } catch (err) { console.error("Error loading products", err); }
     };
     fetchAllProducts();
   }, []);
@@ -192,7 +192,7 @@ export default function StockPage() {
         </div>
       </div>
 
-      {/* FILTRY */}
+      {/* FILTERS */}
       <div className="flex gap-4 mb-4 bg-white p-4 rounded shadow-sm border flex-wrap">
           <div className="relative">
               <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
@@ -223,7 +223,7 @@ export default function StockPage() {
           </select>
       </div>
 
-      {/* TABELA */}
+      {/* TABLE */}
       {loading ? <p>Ładowanie...</p> : (
           <div className="bg-white rounded border shadow-sm overflow-hidden">
               <table className="min-w-full text-sm">
@@ -272,7 +272,7 @@ export default function StockPage() {
           </div>
       )}
 
-      {/* Paginacja */}
+      {/* Pagination */}
       {data && (
           <div className="mt-4 flex justify-center gap-4 items-center">
               <button disabled={page===1} onClick={() => setPage(p=>p-1)} className="px-3 py-1 border rounded disabled:opacity-50">Poprzednia</button>
@@ -281,7 +281,7 @@ export default function StockPage() {
           </div>
       )}
 
-      {/* MODAL - PRZYJĘCIE DOSTAWY */}
+      {/* MODAL - RECEIVE DELIVERY */}
       {showDeliveryModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-lg shadow-xl w-full max-w-lg h-[80vh] flex flex-col">
@@ -388,7 +388,7 @@ export default function StockPage() {
           </div>
       )}
 
-      {/* MODAL - STRATA */}
+      {/* MODAL - LOSS */}
       {showLossModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-lg shadow-xl w-full max-w-md">

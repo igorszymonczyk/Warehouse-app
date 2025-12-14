@@ -410,7 +410,7 @@ export default function ProductsPage() {
       toast.error("Wymagane: nazwa i kod");
       return;
     }
-    // Walidacja ceny tylko jeśli to nie jest magazynier
+    // Price validation only if not warehouse role
     if (role !== "warehouse" && addForm.sell_price_net <= 0) {
       toast.error("Cena musi być większa od 0");
       return;
@@ -464,7 +464,7 @@ export default function ProductsPage() {
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-4">Zarządzanie Produktami</h1>
       
-      {/* NOWY KONTENER STYLU LOGI */}
+      {/* Filters Container */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
         <div className="flex flex-wrap items-center gap-3">
           
@@ -538,7 +538,7 @@ export default function ProductsPage() {
                     Kod {renderSortIcon("code")}
                   </th>
                   
-                  {/* Warunkowe wyświetlannie tabeli*/}
+                  {/* Conditional Table Header */}
                   {role !== "warehouse" ? (
                     <th className="p-2 border text-right cursor-pointer" onClick={() => toggleSort("sell_price_net")}>
                       Cena Netto {renderSortIcon("sell_price_net")}
@@ -567,7 +567,7 @@ export default function ProductsPage() {
                       <td className="p-2 border font-medium">{p.name}</td>
                       <td className="p-2 border">{p.code}</td>
                       
-                      {/*warunkowa zawartosc tabeli*/}
+                      {/* Conditional Table Cell */}
                       {role !== "warehouse" ? (
                         <td className="p-2 border text-right">{p.sell_price_net.toFixed(2)} zł</td>
                       ) : (
@@ -658,7 +658,7 @@ export default function ProductsPage() {
                   />
                 </label>
                 
-                {/* ukrywanie pol cenowych przed magazynierem*/}
+                {/* Hide price fields for warehouse role */}
                 {role !== "warehouse" && (
                   <>
                     <label className="block mb-2">
@@ -789,7 +789,7 @@ export default function ProductsPage() {
                 <p><strong>Nazwa:</strong> {selected.name}</p>
                 <p><strong>Kod:</strong> {selected.code}</p>
                 
-                {/*ukrywanie pol cenowych w szczegolach dla magazyniera */}
+                {/* Hide price fields in details for warehouse role */}
                 {role !== "warehouse" && (
                   <>
                     <p><strong>Cena Netto:</strong> {selected.sell_price_net.toFixed(2)} zł</p>
@@ -844,7 +844,7 @@ export default function ProductsPage() {
                 />
               </label>
               
-              {/*ukrywanie pol cenowych przy dodawaniu */}
+              {/* Hide price fields when adding (for warehouse role) */}
               {role !== "warehouse" && (
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block">

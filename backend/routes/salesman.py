@@ -8,11 +8,11 @@ from database import get_db
 from models.users import User
 from utils.tokenJWT import get_current_user
 
-# Importujemy funkcję z recommender.py
+# Import recommendation engine with fallback mechanism
 try:
     from utils.recommender import generate_recommendations
 except ImportError:
-    # Fallback, żeby aplikacja nie padła bez bibliotek ML
+    # Fallback if ML libraries are missing
     def generate_recommendations(**kwargs):
         import pandas as pd
         return pd.DataFrame()
@@ -31,14 +31,14 @@ def get_sales_recommendations(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Zwraca reguły asocjacyjne dla frontendu (koszyk / faktura).
+    Retrieve association rules for frontend recommendations.
     """
-    # Dostęp dla Admina i Sprzedawcy (Magazynier raczej nie potrzebuje, ale można dodać)
+    # Verify user permissions
     if (current_user.role or "").lower() not in ["admin", "salesman", "customer"]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     try:
-        # Generujemy reguły
+        # Generate recommendation rules
         rules_df = generate_recommendations(min_support=0.01, min_confidence=0.2)
         
         if rules_df.empty:
@@ -46,7 +46,7 @@ def get_sales_recommendations(
 
         results = []
         for _, row in rules_df.iterrows():
-            # Konwersja frozenset -> list
+            # Convert frozensets to lists for JSON serialization
             ants = list(row['antecedents'])
             cons = list(row['consequents'])
             

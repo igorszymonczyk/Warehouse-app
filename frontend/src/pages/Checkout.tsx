@@ -32,8 +32,8 @@ export default function CheckoutPage() {
   const { cart} = useAuth();
   const [loading, setLoading] = useState(false);
 
-  // --- DANE NABYWCY (FAKTURA) ---
-  // Usunięto contact_person
+  // --- BUYER DATA (INVOICE) ---
+  // Removed contact_person
   const [invoiceData, setInvoiceData] = useState({
     buyer_name: "",
     buyer_nip: "",
@@ -42,7 +42,7 @@ export default function CheckoutPage() {
     city: "",
   });
 
-  // --- DANE DOSTAWY ---
+  // --- SHIPPING DATA ---
   const [sameAsInvoice, setSameAsInvoice] = useState(true);
   const [shippingData, setShippingData] = useState({
     street: "",
@@ -50,7 +50,7 @@ export default function CheckoutPage() {
     city: "",
   });
 
-  // Usunięto useEffect wypełniający contact_person z danych usera
+  // Removed useEffect populating contact_person from user data
 
   const handlePay = async () => {
     if (!cart || cart.items.length === 0) {
@@ -74,8 +74,8 @@ export default function CheckoutPage() {
       const payload = {
         invoice_buyer_name: invoiceData.buyer_name,
         invoice_buyer_nip: invoiceData.buyer_nip || null,
-        // invoice_contact_person: USUNIĘTE
-        invoice_contact_person: "Brak", // Fallback dla starych schematów jeśli backend jeszcze tego wymaga (ale usunąłem to w backendzie wyżej)
+        // invoice_contact_person: REMOVED
+        invoice_contact_person: "None", // Fallback for old schemas if backend still requires it
         invoice_address_street: invoiceData.street,
         invoice_address_zip: invoiceData.zip,
         invoice_address_city: invoiceData.city,
@@ -110,7 +110,7 @@ export default function CheckoutPage() {
       
       <div className="grid grid-cols-1 gap-6">
         
-        {/* Formularz */}
+        {/* Form */}
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-lg font-semibold mb-4 border-b pb-2">1. Dane Nabywcy (Faktura)</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -135,7 +135,7 @@ export default function CheckoutPage() {
             <FormInput label="Miasto" id="city" value={invoiceData.city} onChange={e => setInvoiceData({...invoiceData, city: e.target.value})} required />
           </div>
 
-          {/* Sekcja Adresu Dostawy */}
+          {/* Shipping Address Section */}
           <div className="mt-6 pt-4 border-t">
             <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-green-700">2. Adres Dostawy</h2>
@@ -170,7 +170,7 @@ export default function CheckoutPage() {
           </button>
         </div>
 
-        {/* Podsumowanie koszyka */}
+        {/* Cart Summary */}
         <div className="bg-white p-6 rounded-lg shadow-md">
             <h2 className="text-lg font-semibold mb-4">Twój koszyk</h2>
             <ul className="divide-y divide-gray-200 text-sm">

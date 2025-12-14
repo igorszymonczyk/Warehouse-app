@@ -3,11 +3,13 @@ from sqlalchemy.orm import relationship, backref
 from database import Base
 import enum
 
+# Enum for invoice payment states
 class PaymentStatus(str, enum.Enum):
     PENDING = "pending"
     PAID = "paid"
     CANCELLED = "cancelled"
 
+# Represents a sales invoice or a correction invoice
 class Invoice(Base):
     __tablename__ = "invoices"
 
@@ -17,7 +19,7 @@ class Invoice(Base):
     order_id = Column(Integer, ForeignKey("orders.id"), index=True, nullable=True)
     payment_status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING, nullable=True)
     
-    # Dane Nabywcy 
+    # Buyer details
     buyer_name = Column(String, nullable=False)
     buyer_nip = Column(String, nullable=True)
     buyer_address = Column(String, nullable=True)
@@ -31,17 +33,18 @@ class Invoice(Base):
     total_gross = Column(Float, nullable=False)
     created_by = Column(Integer, ForeignKey("users.id"))
     
-    # Pola korekty
+    # Correction fields
     is_correction = Column(Boolean, default=False, nullable=False)
     correction_reason = Column(String, nullable=True)
     parent_id = Column(Integer, ForeignKey("invoices.id"), nullable=True)
     correction_seq = Column(Integer, default=1, nullable=True)
 
-    # Relacje
+    # Relationships
     parent = relationship("Invoice", remote_side=[id], backref=backref("corrections", cascade="all, delete-orphan"))
     items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
     warehouse_doc = relationship("WarehouseDocument", back_populates="invoice", uselist=False)
 
+    # Generates the formatted invoice number string (handles corrections)
     @property
     def full_number(self):
         if self.is_correction:
@@ -57,6 +60,7 @@ class Invoice(Base):
             num = self.number if self.number else self.id
             return f"INV-{num}"
 
+# Represents a line item on an invoice
 class InvoiceItem(Base):
     __tablename__ = "invoice_items"
     id = Column(Integer, primary_key=True, index=True)

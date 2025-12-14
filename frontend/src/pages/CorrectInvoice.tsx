@@ -17,8 +17,8 @@ interface InvoiceItemRow {
   product_id: number;
   product_name: string;
   quantity: number;
-  price_net: number; // Teraz edytowalne
-  tax_rate: number;  // Teraz edytowalne
+  price_net: number; // Now editable
+  tax_rate: number;  // Now editable
   current_stock?: number; 
 }
 
@@ -42,7 +42,7 @@ export default function CorrectInvoicePage() {
 
   const loadData = async () => {
     try {
-      const prodRes = await api.get<{ items: Product[] }>("/products?page_size=10000"); // Zwiększony limit
+      const prodRes = await api.get<{ items: Product[] }>("/products?page_size=10000"); // Increased limit
       setAvailableProducts(prodRes.data.items);
 
       const invRes = await api.get(`/invoices/${id}`);
@@ -101,13 +101,13 @@ export default function CorrectInvoicePage() {
     setItems(newItems);
   };
 
-  // Uniwersalna funkcja zmiany pól w wierszu (ilość, cena, vat)
+  // Universal function to update row fields (qty, price, vat)
   const handleItemChange = (index: number, field: keyof InvoiceItemRow, value: number) => {
     const newItems = [...items];
-    // Walidacja ujemnych wartości
+    // Validate negative values
     if (value < 0) value = 0;
     
-    // @ts-ignore - prosty update pola
+    // @ts-ignore - simple field update
     newItems[index][field] = value;
     setItems(newItems);
   };
@@ -230,7 +230,7 @@ export default function CorrectInvoicePage() {
                 <tr key={idx}>
                   <td className="p-2">{item.product_name}</td>
                   
-                  {/* Edycja Ceny Netto */}
+                  {/* Edit Net Price */}
                   <td className="p-2 text-right">
                     <input
                       type="number" step="0.01" min="0"
@@ -240,7 +240,7 @@ export default function CorrectInvoicePage() {
                     />
                   </td>
 
-                  {/* Edycja VAT */}
+                  {/* Edit VAT */}
                   <td className="p-2 text-right">
                     <input
                       type="number" step="1" min="0" max="100"
@@ -250,7 +250,7 @@ export default function CorrectInvoicePage() {
                     />
                   </td>
 
-                  {/* Edycja Ilości */}
+                  {/* Edit Quantity */}
                   <td className="p-2 text-right">
                     <input
                       type="number" min="1"

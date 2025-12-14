@@ -6,7 +6,6 @@ import { ArrowLeft, Download, AlertCircle, Truck } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function InvoiceDetailPage() {
-  // ... (reszta kodu bez zmian) ...
   const { id } = useParams();
   const navigate = useNavigate();
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
@@ -30,7 +29,6 @@ export default function InvoiceDetailPage() {
   }, [id, navigate]);
 
   const downloadPdf = async () => {
-      // ... (kod pdf bez zmian) ...
       if (!invoice) return;
       setDownloading(true);
       const toastId = toast.loading("Pobieranie PDF...");
@@ -40,7 +38,8 @@ export default function InvoiceDetailPage() {
         const url = window.URL.createObjectURL(new Blob([res.data]));
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', `Faktura-${invoice.full_number.replace('/', '_')}.pdf`);
+        // Adjust filename for download
+        link.setAttribute('download', `Faktura-INV-${invoice.id}.pdf`);
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -113,7 +112,7 @@ export default function InvoiceDetailPage() {
         </div>
 
         <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* NABYWCA */}
+          {/* BUYER */}
           <div>
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Nabywca (Faktura)</h3>
             <div className="text-gray-900 font-medium text-lg">{invoice.buyer_name}</div>
@@ -123,7 +122,7 @@ export default function InvoiceDetailPage() {
             </div>
           </div>
 
-          {/* DOSTAWA (NOWE) */}
+          {/* SHIPPING (NEW) */}
           <div className="md:text-right">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center md:justify-end gap-1">
                <Truck size={14} />
@@ -155,7 +154,7 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {/* TABELA (bez zmian) */}
+      {/* ITEMS TABLE */}
       <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
         <div className="bg-gray-50 px-6 py-3 border-b">
           <h3 className="font-semibold text-gray-700">Pozycje na dokumencie</h3>

@@ -28,7 +28,7 @@ export default function LogsPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   
-  // Filtry
+  // Filters
   const [searchAction, setSearchAction] = useState("");
   const [searchUserId, setSearchUserId] = useState("");
   const [searchResource, setSearchResource] = useState("");
@@ -81,7 +81,7 @@ export default function LogsPage() {
         </h1>
       </div>
 
-      {/* SEKCJA FILTRÓW*/}
+      {/* FILTERS SECTION */}
       <div className="bg-white p-4 rounded shadow-sm border mb-6 flex flex-wrap gap-4 items-end">
           
           

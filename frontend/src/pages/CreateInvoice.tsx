@@ -5,7 +5,7 @@ import { Trash2, Plus, ArrowLeft, Save, Search, Sparkles } from "lucide-react";
 import { useForm, useFieldArray, type SubmitHandler, type UseFormSetValue } from "react-hook-form";
 import toast from "react-hot-toast"; 
 
-// --- TYPY ---
+// --- TYPES ---
 type RecommendationRule = {
     product_in: string[];
     product_out: string[];
@@ -38,7 +38,7 @@ type InvoiceFormInputs = {
   items: InvoiceItem[];
 };
 
-// --- KOMPONENT WIERSZA (Z OPTYMALIZACJĄ) ---
+// --- ROW COMPONENT (OPTIMIZED) ---
 function InvoiceItemRow({ 
   index, 
   item, 
@@ -54,7 +54,7 @@ function InvoiceItemRow({
     const [localPrice, setLocalPrice] = useState(item.price_net);
     const [localTax, setLocalTax] = useState(item.tax_rate);
 
-    // Synchronizacja, gdyby propsy zmieniły się z zewnątrz (np. inny mechanizm)
+    // Sync if props change externally (e.g., different mechanism updates the item)
     useEffect(() => {
         setLocalQty(item.quantity);
         setLocalPrice(item.price_net);
@@ -64,7 +64,7 @@ function InvoiceItemRow({
     const rowGross = (localPrice * localQty * (1 + localTax / 100)) || 0;
 
     const commitChanges = () => {
-        // Aktualizujemy tylko jeśli wartości są inne, aby uniknąć zbędnych renderów
+        // Update only if values differ to avoid unnecessary renders
         if (item.quantity !== localQty) setValue(`items.${index}.quantity`, localQty);
         if (item.price_net !== localPrice) setValue(`items.${index}.price_net`, localPrice);
         if (item.tax_rate !== localTax) setValue(`items.${index}.tax_rate`, localTax);
@@ -127,7 +127,7 @@ function InvoiceItemRow({
 }
 
 
-// --- GŁÓWNY KOMPONENT ---
+// --- MAIN COMPONENT ---
 export default function CreateInvoice() {
   const navigate = useNavigate();
 
@@ -163,11 +163,11 @@ export default function CreateInvoice() {
 
   const watchedItems = watch("items");
 
-  // Tworzymy klucz (fingerprint) składający się tylko z ID produktów.
-  // Zmieni się tylko gdy dodamy/usuniemy produkt, a nie gdy zmienimy ilość.
+  // Create a key (fingerprint) consisting only of product IDs.
+  // This changes only when we add/remove a product, not when we change quantity/price.
   const productIdsFingerprint = JSON.stringify(watchedItems.map(i => i.product_id).sort());
 
-  // 1. Ładowanie produktów
+  // 1. Load products
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -180,7 +180,7 @@ export default function CreateInvoice() {
     fetchProducts();
   }, []);
 
-  // 2. REKOMENDACJE (Zależne tylko od fingerprinta ID)
+  // 2. RECOMMENDATIONS (Dependent only on ID fingerprint)
   useEffect(() => {
     if (watchedItems.length === 0) {
         setRecommendations([]);
@@ -223,13 +223,13 @@ export default function CreateInvoice() {
     const timer = setTimeout(loadRecommendations, 500);
     return () => clearTimeout(timer);
 
-  }, [productIdsFingerprint]); // <--- KLUCZOWA ZMIANA: Nie reaguje na zmianę ilości/ceny
+  }, [productIdsFingerprint]); // <--- KEY CHANGE: Does not react to quantity/price changes
 
-  // 3. FILTROWANIE PRODUKTÓW (useMemo dla wydajności)
-  // Obliczamy to tylko gdy zmieni się 'search' lub lista 'productIdsFingerprint'.
-  // Nie przeliczamy tego 10000 razy, gdy zmienisz ilość w input!
+  // 3. PRODUCT FILTERING (useMemo for performance)
+  // Calculated only when 'search' or 'productIdsFingerprint' changes.
+  // We don't recalculate 10000 items when quantity input changes!
   const filteredProducts = useMemo(() => {
-    // Tworzymy Set ID, aby szybciej sprawdzać "notAdded"
+    // Create Set of IDs for faster "notAdded" check
     const addedIds = new Set(watchedItems.map(i => i.product_id));
     const lowerSearch = search.toLowerCase();
 
@@ -240,7 +240,7 @@ export default function CreateInvoice() {
       const notAdded = !addedIds.has(p.id);
       return matchesSearch && notAdded;
     });
-  }, [allProducts, search, productIdsFingerprint]); // <--- Używamy fingerprinta
+  }, [allProducts, search, productIdsFingerprint]); // <--- Using fingerprint
 
   const handleAddProduct = (product: Product) => {
     if (product.stock_quantity <= 0) {
@@ -326,7 +326,7 @@ export default function CreateInvoice() {
             <div className="bg-white p-6 rounded shadow-sm border mb-6">
                 <h2 className="font-medium border-b pb-2 text-gray-700 mb-4">Pozycje faktury</h2>
 
-                {/* Wyszukiwarka */}
+                {/* Search */}
                 <div className="relative mb-6">
                     <div className="relative">
                         <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
@@ -368,7 +368,7 @@ export default function CreateInvoice() {
                     )}
                 </div>
 
-                {/* Tabela */}
+                {/* Table */}
                 <table className="min-w-full text-sm mb-4">
                     <thead className="bg-gray-50 text-gray-500">
                         <tr>
@@ -414,7 +414,7 @@ export default function CreateInvoice() {
         </form>
       </div>
 
-      {/* PRAWA KOLUMNA: Rekomendacje */}
+      {/* RIGHT COLUMN: Recommendations */}
       <div className="w-80 shrink-0">
         <div className="bg-gradient-to-br from-blue-50 to-white border border-blue-100 p-4 rounded-lg shadow-sm sticky top-6">
             <h3 className="font-semibold text-blue-800 flex items-center gap-2 mb-3">

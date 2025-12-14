@@ -3,35 +3,33 @@ from sqlalchemy import Column, Integer, ForeignKey, String, DateTime, Float, Uni
 from sqlalchemy.orm import relationship
 from database import Base
 
-# Model Cart (Tabela 'carts')
-# Reprezentuje główny koszyk zakupowy użytkownika.
+# Represents the user's shopping cart
 class Cart(Base):
-    __tablename__ = "carts" # Tabela koszyków
+    __tablename__ = "carts" # Table name
 
-    id = Column(Integer, primary_key=True, index=True) # Klucz główny
-    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False) # Powiązanie z tabelą użytkowników
-    status = Column(String, default="open", index=True)  # Stan koszyka
-    created_at = Column(DateTime, server_default=func.now()) # Data utworzenia koszyka
+    id = Column(Integer, primary_key=True, index=True) # Primary key
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False) # Foreign key to users
+    status = Column(String, default="open", index=True)  # Cart status
+    created_at = Column(DateTime, server_default=func.now()) # Creation timestamp
 
-    # Relacja jeden-do-wielu do pozycji w koszyku (CartItem)
+    # One-to-many relationship with cart items
     items = relationship("CartItem", back_populates="cart", cascade="all, delete-orphan")
 
 
-# Model CartItem (Tabela 'cart_items')
-# Reprezentuje pojedynczą pozycję (produkt i ilość) w koszyku.
+# Represents a single item (product + quantity) within a cart
 class CartItem(Base):
-    __tablename__ = "cart_items" # Nazwa tabeli dla pozycji koszyka
+    __tablename__ = "cart_items" # Table name
 
     id = Column(Integer, primary_key=True, index=True)
-    cart_id = Column(Integer, ForeignKey("carts.id"), index=True, nullable=False) # Klucz obcy do koszyka
-    product_id = Column(Integer, ForeignKey("products.id"), index=True, nullable=False) # Klucz obcy do produktu
-    qty = Column(Float, nullable=False, default=1) # Ilość produktu
-    unit_price_snapshot = Column(Float, nullable=False) # Zapisana cena jednostkowa (snapshot)
+    cart_id = Column(Integer, ForeignKey("carts.id"), index=True, nullable=False) # Foreign key to parent cart
+    product_id = Column(Integer, ForeignKey("products.id"), index=True, nullable=False) # Foreign key to product
+    qty = Column(Float, nullable=False, default=1) # Product quantity
+    unit_price_snapshot = Column(Float, nullable=False) # Unit price at the moment of addition
 
-    cart = relationship("Cart", back_populates="items") # Relacja powrotna do Koszyka
-    product = relationship("Product") # Relacja do modelu Produktu
+    cart = relationship("Cart", back_populates="items") # Relationship back to Cart
+    product = relationship("Product") # Relationship to Product
 
     __table_args__ = (
-        # Ograniczenie unikalności dla cart_id i product_id
+        # Unique constraint to prevent duplicate product entries in the same cart
         UniqueConstraint("cart_id", "product_id", name="uq_cartitem_cart_product"),
     )

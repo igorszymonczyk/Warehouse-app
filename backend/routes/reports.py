@@ -21,9 +21,7 @@ router = APIRouter(prefix="/reports", tags=["Reports"])
 def _role_ok(user: User) -> bool:
     return (user.role or "").upper() in {"ADMIN", "SALESMAN", "WAREHOUSE"}
 
-# -----------------------------
-# 1) Niskie stany
-# -----------------------------
+# 1) Low stock report
 @router.get("/low-stock", response_model=LowStockPage)
 def report_low_stock(
     threshold: float = Query(10, ge=0, description="Próg stanu (<=)"),
@@ -36,6 +34,7 @@ def report_low_stock(
     if not _role_ok(current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
 
+    # Query products with stock quantity below threshold
     query = db.query(Product).filter(Product.stock_quantity <= threshold)
     if q:
         like = f"%{q}%"
@@ -59,9 +58,7 @@ def report_low_stock(
     ]
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
-# -----------------------------
-# 2) Podsumowanie sprzedaży (Orders)
-# -----------------------------
+# 2) Sales summary (Orders)
 def _parse_iso(s: Optional[str]) -> Optional[datetime]:
     if not s:
         return None
@@ -83,6 +80,7 @@ def report_sales_summary(
     fdt = _parse_iso(date_from)
     tdt = _parse_iso(date_to)
 
+    # Aggregate orders by date, counting occurrences and summing amounts
     q = db.query(
         cast(Order.created_at, Date).label("d"),
         func.count(Order.id).label("orders"),
@@ -102,6 +100,8 @@ def report_sales_summary(
         SalesSummaryItem(date=r.d, orders=r.orders, total_amount=float(r.total_amount))
         for r in rows
     ]
+    
+    # Calculate total metrics
     total_orders = sum(i.orders for i in items)
     total_amount = round(sum(i.total_amount for i in items), 2)
 

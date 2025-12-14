@@ -22,7 +22,7 @@ export default function RegisterPage() {
     e.preventDefault();
     setLoading(true);
 
-    // Walidacja hasła
+    // Password validation
 
     if (password.length < 8) {
       toast.error("Hasło musi mieć co najmniej 8 znaków.");
@@ -97,7 +97,7 @@ export default function RegisterPage() {
           required
         />
 
-        {/* Pole hasła */}
+        {/* Password field */}
         <div className="relative mb-3">
           <input
             className="border rounded w-full p-2 pr-10"
@@ -116,7 +116,7 @@ export default function RegisterPage() {
           </button>
         </div>
 
-        {/* Pole "Potwierdź hasło" */}
+        {/* "Confirm Password" field */}
         <div className="relative mb-3">
           <input
             className="border rounded w-full p-2 pr-10"

@@ -5,10 +5,11 @@ from database import SessionLocal, engine
 from models.product import Product
 from sqlalchemy import text
 
+# Ensure upload directory exists
 UPLOAD_DIR = Path("static/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-# minimalny zestaw budowlany – dopisz własne
+# Sample dataset of building materials
 BUILDING_PRODUCTS = [
     {
         "name": "Cement Portlandzki CEM I 32,5R",
@@ -69,32 +70,38 @@ BUILDING_PRODUCTS = [
 ]
 
 def download_image(url: str) -> str:
-    """Pobiera obraz i zapisuje w static/uploads; zwraca '/uploads/<plik>'."""
+    """Downloads image from URL and saves it locally."""
     try:
+        # Determine file extension and generate unique filename
         ext = (url.split("?")[0].split(".")[-1] or "jpg").lower()
         if ext not in {"jpg", "jpeg", "png", "webp"}:
             ext = "jpg"
         fname = f"{uuid.uuid4()}.{ext}"
         dest = UPLOAD_DIR / fname
+        
+        # Fetch and save image data
         r = requests.get(url, timeout=20)
         r.raise_for_status()
         with open(dest, "wb") as f:
             f.write(r.content)
         return f"/uploads/{fname}"
     except Exception:
-        return None  # brak obrazka – frontend pokaże placeholder
+        # Return None on failure to allow placeholder usage
+        return None
 
 def main():
     db = SessionLocal()
     try:
-        # Czyścimy tylko produkty (jeśli jeszcze nie zrobiłeś DELETE)
+        # Clear existing product records
         db.execute(text("DELETE FROM products;"))
         db.commit()
 
         to_add = []
         for item in BUILDING_PRODUCTS:
+            # Download image if URL is provided
             img_url = download_image(item["image"]) if item.get("image") else None
 
+            # Create Product instance
             p = Product(
                 name=item["name"],
                 code=item["code"].strip().upper(),
@@ -111,6 +118,7 @@ def main():
             )
             to_add.append(p)
 
+        # Persist all new products
         db.add_all(to_add)
         db.commit()
         print(f"✅ Zaimportowano {len(to_add)} produktów budowlanych.")

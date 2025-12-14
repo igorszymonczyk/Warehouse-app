@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { Search, ShoppingCart, ArrowUpDown } from "lucide-react";
 import { useAuth } from "../store/auth";
 
-// === TYPY DANYCH ===
+// === DATA TYPES ===
 type Product = {
   id: number;
   name: string;
@@ -24,7 +24,7 @@ type PaginatedProducts = {
   page_size: number;
 };
 
-// --- Komponent Karty Produktu ---
+// --- Product Card Component ---
 function ProductCard({ product }: { product: Product }) {
   const { setCart } = useAuth();
   const [isAdding, setIsAdding] = useState(false);
@@ -57,7 +57,7 @@ function ProductCard({ product }: { product: Product }) {
       });
       setCart(res.data);
       toast.success(`Dodano do koszyka: ${quantity}x ${product.name}`);
-      setQuantity(1); // Reset po dodaniu
+      setQuantity(1); // Reset after adding
     } catch (err: unknown) {
       console.error(err);
       let msg = "Nie udało się dodać produktu"; 
@@ -75,10 +75,10 @@ function ProductCard({ product }: { product: Product }) {
 
   const isOutOfStock = product.stock_quantity <= 0;
 
-  // ZMIANA: Dodano handler z poprawnym typowaniem dla TypeScript
+  // CHANGE: Added handler with correct TypeScript typing
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      e.currentTarget.blur(); // Usuwa fokus po naciśnięciu Enter
+      e.currentTarget.blur(); // Remove focus on Enter
     }
   };
 
@@ -125,7 +125,7 @@ function ProductCard({ product }: { product: Product }) {
                     const val = parseInt(e.target.value);
                     setQuantity(isNaN(val) ? 1 : val);
                 }}
-                onKeyDown={handleKeyDown} // ZMIANA: Użycie poprawionego handlera
+                onKeyDown={handleKeyDown} // CHANGE: Using fixed handler
                 disabled={isOutOfStock || isAdding}
                 className="w-20 border border-gray-300 rounded-md px-2 py-2 text-center text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-gray-100"
               />
@@ -149,7 +149,7 @@ function ProductCard({ product }: { product: Product }) {
   );
 }
 
-// --- Główny komponent sklepu ---
+// --- Main Shop Component ---
 export default function CustomerShop() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);

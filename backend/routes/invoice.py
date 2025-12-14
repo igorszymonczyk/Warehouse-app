@@ -8,7 +8,7 @@ from pathlib import Path
 import json
 from datetime import datetime
 
-# Modele
+# Models
 from models.invoice import Invoice, InvoiceItem, PaymentStatus
 from models.product import Product
 from models.WarehouseDoc import WarehouseDocument, WarehouseStatus
@@ -26,6 +26,7 @@ router = APIRouter(tags=["Invoices"])
 # HELPER: PERMISSIONS
 # =========================
 def _check_pdf_permission(db: Session, invoice_id: int, user: User) -> Invoice:
+    # Verify user access rights for invoice PDF generation
     invoice = db.query(Invoice).options(
         joinedload(Invoice.items),
         joinedload(Invoice.parent).joinedload(Invoice.items)
@@ -53,6 +54,7 @@ def list_my_invoices(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Retrieve a paginated list of invoices for the current user
     if not current_user:
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -66,7 +68,7 @@ def list_my_invoices(
 
 
 # =========================
-# TWORZENIE FAKTURY (RĘCZNE) + AUTOMATYCZNE WZ
+# MANUAL INVOICE CREATION + AUTO WZ
 # =========================
 @router.post("/invoices", response_model=invoice_schemas.InvoiceResponse)
 def create_invoice(
@@ -75,10 +77,11 @@ def create_invoice(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Restrict invoice creation to Admin and Salesman roles
     if (current_user.role or "").upper() not in {"ADMIN", "SALESMAN"}:
         raise HTTPException(status_code=403, detail="Not authorized to issue invoices")
 
-    # Numeracja
+    # Determine next invoice number
     last_number = db.query(func.max(Invoice.number)).filter(
         (Invoice.is_correction == False) | (Invoice.is_correction == None)
     ).scalar()
@@ -87,6 +90,7 @@ def create_invoice(
     total_net, total_vat, total_gross = 0.0, 0.0, 0.0
     items = []
 
+    # Process invoice items and validate stock
     for item_data in invoice_data.items:
         product = db.query(Product).filter(Product.id == item_data.product_id).first()
         if not product:
@@ -118,16 +122,17 @@ def create_invoice(
         )
         product.stock_quantity -= quantity
 
-    # Ustawiamy adres dostawy taki sam jak nabywcy (bo w manualnym formularzu nie ma osobnego pola)
+    # Use buyer address as default shipping address
     shipping_addr = invoice_data.buyer_address
     
     now = datetime.now()
 
+    # Create and save invoice record
     invoice = Invoice(
         buyer_name=invoice_data.buyer_name,
         buyer_nip=invoice_data.buyer_nip,
         buyer_address=invoice_data.buyer_address,
-        shipping_address=shipping_addr, # <-- ZAPISUJEMY ADRES
+        shipping_address=shipping_addr, 
         created_by=current_user.id,
         user_id=current_user.id,
         created_at=now,
@@ -141,7 +146,7 @@ def create_invoice(
     db.commit()
     db.refresh(invoice)
 
-    # Automatyczne tworzenie dokumentu WZ
+    # Automatically generate associated Warehouse Document (WZ)
     warehouse_items = [
         {
             "product_name": item.product_name,
@@ -158,7 +163,7 @@ def create_invoice(
         created_at=now,
         items_json=json.dumps(warehouse_items),
         status=WarehouseStatus.NEW,
-        shipping_address=shipping_addr # <-- PRZEKAZUJEMY ADRES DO WZ
+        shipping_address=shipping_addr 
     )
     db.add(warehouse_doc)
     db.commit()
@@ -172,7 +177,7 @@ def create_invoice(
 
 
 # =========================
-# KOREKTA
+# CORRECTION INVOICE
 # =========================
 @router.post("/invoices/{invoice_id}/correction", response_model=invoice_schemas.InvoiceResponse)
 def create_invoice_correction(
@@ -185,18 +190,21 @@ def create_invoice_correction(
     if (current_user.role or "").upper() not in {"ADMIN", "SALESMAN"}:
         raise HTTPException(status_code=403, detail="Brak uprawnień")
 
+    # Validate original invoice
     original_invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not original_invoice:
         raise HTTPException(status_code=404, detail="Faktura nie istnieje")
     if original_invoice.is_correction:
         raise HTTPException(status_code=400, detail="Nie można korygować korekty")
 
+    # Calculate correction sequence number
     existing_corrections_count = db.query(Invoice).filter(Invoice.parent_id == original_invoice.id).count()
     new_seq = existing_corrections_count + 1
 
     total_net, total_vat, total_gross = 0.0, 0.0, 0.0
     new_items = []
 
+    # Process correction items
     for item_data in correction_data.items:
         product = db.query(Product).filter(Product.id == item_data.product_id).first()
         if not product: continue
@@ -224,11 +232,12 @@ def create_invoice_correction(
             )
         )
 
+    # Create correction invoice linked to parent
     correction_invoice = Invoice(
         buyer_name=correction_data.buyer_name,
         buyer_nip=correction_data.buyer_nip,
         buyer_address=correction_data.buyer_address,
-        shipping_address=original_invoice.shipping_address, # Kopiujemy adres z oryginału
+        shipping_address=original_invoice.shipping_address, # Copy address from original
         created_by=current_user.id,
         user_id=original_invoice.user_id,
         
@@ -264,6 +273,7 @@ def get_invoice(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Retrieve invoice details with permission check
     invoice = db.query(Invoice).options(joinedload(Invoice.items)).filter(Invoice.id == invoice_id).first()
 
     if not invoice:
@@ -274,6 +284,7 @@ def get_invoice(
     if not is_admin_or_sales and not is_owner:
         raise HTTPException(status_code=403, detail="Not authorized to view this invoice")
 
+    # Format detailed items response
     detailed_items = []
     for item in invoice.items:
         p_name = getattr(item, "product_name", None)
@@ -301,7 +312,7 @@ def get_invoice(
         "buyer_name": invoice.buyer_name,
         "buyer_nip": invoice.buyer_nip,
         "buyer_address": invoice.buyer_address,
-        "shipping_address": invoice.shipping_address, # ZWRACAMY ADRES
+        "shipping_address": invoice.shipping_address, 
         "created_at": invoice.created_at,
         "total_net": invoice.total_net,
         "total_vat": invoice.total_vat,
@@ -327,14 +338,18 @@ def list_invoices(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # List invoices with filtering (Admin/Salesman only)
     if (current_user.role or "").upper() not in {"ADMIN", "SALESMAN"}:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     query = db.query(Invoice)
+    
+    # Filter by text (buyer name or NIP)
     if q:
         like = f"%{q}%"
         query = query.filter(or_(Invoice.buyer_name.ilike(like), Invoice.buyer_nip.ilike(like)))
     
+    # Filter by specific ID or number
     if search_id:
         try:
             s_id = int(search_id)
@@ -342,11 +357,13 @@ def list_invoices(
         except ValueError:
             pass
 
+    # Filter by date range
     if date_from: query = query.filter(Invoice.created_at >= date_from)
     if date_to: query = query.filter(Invoice.created_at <= date_to)
 
     family_id = func.coalesce(Invoice.parent_id, Invoice.id)
 
+    # Sort logic grouping corrections with parents
     if sort_by == "created_at" or sort_by == "id":
         if order == "desc":
              query = query.order_by(family_id.desc(), Invoice.is_correction.asc(), Invoice.id.asc())
@@ -373,6 +390,7 @@ def generate_invoice_pdf_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Trigger PDF generation for an invoice
     invoice = _check_pdf_permission(db, invoice_id, current_user)
     out_path = get_pdf_path(invoice.id)
     
@@ -402,6 +420,7 @@ def download_invoice_pdf_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Download invoice PDF, generate if missing
     invoice_for_check = _check_pdf_permission(db, invoice_id, current_user)
     pdf_path = get_pdf_path(invoice_for_check.id)
     

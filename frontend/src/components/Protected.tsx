@@ -6,29 +6,29 @@ type Role = "admin" | "salesman" | "customer" | "warehouse";
 
 type ProtectedProps = {
   children: ReactNode;
-  // 1. Dodajemy nową, opcjonalną właściwość
+  // 1. Add new optional property
   allowedRoles?: Role[];
 };
 
 export default function Protected({ children, allowedRoles }: ProtectedProps) {
-  // 2. Pobieramy token ORAZ rolę z naszego ulepszonego hooka
+  // 2. Retrieve token AND role from the auth hook
   const { token, role } = useAuth();
 
-  // 3. Sprawdzenie logowania (jak wcześniej)
+  // 3. Check authentication (as before)
   if (!token) {
     return <Navigate to="/login" replace />;
   }
 
-  // 4. NOWE: Sprawdzenie autoryzacji (roli)
-  // Jeśli trasa wymaga konkretnych ról...
+  // 4. NEW: Authorization check (role-based)
+  // If the route requires specific roles...
   if (allowedRoles && role) {
-    // ...i jeśli rola użytkownika nie znajduje się na liście dozwolonych ról...
+    // ...and the user's role is not in the allowed list...
     if (!allowedRoles.includes(role)) {
-      // ...przekieruj na stronę główną (lub stronę "Brak dostępu")
+      // ...redirect to home (or an "Access Denied" page)
       return <Navigate to="/" replace />;
     }
   }
 
-  // Jeśli wszystko jest w porządku, wyświetl chronioną zawartość
+  // Render protected content if authorized
   return <>{children}</>;
 }

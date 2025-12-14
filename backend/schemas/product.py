@@ -3,12 +3,12 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 
 
-# KONFIGURACJA DLA ORM
+# Base configuration for ORM compatibility
 class ORMBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# GŁÓWNY MODEL BAZOWY PRODUKTU
+# Shared base attributes for product entities
 class ProductBase(ORMBase):
     name: str
     code: str
@@ -24,19 +24,18 @@ class ProductBase(ORMBase):
     image_url: Optional[str] = None
 
 
-# TWORZENIE PRODUKTU 
+# Schema for creating a new product
 class ProductCreate(ProductBase):
     name: str
     code: str
     sell_price_net: float
     stock_quantity: int
-    # Pole 'image_url' nie jest tutaj potrzebne,
-    # ponieważ będzie przesyłane jako oddzielny plik, a nie JSON
+    # 'image_url' is excluded here as it is handled via separate multipart file upload
 
 
-#EDYCJA PRODUKTU
+# Schema for partial product updates
 class ProductEditRequest(ORMBase):
-    """Dla PATCH — wszystkie pola opcjonalne."""
+    """Schema for PATCH requests - all fields optional."""
     name: Optional[str] = Field(None, description="Nazwa produktu")
     code: Optional[str] = Field(None, description="Kod produktu")
     description: Optional[str] = None
@@ -48,18 +47,18 @@ class ProductEditRequest(ORMBase):
     stock_quantity: Optional[int] = Field(None, ge=0)
     location: Optional[str] = None
     comment: Optional[str] = None
-    # Tu również nie dodajemy image_url, aby uprościć - edycja zdjęcia to osobny proces
+    # Image updates are handled via specific file upload endpoints
 
 
-# DLA JEDNEGO PRODUKTU
+# Full product representation including ID
 class ProductOut(ProductBase):
     id: int
-    # image_url jest już dziedziczone z ProductBase
+    # Inherits image_url from ProductBase
 
 class ProductNameList(BaseModel):
     product_names: List[str]
     
-# --- ODP. DLA LISTY PRODUKTÓW (Z PAGINACJĄ) ---
+# Paginated response for product listings
 class ProductListPage(ORMBase):
     items: List[ProductOut]
     total: int

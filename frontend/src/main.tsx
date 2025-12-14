@@ -38,7 +38,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
       
-      // --- Trasy Admina i Sprzedawcy ---
+      // --- Admin and Salesman Routes ---
       {
         path: "invoices",
         element: (
@@ -71,7 +71,7 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
-      // --- Trasy Magazyniera (i Admin/Salesman) ---
+      // --- Warehouse Routes (and Admin/Salesman) ---
       {
         path: "wz",
         element: (
@@ -98,7 +98,7 @@ const router = createBrowserRouter([
         ),
       },
 
-      // --- Trasy Tylko dla Admina ---
+      // --- Admin Only Routes ---
       {
         path: "users",
         element: (
@@ -117,7 +117,7 @@ const router = createBrowserRouter([
         ),
       },
 
-      // --- Trasy Klienta ---
+      // --- Customer Routes ---
       {
         path: "cart",
         element: (

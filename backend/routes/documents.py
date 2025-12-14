@@ -14,19 +14,12 @@ from schemas.documents import DocumentsPage, DocumentListItem
 
 router = APIRouter(tags=["Documents"])
 
-# Moduł Documents
-# --------------------------------
-# Obsługuje przeglądanie dokumentów sprzedaży i magazynowych:
-# - faktur (invoice)
-# - dokumentów WZ (warehouse document)
-# Endpoint wspiera filtrowanie, paginację i sortowanie.
-# Dostęp mają tylko wybrane role: ADMIN, SALESMAN, WAREHOUSE.
-
+# Check if the user has appropriate permissions (Admin, Salesman, or Warehouse)
 def _role_ok(user: User) -> bool:
     return (user.role or "").upper() in {"ADMIN", "SALESMAN", "WAREHOUSE"}
 
+# Parse ISO datetime string with validation
 def _parse_iso(s: Optional[str]) -> Optional[datetime]:
-    # Parsowanie daty w formacie ISO; walidacja
     if not s:
         return None
     try:
@@ -35,7 +28,7 @@ def _parse_iso(s: Optional[str]) -> Optional[datetime]:
         raise HTTPException(status_code=400, detail=f"Bad datetime format: {s}")
 
 
-# Lista dokumentów z filtrowaniem, paginacją i sortowaniem
+# Retrieve a list of documents with filtering, pagination, and sorting
 @router.get("/documents", response_model=DocumentsPage)
 def list_documents(
     type: Optional[Literal["invoice", "wz"]] = Query(None, description="Filtr rodzaju dokumentu"),
@@ -51,18 +44,20 @@ def list_documents(
     current_user: User = Depends(get_current_user),
 ):
 
+    # Enforce role-based access control
     if not _role_ok(current_user):
         raise HTTPException(status_code=403, detail="Forbidden")
 
     fdt = _parse_iso(date_from)
     tdt = _parse_iso(date_to)
 
-    # --- INVOICES ---
+    # --- INVOICE PROCESSING ---
     inv_items: List[Dict[str, Any]] = []
     inv_total = 0
     if type in (None, "invoice"):
         iq = db.query(Invoice)
 
+        # Apply filters: buyer, date range, status
         if buyer and hasattr(Invoice, "buyer_name"):
             iq = iq.filter(Invoice.buyer_name.ilike(f"%{buyer}%"))
         if fdt and hasattr(Invoice, "created_at"):
@@ -74,7 +69,7 @@ def list_documents(
 
         inv_total = iq.count()
 
-        # sortowanie
+        # Apply sorting logic
         if sort_by == "date" and hasattr(Invoice, "created_at"):
             iq = iq.order_by(Invoice.created_at.asc() if order == "asc" else Invoice.created_at.desc())
         elif sort_by == "buyer" and hasattr(Invoice, "buyer_name"):
@@ -84,6 +79,7 @@ def list_documents(
         else:
             iq = iq.order_by(Invoice.id.asc() if order == "asc" else Invoice.id.desc())
 
+        # Fetch paginated results and map to dictionary
         inv_page = iq.offset((page - 1) * page_size).limit(page_size).all()
         for i in inv_page:
             inv_items.append({
@@ -99,12 +95,13 @@ def list_documents(
                 "total_gross": getattr(i, "total_gross", None),
             })
 
-    # --- WAREHOUSE DOCS (WZ) ---
+    # --- WAREHOUSE DOCUMENT PROCESSING ---
     wz_items: List[Dict[str, Any]] = []
     wz_total = 0
     if type in (None, "wz"):
         wq = db.query(WarehouseDocument)
 
+        # Apply filters for warehouse documents
         if buyer and hasattr(WarehouseDocument, "buyer_name"):
             wq = wq.filter(WarehouseDocument.buyer_name.ilike(f"%{buyer}%"))
         if fdt and hasattr(WarehouseDocument, "created_at"):
@@ -116,7 +113,7 @@ def list_documents(
 
         wz_total = wq.count()
 
-        # sortowanie
+        # Apply sorting logic
         if sort_by == "date" and hasattr(WarehouseDocument, "created_at"):
             wq = wq.order_by(WarehouseDocument.created_at.asc() if order == "asc" else WarehouseDocument.created_at.desc())
         elif sort_by == "buyer" and hasattr(WarehouseDocument, "buyer_name"):
@@ -126,6 +123,7 @@ def list_documents(
         else:
             wq = wq.order_by(WarehouseDocument.id.asc() if order == "asc" else WarehouseDocument.id.desc())
 
+        # Fetch paginated results and map to dictionary
         wz_page = wq.offset((page - 1) * page_size).limit(page_size).all()
         for w in wz_page:
             wz_items.append({
@@ -139,7 +137,7 @@ def list_documents(
                 "items_json": getattr(w, "items_json", None),
             })
 
-    
+    # Combine results and construct final response
     items: List[DocumentListItem] = [DocumentListItem(**x) for x in (inv_items + wz_items)]
     total = (inv_total if type in (None, "invoice") else 0) + (wz_total if type in (None, "wz") else 0)
 

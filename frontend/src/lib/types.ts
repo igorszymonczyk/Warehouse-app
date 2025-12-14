@@ -1,3 +1,4 @@
+// Generic pagination wrapper
 export interface Page<T> {
   items: T[];
   total: number;
@@ -5,7 +6,7 @@ export interface Page<T> {
   page_size: number;
 }
 
-// For the invoice list page (as used in InvoicesPage.tsx)
+// Summary representation of an invoice for list views
 export interface Invoice {
   id: number;
   full_number: string;
@@ -20,8 +21,8 @@ export interface Invoice {
   correction_reason?: string | null;
 }
 
-// Represents a single item within a detailed invoice view.
-// product_name is now a required string, snapshotted from the product at creation time.
+// Detailed representation of an invoice line item
+// product_name is snapshotted at creation time
 export interface InvoiceItemDetail {
   product_id: number;
   product_name: string;
@@ -32,7 +33,7 @@ export interface InvoiceItemDetail {
   total_gross: number;
 }
 
-// For the full invoice detail page (as used in InvoiceDetailPage.tsx)
+// Full invoice details including buyer info and item list
 export interface InvoiceDetail {
   id: number;
   full_number: string;
@@ -50,7 +51,7 @@ export interface InvoiceDetail {
   shipping_address: string | null;
 }
 
-// Warehouse Document Type
+// Represents a Warehouse Document (WZ) entity
 export interface WarehouseDoc {
   id: number;
   buyer_name: string | null;

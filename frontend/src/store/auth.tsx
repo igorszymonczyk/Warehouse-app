@@ -16,7 +16,7 @@ export type Cart = {
   total: number;
 };
 
-// --- 1. ZMIANA: Definicja typu użytkownika (musi pasować do odpowiedzi z /me) ---
+// --- 1. CHANGE: User type definition (must match /me response) ---
 export type UserData = {
   id: number;
   email: string;
@@ -31,13 +31,13 @@ type JwtPayload = {
   exp: number;
 };
 
-// --- 2. ZMIANA: Dodano pole user do AuthState ---
+// --- 2. CHANGE: Added user field to AuthState ---
 type AuthState = {
   token: string | null;
   role: JwtPayload["role"] | null;
   userId: number | null;
   cart: Cart | null;
-  user: UserData | null; // <-- Tutaj przechowujemy pełne dane usera
+  user: UserData | null; // <-- Store full user data here
   setCart: (cart: Cart | null) => void;
   login: (token: string) => void;
   logout: () => void;
@@ -45,7 +45,7 @@ type AuthState = {
 
 const AuthCtx = createContext<AuthState | undefined>(undefined);
 
-// Pomocnicza funkcja (zaktualizowana o user: null)
+// Helper function (updated with user: null)
 const getAuthFromStorage = (): Omit<AuthState, "login" | "logout" | "cart" | "setCart"> => {
   const token = localStorage.getItem("token");
   if (!token) {
@@ -61,10 +61,10 @@ const getAuthFromStorage = (): Omit<AuthState, "login" | "logout" | "cart" | "se
       token: token,
       role: decoded.role,
       userId: parseInt(decoded.sub),
-      user: null, // Dane szczegółowe pobierzemy z API
+      user: null, // Detailed data will be fetched from API
     };
   } catch (error) {
-    console.error("Nie udało się zdekodować tokena:", error);
+    console.error("Failed to decode token:", error);
     localStorage.removeItem("token");
     return { token: null, role: null, userId: null, user: null };
   }
@@ -73,7 +73,7 @@ const getAuthFromStorage = (): Omit<AuthState, "login" | "logout" | "cart" | "se
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authState, setAuthState] = useState(getAuthFromStorage());
   const [cart, setCart] = useState<Cart | null>(null);
-  // --- 3. ZMIANA: Stan dla danych użytkownika ---
+  // --- 3. CHANGE: State for user data ---
   const [user, setUser] = useState<UserData | null>(null);
 
   const loadCart = async () => {
@@ -81,28 +81,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await api.get<Cart>("/cart");
       setCart(res.data);
     } catch (err) {
-      console.error("Nie udało się pobrać koszyka", err);
+      console.error("Failed to fetch cart", err);
       setCart(null);
     }
   };
 
-  // --- 4. ZMIANA: Pobieranie danych usera i koszyka ---
+  // --- 4. CHANGE: Fetching user data and cart ---
   useEffect(() => {
     if (authState.token) {
-      // Ustawiamy nagłówek autoryzacji dla wszystkich zapytań
+      // Set authorization header for all requests
       api.defaults.headers.common["Authorization"] = `Bearer ${authState.token}`;
 
-      // Pobierz szczegóły użytkownika (imię, nazwisko)
+      // Fetch user details (first name, last name)
       api.get<UserData>("/me")
         .then((res) => setUser(res.data))
-        .catch((err) => console.error("Błąd pobierania danych użytkownika", err));
+        .catch((err) => console.error("Error fetching user data", err));
 
-      // Jeśli to klient, pobierz koszyk
+      // If customer, fetch cart
       if (authState.role === "customer") {
         loadCart();
       }
     } else {
-      // Czyszczenie stanów
+      // Clear states
       setCart(null);
       setUser(null);
       delete api.defaults.headers.common["Authorization"];
@@ -120,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: null, 
       });
     } catch (error) {
-      console.error("Błąd logowania, nie udało się zdekodować tokena:", error);
+      console.error("Login error, failed to decode token:", error);
       logout();
     }
   };
@@ -147,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       ...authState,
-      user, // Nadpisujemy null z authState aktualnym stanem user
+      user, // Overwrite null from authState with current user state
       cart,
       setCart,
       login,
@@ -164,6 +164,3 @@ export function useAuth(): AuthState {
   if (!ctx) throw new Error("useAuth must be used inside <AuthProvider>");
   return ctx;
 }
-
-
-

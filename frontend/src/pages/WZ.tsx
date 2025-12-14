@@ -4,7 +4,7 @@ import { ArrowUpDown, ArrowLeft, Loader2, Download, Package } from "lucide-react
 import { useSearchParams } from "react-router-dom"; 
 import toast from "react-hot-toast";
 
-// === TYPY DANYCH WZ Z BACKENDU ===
+// === BACKEND DATA TYPES ===
 type WZStatus = "NEW" | "IN_PROGRESS" | "RELEASED" | "CANCELLED";
 
 type WzProductItem = {
@@ -38,7 +38,7 @@ type PaginatedWz = {
   page_size: number;
 };
 
-// === KOMPONENT SZCZEGÓŁÓW (WZDetailView) ===
+// === DETAIL COMPONENT (WZDetailView) ===
 function WZDetailView({ docId, onBack, onChangeStatus }: { docId: number, onBack: () => void, onChangeStatus: (id: number, status: WZStatus) => Promise<void> }) {
     const [detail, setDetail] = useState<WZDetail | null>(null);
     const [loading, setLoading] = useState(true);
@@ -97,7 +97,7 @@ function WZDetailView({ docId, onBack, onChangeStatus }: { docId: number, onBack
                 </div>
                 <div>
                     <p className="text-gray-500">Data Utworzenia:</p>
-                    <p className="font-semibold">{detail.created_at ? new Date(detail.created_at).toLocaleString() : "Brak daty"}</p>
+                    <p className="font-semibold">{detail.created_at ? new Date(detail.created_at).toLocaleString("pl-PL") : "Brak daty"}</p>
                 </div>
                 
                 {detail.shipping_address && (
@@ -113,7 +113,7 @@ function WZDetailView({ docId, onBack, onChangeStatus }: { docId: number, onBack
                 </div>
             </div>
 
-            {/* Panel Akcji Magazyniera */}
+            {/* Warehouse Actions Panel */}
             <div className="mb-6 flex gap-3">
                 {detail.status === 'NEW' && (
                     <button 
@@ -166,7 +166,7 @@ function WZDetailView({ docId, onBack, onChangeStatus }: { docId: number, onBack
     );
 }
 
-// === GŁÓWNY KOMPONENT ===
+// === MAIN COMPONENT ===
 export default function WZPage() {
   const [rows, setRows] = useState<WzItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -190,7 +190,7 @@ export default function WZPage() {
   const docIdParam = searchParams.get('doc_id');
   const currentDocId = docIdParam ? parseInt(docIdParam, 10) : null;
 
-  // === UŻYCIE NOWEGO ENDPOINTU ===
+  // === USE NEW ENDPOINT ===
   const fetchActiveCount = useCallback(async () => {
       try {
           const res = await api.get<{ total: number }>("/warehouse-documents/active-count");
@@ -280,7 +280,7 @@ export default function WZPage() {
       
       setRows((r) => r.map((x) => (x.id === id ? { ...x, status: newStatus } : x)));
       
-      // Odśwież licznik z backendu po zmianie statusu
+      // Refresh counter after status change
       await fetchActiveCount(); 
     } catch {
       toast.error("Nie udało się zmienić statusu");
@@ -328,7 +328,7 @@ export default function WZPage() {
     <div className="p-6">
       <h1 className="text-xl font-semibold mb-4">Wydania zewnętrzne (WZ)</h1>
 
-      {/* Box statusu */}
+      {/* Status Box */}
       <div className={`mb-6 p-4 rounded-lg shadow-sm border flex items-center justify-between ${activeCount > 0 ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'}`}>
           <div className="flex items-center gap-3">
               <div className={`p-2 rounded-full ${activeCount > 0 ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
@@ -353,7 +353,7 @@ export default function WZPage() {
           )}
       </div>
 
-      {/* FILTRY */}
+      {/* FILTERS */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
         <div className="flex flex-wrap items-end gap-3">
           <div>
@@ -403,7 +403,7 @@ export default function WZPage() {
       {error && <div className="text-red-600 mb-2">{error}</div>}
       {loading && <div>Ładowanie...</div>}
 
-      {/* TABELA */}
+      {/* TABLE */}
       <div className="overflow-x-auto border rounded shadow-sm">
         <table className="min-w-full text-sm bg-white">
           <thead className="bg-gray-100">
@@ -510,7 +510,7 @@ export default function WZPage() {
         </table>
       </div>
 
-      {/* PAGINACJA */}
+      {/* PAGINATION */}
       <div className="mt-4 flex items-center gap-4 justify-center">
         <button
           className="border rounded px-4 py-2 disabled:opacity-50 hover:bg-gray-50 text-sm"

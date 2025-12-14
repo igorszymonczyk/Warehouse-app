@@ -12,7 +12,7 @@ from utils.tokenJWT import get_current_user
 
 router = APIRouter(prefix="/logs", tags=["Logs"])
 
-# --- SCHEMATY ---
+# Response schemas
 class LogResponse(BaseModel):
     id: int
     user_id: Optional[int] = None
@@ -32,12 +32,12 @@ class LogPage(BaseModel):
     page: int
     page_size: int
 
-# --- ENDPOINT ---
+# Retrieve system logs with optional filtering (Admin only)
 @router.get("", response_model=LogPage)
 def get_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    # --- NOWE FILTRY ---
+    # Filter parameters
     action: Optional[str] = Query(None, description="Filtruj po akcji"),
     user_id: Optional[int] = Query(None, description="Filtruj po ID użytkownika"),
     resource: Optional[str] = Query(None, description="Filtruj po zasobie"),
@@ -53,33 +53,33 @@ def get_logs(
 
     query = db.query(Log)
 
-    # 1. Filtr Akcji
+    # Filter by action type
     if action:
         query = query.filter(Log.action.ilike(f"%{action}%"))
 
-    # 2. Filtr User ID
+    # Filter by specific user ID
     if user_id is not None:
         query = query.filter(Log.user_id == user_id)
 
-    # 3. Filtr Zasobu
+    # Filter by resource name
     if resource:
         query = query.filter(Log.resource.ilike(f"%{resource}%"))
 
-    # 4. Filtr Statusu
+    # Filter by execution status
     if status:
         query = query.filter(Log.status == status)
 
-    # 5. Filtry Daty
+    # Date range filtering
     if date_from:
         try:
             dt_from = datetime.fromisoformat(date_from)
             query = query.filter(Log.ts >= dt_from)
         except ValueError:
-            pass # Ignorujemy błędny format
+            pass # Ignore invalid date formats
 
     if date_to:
         try:
-            # Dodajemy czas 23:59:59, aby objąć cały dzień końcowy
+            # Adjust end date to cover the full day
             dt_to_str = date_to
             if len(dt_to_str) == 10: # Format YYYY-MM-DD
                 dt_to_str += " 23:59:59"
@@ -89,7 +89,7 @@ def get_logs(
         except ValueError:
             pass
 
-    # Sortowanie po dacie (malejąco)
+    # Sort by timestamp descending
     query = query.order_by(Log.ts.desc())
 
     total = query.count()
