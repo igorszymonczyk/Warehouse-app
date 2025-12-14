@@ -8,7 +8,7 @@ import { Download, AlertCircle, CheckCircle } from "lucide-react";
 // Typy pasujące do Invoice z backendu
 type Invoice = {
   id: number;
-  order_id: number;
+  order_id?: number; // Backend może zwrócić null/undefined
   payment_status: "pending" | "paid" | "cancelled";
   total_gross: number;
   created_at: string; // ISO string
@@ -75,7 +75,8 @@ function InvoiceCard({ invoice }: { invoice: Invoice }) {
       <div>
         <h2 className="text-lg font-semibold">Faktura INV-{invoice.id}</h2>
         <p className="text-sm text-gray-500">
-          Data wystawienia: {formattedDate} | Powiązana z zamówieniem #{invoice.order_id}
+          Data wystawienia: {formattedDate} 
+          {invoice.order_id && ` | Powiązana z zamówieniem #${invoice.order_id}`}
         </p>
         <div className={`flex items-center gap-2 mt-2 font-medium ${status.color}`}>
           {status.icon}

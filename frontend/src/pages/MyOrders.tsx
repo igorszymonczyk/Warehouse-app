@@ -2,13 +2,11 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../store/auth";
 import toast from "react-hot-toast";
-// 1. ZMIANA: Import ikon
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText, Loader2 } from "lucide-react"; // ZMIANA: Dodano ikony
 
-// 2. ZMIANA: Typ OrderItem zawiera teraz nazwę
 type OrderItem = {
   product_id: number;
-  product_name: string; // <-- DODANE
+  product_name: string;
   qty: number;
   unit_price: number;
   line_total: number;
@@ -18,8 +16,9 @@ type Order = {
   id: number;
   status: string;
   total_amount: number;
-  created_at: string; // ISO string
+  created_at: string;
   items: OrderItem[];
+  invoice_id?: number; // <-- ZMIANA: Nowe pole z backendu
 };
 
 type PaginatedOrders = {
@@ -29,9 +28,9 @@ type PaginatedOrders = {
   page_size: number;
 };
 
-// 3. ZMIANA: Komponent OrderCard ma teraz stan i listę produktów
 function OrderCard({ order }: { order: Order }) {
-  const [isExpanded, setIsExpanded] = useState(false); // <-- Stan rozwijania
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const formattedDate = new Date(order.created_at).toLocaleString("pl-PL", {
     day: "2-digit",
@@ -49,8 +48,40 @@ function OrderCard({ order }: { order: Order }) {
     cancelled: "Anulowane",
     CANCELLED: "Anulowane",
   };
-  // Normalize status for display (handle different casing/whitespace)
   const normalize = (s?: string) => (s || "").toString().trim().toLowerCase();
+
+  // Funkcja pobierania faktury (identyczna jak w MyInvoices)
+  const handleDownloadInvoice = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Nie rozwijaj karty przy kliknięciu
+    if (!order.invoice_id) return;
+
+    setDownloading(true);
+    const toastId = toast.loading("Generowanie faktury...");
+
+    try {
+      await api.post(`/invoices/${order.invoice_id}/pdf`);
+      const res = await api.get(`/invoices/${order.invoice_id}/download`, {
+        responseType: 'blob',
+      });
+
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Faktura-INV-${order.invoice_id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("Faktura pobrana!", { id: toastId });
+    } catch (err) {
+      console.error(err);
+      toast.error("Błąd pobierania faktury", { id: toastId });
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-md border overflow-hidden">
@@ -78,13 +109,25 @@ function OrderCard({ order }: { order: Order }) {
           </span>
           <div className="flex items-center gap-4">
             <span className="text-xl font-bold">{order.total_amount.toFixed(2)} zł</span>
-            {/* Ikona strzałki */}
+            
+            {/* Przycisk pobierania faktury, jeśli dostępna */}
+            {order.invoice_id && (
+                <button
+                    onClick={handleDownloadInvoice}
+                    disabled={downloading}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm transition font-medium border"
+                    title="Pobierz fakturę"
+                >
+                    {downloading ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+                    {downloading ? "..." : "Faktura"}
+                </button>
+            )}
+
             {isExpanded ? <ChevronUp size={20} className="text-gray-500" /> : <ChevronDown size={20} className="text-gray-500" />}
           </div>
         </div>
       </div>
 
-      {/* 4. ZMIANA: Sekcja rozwijana z produktami */}
       {isExpanded && (
         <div className="bg-gray-50 p-4 border-t border-gray-200">
           <h4 className="text-sm font-semibold mb-3 text-gray-700">Produkty w zamówieniu:</h4>
@@ -107,7 +150,6 @@ function OrderCard({ order }: { order: Order }) {
   );
 }
 
-// Komponent strony (bez zmian, poza poprawką błędu eslint)
 export default function MyOrdersPage() {
   const { role } = useAuth();
   const [data, setData] = useState<PaginatedOrders | null>(null);
@@ -128,16 +170,14 @@ export default function MyOrdersPage() {
     }
   };
 
-  // Load once on mount / when page changes
   useEffect(() => {
     loadOrders();
   }, [page]);
 
-  // Poll periodically so the page reflects changes (e.g. WZ -> RELEASED -> order shipped)
   useEffect(() => {
     const interval = setInterval(() => {
       loadOrders();
-    }, 10000); // every 10 seconds
+    }, 10000); 
     return () => clearInterval(interval);
   }, [page]);
 
@@ -173,7 +213,6 @@ export default function MyOrdersPage() {
         ))}
       </div>
 
-      {/* Paginacja */}
       <div className="mt-6 flex items-center justify-center gap-3">
         <button
           className="border rounded px-3 py-1 disabled:opacity-50"
