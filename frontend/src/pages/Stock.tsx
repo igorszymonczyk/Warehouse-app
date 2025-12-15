@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
-import { Search, PackageMinus, PackagePlus, X, AlertTriangle, Trash2 } from "lucide-react"; // Usunięto History
+import { Search, PackageMinus, PackagePlus, X, AlertTriangle, Trash2 } from "lucide-react"; 
 import toast from "react-hot-toast";
 import { useForm, type SubmitHandler } from "react-hook-form";
 
@@ -57,7 +57,7 @@ export default function StockPage() {
 
   const [allProducts, setAllProducts] = useState<ProductSimple[]>([]);
   const [productSearch, setProductSearch] = useState("");
-  const [foundProducts, setFoundProducts] = useState<ProductSimple[]>([]); 
+  const [filteredProducts, setFilteredProducts] = useState<ProductSimple[]>([]); 
   const [selectedProduct, setSelectedProduct] = useState<ProductSimple | null>(null);
 
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<AdjustmentForm>();
@@ -69,7 +69,9 @@ export default function StockPage() {
   const loadMovements = async () => {
     setLoading(true);
     try {
-      const res = await api.get<PaginatedStock>("/stock", {
+      // === POPRAWKA: Dodano ukośnik "/" na końcu adresu ===
+      // To zapobiega przekierowaniu 307 na http://, które blokowała przeglądarka
+      const res = await api.get<PaginatedStock>("/stock/", {
         params: {
           page, page_size: pageSize, q: q || undefined, 
           type: type || undefined, 
@@ -89,6 +91,8 @@ export default function StockPage() {
   useEffect(() => {
     const fetchAllProducts = async () => {
         try {
+            // Tutaj zostawiamy /products (bez ukośnika), bo w backendzie jest zdefiniowane jako "/products"
+            // Jeśli jednak to też powodowałoby błąd, można spróbować "/products/"
             const res = await api.get<{ items: ProductSimple[] }>("/products?page_size=10000");
             setAllProducts(res.data.items || []);
         } catch (err) { console.error("Błąd ładowania produktów", err); }
@@ -96,13 +100,20 @@ export default function StockPage() {
     fetchAllProducts();
   }, []);
 
-  useEffect(() => { loadMovements(); }, [page, q, type, supplierFilter]);
-
-  const filteredProducts = allProducts.filter(p => {
-      if (!productSearch) return false;
+  // Logika filtrowania produktów
+  useEffect(() => {
+      if (!productSearch) {
+          setFilteredProducts([]);
+          return;
+      }
       const term = productSearch.toLowerCase();
-      return p.name.toLowerCase().includes(term) || p.code.toLowerCase().includes(term);
-  });
+      const filtered = allProducts.filter(p => 
+          p.name.toLowerCase().includes(term) || p.code.toLowerCase().includes(term)
+      );
+      setFilteredProducts(filtered);
+  }, [productSearch, allProducts]);
+
+  useEffect(() => { loadMovements(); }, [page, q, type, supplierFilter]);
 
   const selectProductForLoss = (p: ProductSimple) => {
       setSelectedProduct(p);
@@ -117,6 +128,7 @@ export default function StockPage() {
           return;
       }
       try {
+          // Endpointy POST zazwyczaj nie wymagają końcowego ukośnika, jeśli są zdefiniowane konkretnie (np. /adjust)
           await api.post("/stock/adjust", {
               product_id: formData.product_id,
               quantity_change: -Math.abs(formData.quantity),

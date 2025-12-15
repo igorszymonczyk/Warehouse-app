@@ -119,12 +119,7 @@ export default function Layout() {
               >
                 Moje zamówienia
               </NavLink>
-              <NavLink
-                to="/my-invoices"
-                className={({ isActive }) => (isActive ? activeLinkStyle : baseLinkStyle)}
-              >
-                Moje faktury
-              </NavLink>
+            
             </>
           )}
 

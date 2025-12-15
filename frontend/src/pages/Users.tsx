@@ -2,9 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { ArrowUpDown, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
-import ConfirmationModal from "./ConfirmationModal";
+// Usunięto import ConfirmationModal, bo nie jest już potrzebny
 
-// ZMIANA: first_name / last_name
 type User = {
   id: number;
   email: string;
@@ -29,16 +28,14 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [userToDelete, setUserToDelete] = useState<User | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  // Usunięto stany związane z Modalem (userToDelete, deleteLoading)
 
   // Filtry
-  const [q, setQ] = useState(""); // Email filter
-  const [lastNameFilter, setLastNameFilter] = useState(""); // ZMIANA: Filtr nazwiska
+  const [q, setQ] = useState("");
+  const [lastNameFilter, setLastNameFilter] = useState("");
   const [role, setRole] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   
-  // ZMIANA: Nowe klucze sortowania
   const [sortBy, setSortBy] = useState<"id" | "email" | "role" | "first_name" | "last_name">("id");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
 
@@ -51,7 +48,7 @@ export default function UsersPage() {
       const res = await api.get<PaginatedUsers>("/users", {
         params: {
           q: q || undefined,
-          last_name: lastNameFilter || undefined, // Przekazujemy nazwisko
+          last_name: lastNameFilter || undefined,
           role: role || undefined,
           page,
           page_size: pageSize,
@@ -75,7 +72,7 @@ export default function UsersPage() {
       load();
     }, 300);
     return () => clearTimeout(timeout);
-  }, [q, lastNameFilter, role, sortBy, order]); // Dodano lastNameFilter do zależności
+  }, [q, lastNameFilter, role, sortBy, order]);
 
   useEffect(() => {
     load();
@@ -96,8 +93,9 @@ export default function UsersPage() {
       return;
     }
 
+    // Systemowy komunikat (window.confirm)
     if (!window.confirm(`Czy na pewno zmienić rolę użytkownika na "${newRole}"?`)) {
-       load(); 
+       load(); // Przeładuj, aby cofnąć wybór w selectcie wizualnie
        return;
     }
     
@@ -110,19 +108,19 @@ export default function UsersPage() {
     }
   };
 
-  const deleteUser = async () => {
-    if (!userToDelete) return;
+  // Nowa funkcja usuwania z systemowym potwierdzeniem
+  const handleDeleteClick = async (user: User) => {
+    // Systemowy komunikat (window.confirm) - wygląda tak samo jak przy zmianie roli
+    if (!window.confirm(`Czy na pewno chcesz usunąć użytkownika ${user.email}?\nTej operacji nie można cofnąć.`)) {
+        return;
+    }
 
-    setDeleteLoading(true);
     try {
-      await api.delete(`/users/${userToDelete.id}`);
-      toast.success(`Użytkownik ${userToDelete.email} usunięty!`);
-      setUserToDelete(null);
-      load(); 
+      await api.delete(`/users/${user.id}`);
+      toast.success(`Użytkownik ${user.email} usunięty!`);
+      load(); // Odśwież listę
     } catch {
       toast.error("Błąd przy usuwaniu użytkownika");
-    } finally {
-      setDeleteLoading(false);
     }
   };
 
@@ -132,7 +130,6 @@ export default function UsersPage() {
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-4">Zarządzanie użytkownikami</h1>
 
-      {/* NOWY KONTENER STYLU LOGI */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
         <div className="flex flex-wrap items-end gap-3">
           <div>
@@ -144,7 +141,6 @@ export default function UsersPage() {
               className="border px-3 py-2 rounded w-64"
             />
           </div>
-          {/* ZMIANA: Filtr nazwiska po prawej od emaila */}
           <div>
             <label className="block text-sm text-gray-700 mb-1">Szukaj po nazwisku</label>
             <input
@@ -162,10 +158,10 @@ export default function UsersPage() {
               className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Wszystkie</option>
-              <option value="customer">customer</option>
-              <option value="salesman">salesman</option>
-              <option value="admin">admin</option>
-              <option value="warehouse">warehouse</option>
+              <option value="customer">Klient (customer)</option>
+              <option value="salesman">Sprzedawca (salesman)</option>
+              <option value="admin">Administrator (admin)</option>
+              <option value="warehouse">Magazynier (warehouse)</option>
             </select>
           </div>
         </div>
@@ -198,7 +194,6 @@ export default function UsersPage() {
                       />
                     </div>
                   </th>
-                  {/* ZMIANA: Kolumny Imię i Nazwisko */}
                   <th className="p-3 border-b text-left" onClick={() => toggleSort("first_name")}>
                     <div className="flex items-center gap-1 cursor-pointer hover:bg-gray-200 p-1 rounded">
                         Imię <ArrowUpDown size={14} className={sortBy === "first_name" ? (order === "asc" ? "rotate-180 text-black" : "text-black") : "text-gray-400"} />
@@ -254,7 +249,6 @@ export default function UsersPage() {
                     <td className="p-3 font-mono text-gray-600">{u.id}</td>
                     <td className="p-3 text-gray-800">{u.first_name || "-"}</td>
                     <td className="p-3 text-gray-800">{u.last_name || "-"}</td>
-                    {/* ZMIANA: E-mail bez niebieskiego koloru */}
                     <td className="p-3 text-gray-900">{u.email}</td>
                     <td className="p-3">
                         <select
@@ -262,15 +256,15 @@ export default function UsersPage() {
                           onChange={(e) => changeRole(u.id, e.target.value)}
                           className="border border-gray-300 rounded px-2 py-1 text-sm bg-white hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer w-full max-w-[120px]"
                         >
-                          <option value="customer">customer</option>
-                          <option value="salesman">salesman</option>
-                          <option value="admin">admin</option>
-                          <option value="warehouse">warehouse</option>
+                          <option value="customer">Klient</option>
+                          <option value="salesman">Sprzedawca</option>
+                          <option value="admin">Administrator</option>
+                          <option value="warehouse">Magazynier</option>
                         </select>
                     </td>
                     <td className="p-3 text-center">
                         <button
-                          onClick={() => setUserToDelete(u)}
+                          onClick={() => handleDeleteClick(u)} // Bezpośrednie wywołanie
                           className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
                           title="Usuń użytkownika"
                         >
@@ -304,6 +298,8 @@ export default function UsersPage() {
           </div>
         </>
       )}
+      
+      
     </div>
   );
 }

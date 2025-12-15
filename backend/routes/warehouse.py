@@ -52,6 +52,29 @@ def _document_to_detail_schema(doc: WarehouseDocument) -> WarehouseDocDetail:
         items=items,
     )
 
+# === NOWY ENDPOINT DO LICZNIKA ===
+@router.get("/active-count")
+def get_active_wz_count(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Zwraca liczbę dokumentów wymagających uwagi magazyniera (NEW + IN_PROGRESS).
+    """
+    if not _role_ok(current_user): 
+        raise HTTPException(403, "Not authorized")
+    
+    # Liczymy rekordy, które mają status NEW lub IN_PROGRESS
+    count = db.query(WarehouseDocument).filter(
+        WarehouseDocument.status.in_([
+            WarehouseStatus.NEW, 
+            WarehouseStatus.IN_PROGRESS
+        ])
+    ).count()
+    
+    return {"total": count}
+# =================================
+
 @router.get("/", response_model=WarehouseDocPage)
 def list_warehouse_documents(
     request: Request,
@@ -61,7 +84,6 @@ def list_warehouse_documents(
     to_dt: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
-    # ZMIANA: Dodano 'id' do dozwolonych pól sortowania
     sort_by: Literal["created_at", "status", "buyer_name", "id"] = "created_at",
     order: Literal["asc", "desc"] = "desc",
     db: Session = Depends(get_db),
@@ -76,7 +98,6 @@ def list_warehouse_documents(
     if buyer:
         q = q.filter(WarehouseDocument.buyer_name.ilike(f"%{buyer}%"))
     
-    # ZMIANA: Poprawiona logika dat
     if from_dt:
         try: 
             fdt = datetime.fromisoformat(from_dt)
@@ -85,7 +106,6 @@ def list_warehouse_documents(
     
     if to_dt:
         try: 
-            # Jeśli format to YYYY-MM-DD, dodajemy koniec dnia
             dt_str = to_dt
             if len(dt_str) == 10: 
                 dt_str += " 23:59:59"
@@ -94,7 +114,6 @@ def list_warehouse_documents(
             q = q.filter(WarehouseDocument.created_at <= tdt)
         except: pass
 
-    # ZMIANA: Mapa sortowania zawiera teraz ID
     sort_map = {
         "created_at": WarehouseDocument.created_at,
         "status": WarehouseDocument.status,
@@ -142,8 +161,6 @@ def update_warehouse_status(
     write_log(db, user_id=current_user.id, action="WZ_STATUS", resource="wz", status="SUCCESS", meta={"id": doc.id, "new": doc.status})
     return {"message": "Status updated"}
 
-# ... (reszta pliku: PDF Generator bez zmian) ...
-# Wklejam sekcję PDF Generator dla kompletności pliku
 WZ_STORAGE_DIR = Path("storage/wz")
 
 def _ensure_wz_dir() -> None:
@@ -191,7 +208,6 @@ def _generate_wz_pdf(doc: WarehouseDocument, out_path: Path) -> None:
     try: c.setFont("DejaVu", 10)
     except: c.setFont("Helvetica", 10)
     
-    # Data dokumentu (zabezpieczenie przed None)
     date_str = doc.created_at.strftime('%Y-%m-%d') if doc.created_at else "BRAK DATY"
     c.drawString(20 * mm, y, f"Data dokumentu: {date_str}")
     y -= 6 * mm
